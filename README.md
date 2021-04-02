@@ -6,7 +6,6 @@
 
 ### TODOs
 
-- index.js
-- rollup config
+- rollup build
 - documentation
 - examples
