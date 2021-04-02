@@ -1,6 +1,6 @@
 import vtkGenericRenderWindow from "vtk.js/Sources/Rendering/Misc/GenericRenderWindow";
 import vtkWidgetManager from "vtk.js/Sources/Widgets/Core/WidgetManager";
-import vtkInteractorStyleMPRSlice from "./vue-mpr/vtkInteractorMPRSlice";
+import vtkInteractorStyleMPRSlice from "./vtk/vtkInteractorMPRSlice";
 
 import { quat, vec3, mat4 } from "gl-matrix";
 
@@ -26,9 +26,17 @@ import { degrees2radians } from "./utils";
  *  - setter for height and width
  */
 
-const PLANE_NORMALS = [[0, 0, 1], [1, 0, 0], [0, -1, 0]];
+const PLANE_NORMALS = [
+  [0, 0, 1],
+  [1, 0, 0],
+  [0, -1, 0]
+];
 
-const VIEW_UPS = [[0, -1, 0], [0, 0, -1], [0, 0, -1]];
+const VIEW_UPS = [
+  [0, -1, 0],
+  [0, 0, -1],
+  [0, 0, -1]
+];
 export class MPRView {
   constructor(key, i, element) {
     this.VERBOSE = false;

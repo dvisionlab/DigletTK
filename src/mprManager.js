@@ -1,6 +1,6 @@
 // Use modified MPRSlice interactor
-import vtkInteractorStyleMPRWindowLevel from "./vue-mpr/vtkInteractorStyleMPRWindowLevel";
-import vtkInteractorStyleMPRCrosshairs from "./vue-mpr/vtkInteractorStyleMPRCrosshairs";
+import vtkInteractorStyleMPRWindowLevel from "./vtk/vtkInteractorStyleMPRWindowLevel";
+import vtkInteractorStyleMPRCrosshairs from "./vtk/vtkInteractorStyleMPRCrosshairs";
 import vtkCoordinate from "vtk.js/Sources/Rendering/Core/Coordinate";
 import vtkMatrixBuilder from "vtk.js/Sources/Common/Core/MatrixBuilder";
 // import vtkMath from "vtk.js/Sources/Common/Core/Math";
