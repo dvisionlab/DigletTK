@@ -4,7 +4,8 @@
   "description": "A medical imaging toolkit, build on top of vtk.js",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "rollup -c",
+    "dev": "rollup -c -w"
   },
   "repository": {
     "type": "git",
@@ -25,5 +26,13 @@
   "homepage": "https://github.com/dvisionlab/DigletTK#readme",
   "dependencies": {
     "vtk.js": "^17.2.6"
-  }
+  },
+  "devDependencies": {
+    "jsdoc": "^3.6.6",
+    "rollup": "^2.44.0"
+  },
+  "common": "dist/diglettk.cjs.js",
+  "module": "dist/diglettk.js",
+  "browser": "dist/diglettk.js",
+  "type": "module"
 }
