@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>Home - DigleTTK</title>
+    
+    <meta name="description" content="Speed-up and power-up developement in three.js" />
+    
+        <meta name="keywords" content="medical, imaging, dicom, webgl" />
+        <meta name="keyword" content="medical, imaging, dicom, webgl" />
+    
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    <input type="text" id="nav-search" placeholder="Search" />
+    
+    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="MPRManager.html">MPRManager</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createSyntheticImageData">createSyntheticImageData</a></li><li><a href="global.html#getPlaneIntersection">getPlaneIntersection</a></li><li><a href="global.html#PLANE_NORMALS">PLANE_NORMALS</a></li></ul>
+</nav>
+
+<div id="main">
+    
+
+    
+
+
+
+    
+
+
+    <section class="package">
+        <h3> </h3>		
+    </section>
+
+
+
+
+
+
+
+
+
+    
+
+
+
+    <section class="readme usertext">
+        <article><p align="center">
+  <img src="https://assets.pokemon.com/assets/cms2/img/pokedex/full/050.png" width="100" title="Diglett" alt="Diglett">
+</p>
+<h1 id="diglettk">DigletTK</h1>
+<p>DigletTK is a library to interact with medical images in a 3d context, such as Multi Planar Reformat, MIP and Volume Rendering. It's based on vtk.js and takes inspiration from <a href="https://github.com/mix3d/vue-vtkjs-viewport">vue-vtksjs-viewport</a> and <a href="https://github.com/OHIF/react-vtkjs-viewport">react-vtkjs-viewport</a>, but it is built to be agnostic with respect to frontend frameworks.<br>
+It also provides glue-functions to easily integrate with cornerstone.js, via <a href="https://github.com/dvisionlab/Larvitar">Larvitar</a> library.</p>
+<h2 id="install">Install</h2>
+<ul>
+<li>
+<p>clone the repository and <code>yarn add /path/to/repository</code></p>
+<p>OR</p>
+</li>
+<li>
+<p><code>yarn add https://github.com/dvisionlab/DigletTK.git#master</code></p>
+</li>
+</ul>
+<h2 id="use">Use</h2>
+<pre class="prettyprint source lang-javascript"><code>/** 
+ Define viewports as:
+
+ {
+     key: String - The view id (must be unique)
+     element: HTMLElement - The target rendering div,
+     height: Number - The viewport initial height,
+     width: Number - The viewport initial width
+ }
+
+ */
+
+const targetElements = {
+  top: {
+    element: document.getElementById(&quot;viewer-1&quot;),
+    key: &quot;top&quot;,
+    height: 300,
+    width: 300
+  },
+  left: {
+    element: document.getElementById(&quot;viewer-2&quot;),
+    key: &quot;left&quot;,
+    height: 300,
+    width: 300
+  },
+  front: {
+    element: document.getElementById(&quot;viewer-3&quot;),
+    key: &quot;front&quot;,
+    height: 300,
+    width: 300
+  }
+};
+
+// import DigletTK
+import * as dtk from &quot;DigletTK&quot;;
+
+// load a dicom serie using larvitar glue function
+dtk.loadSerieWithLarvitar(serie => {
+  // build vtk volume from larvitar serie
+  const image = dtk.buildVtkVolume(serie);
+  // run mpr manager
+  let mpr = new dtk.MPRManager(targetElements);
+  // get initial state obj: this object will be used to share data updates
+  let state = mpr.getInitialState();
+  console.log(&quot;state&quot;, state);
+  // set image
+  mpr.setImage(state, image);
+  // set active tool (&quot;level&quot; or &quot;crosshair&quot;)
+  mpr.setTool(&quot;level&quot;, state);
+  // change view rotation
+  mpr.onRotate(&quot;top&quot;, &quot;x&quot;, 30, state);
+  // change view MIP thickness
+  mpr.onThickness(&quot;top&quot;, &quot;x&quot;, 50, state);
+});
+</code></pre>
+<h3 id="roadmap">RoadMap</h3>
+<ul>
+<li>[] Volume Rendering</li>
+<li>[] Measuring tools</li>
+<li>[] Segmentations (Cornerstone.js <data> vtk.js)</li>
+<li>[] Presets and colormaps</li>
+<li>[] Multi Slice Image Mapper (another MPR implementation)</li>
+</ul>
+<h3 id="todo">TODO</h3>
+<ul>
+<li>[] documentation</li>
+<li>[] rollup config</li>
+<li>[] examples</li>
+<li>[] npm package</li>
+</ul></article>
+    </section>
+
+
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.6</a> using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+<script src="scripts/search.js" defer></script>
+
+
+<script src="scripts/collapse.js" defer></script>
+
+
+</body>
+</html>

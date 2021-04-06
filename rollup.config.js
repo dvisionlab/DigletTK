@@ -8,7 +8,7 @@ import pkg from "./package.json";
 export default [
   // browser-friendly UMD build
   {
-    input: "./index.js",
+    input: "./src/index.js",
     output: {
       name: "dtk",
       file: pkg.browser,
