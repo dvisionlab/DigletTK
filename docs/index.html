@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html class="h-100 overflow-hidden">
+  <head>
+    <meta charset="UTF-8" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl"
+      crossorigin="anonymous"
+    />
+    <title>DigletTK - Basic rendering example</title>
+  </head>
+
+  <body class="h-100" style="background-color: #d7e8e1">
+    <div class="row h-50">
+      <div
+        id="viewer"
+        class="col-3 h-100"
+        style="background-color: rgb(255, 51, 0)"
+      ></div>
+      <div
+        id="viewer-1"
+        class="col-3 h-100"
+        style="background-color: rgb(179, 255, 0)"
+      ></div>
+      <div
+        id="viewer-2"
+        class="col-3 h-100"
+        style="background-color: rgb(0, 38, 255)"
+      ></div>
+      <div
+        id="viewer-3"
+        class="col-3 h-100"
+        style="background-color: rgb(255, 102, 0)"
+      ></div>
+    </div>
+    <div class="row h-50">
+      <pre class="h-100">
+        <code class="javascript" data-lang="javascript">
+        <p style="font-size:0.6vw;">
+         ... some code here ...
+        </p>
+        </code>
+      </pre>
+    </div>
+
+    <script src="../dist/diglettk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+    <script src="./larvitar.js"></script>
+
+    <script>
+      console.log("diglettk: ", dtk);
+      console.log("larvitar: ", larvitar);
+
+      // =====================
+      // Define viewports ====
+      // =====================
+
+      const targetElements = {
+        top: {
+          element: document.getElementById("viewer-1"),
+          key: "top",
+          height: 0, // ?
+          width: 0 // ?
+        },
+        left: {
+          element: document.getElementById("viewer-2"),
+          key: "left"
+        },
+        front: {
+          element: document.getElementById("viewer-3"),
+          key: "front"
+        }
+      };
+
+      // ================================
+      //        *** START ALL ***
+      // ================================
+
+      dtk.loadSerieWithLarvitar(serie => {
+        // build vtk volume with larvitar
+        const image = dtk.buildVtkVolume(serie);
+        // run mpr
+        let mpr = new dtk.MPRManager(targetElements);
+        // get initial state obj
+        let state = mpr.getInitialState();
+        console.log("state", state);
+        // set image
+        mpr.setImage(state, image);
+        // set active tool ("level" or "crosshair")
+        mpr.setTool("level", state);
+        // add keyoboard events to interact with mpr
+        addEvents(mpr, state);
+      });
+    </script>
+  </body>
+</html>

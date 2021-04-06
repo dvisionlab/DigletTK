@@ -1,5 +1,8 @@
 import resolve from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
+import glsl from "rollup-plugin-glsl";
+import json from "@rollup/plugin-json";
+
 import pkg from "./package.json";
 
 export default [
@@ -7,13 +10,19 @@ export default [
   {
     input: "./index.js",
     output: {
-      name: "diglettk",
+      name: "dtk",
       file: pkg.browser,
-      format: "umd"
+      format: "umd",
+      intro: "const global = window;" // fix global is not defined: https://github.com/rollup/rollup-plugin-commonjs/issues/6
     },
     plugins: [
-      resolve(), // so Rollup can find `ms`
-      commonjs() // so Rollup can convert `ms` to an ES module
+      resolve(), // node modules
+      commonjs(), // common js modules
+      json(), // json files
+      glsl({
+        // By default, everything gets included
+        include: "node_modules/vtk.js/Sources/Rendering/OpenGL/**/*.glsl"
+      }) // gsls files
     ]
   }
 ];

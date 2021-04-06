@@ -116,10 +116,10 @@ export function loadSerieWithLarvitar(cb) {
   larvitar.larvitar_store.addViewport("viewer");
 
   // load dicom and render
-  _.each(demoFileList, function(demoFile) {
+  demoFileList.forEach(function (demoFile) {
     createFile(demoFile, () => {
       larvitar.resetImageParsing();
-      larvitar.readFiles(demoFiles, function(seriesStack, err) {
+      larvitar.readFiles(demoFiles, function (seriesStack, err) {
         // return the first series of the study
         let seriesId = _.keys(seriesStack)[0];
         let serie = seriesStack[seriesId];
