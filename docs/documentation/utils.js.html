@@ -35,7 +35,7 @@
     
     <input type="text" id="nav-search" placeholder="Search" />
     
-    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="MPRManager.html">MPRManager</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createSyntheticImageData">createSyntheticImageData</a></li><li><a href="global.html#getPlaneIntersection">getPlaneIntersection</a></li><li><a href="global.html#PLANE_NORMALS">PLANE_NORMALS</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="MPRManager.html">MPRManager</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MPRManager.html#getInitialState">getInitialState</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onRotate">onRotate</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onThickness">onThickness</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setTool">setTool</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#getPlaneIntersection">getPlaneIntersection</a></li><li><a href="global.html#PLANE_NORMALS">PLANE_NORMALS</a></li><li><a href="global.html#State">State</a></li></ul>
 </nav>
 
 <div id="main">
@@ -168,10 +168,10 @@ export function loadSerieWithLarvitar(cb) {
   larvitar.larvitar_store.addViewport("viewer");
 
   // load dicom and render
-  demoFileList.forEach(function (demoFile) {
+  demoFileList.forEach(function(demoFile) {
     createFile(demoFile, () => {
       larvitar.resetImageParsing();
-      larvitar.readFiles(demoFiles, function (seriesStack, err) {
+      larvitar.readFiles(demoFiles, function(seriesStack, err) {
         // return the first series of the study
         let seriesId = _.keys(seriesStack)[0];
         let serie = seriesStack[seriesId];
@@ -188,6 +188,7 @@ export function loadSerieWithLarvitar(cb) {
 
 /**
  * Function to create synthetic image data with correct dimensions
+ * @private
  * Can be use for debug
  * @param {Array} dims - Array[int]
  */

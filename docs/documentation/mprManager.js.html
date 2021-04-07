@@ -35,7 +35,7 @@
     
     <input type="text" id="nav-search" placeholder="Search" />
     
-    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="MPRManager.html">MPRManager</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createSyntheticImageData">createSyntheticImageData</a></li><li><a href="global.html#getPlaneIntersection">getPlaneIntersection</a></li><li><a href="global.html#PLANE_NORMALS">PLANE_NORMALS</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="MPRManager.html">MPRManager</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MPRManager.html#getInitialState">getInitialState</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onRotate">onRotate</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onThickness">onThickness</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setTool">setTool</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#State">State</a></li></ul>
 </nav>
 
 <div id="main">
@@ -55,7 +55,6 @@ import vtkInteractorStyleMPRWindowLevel from "./vtk/vtkInteractorStyleMPRWindowL
 import vtkInteractorStyleMPRCrosshairs from "./vtk/vtkInteractorStyleMPRCrosshairs";
 import vtkCoordinate from "vtk.js/Sources/Rendering/Core/Coordinate";
 import vtkMatrixBuilder from "vtk.js/Sources/Common/Core/MatrixBuilder";
-// import vtkMath from "vtk.js/Sources/Common/Core/Math";
 
 import {
   getPlaneIntersection,
@@ -66,21 +65,28 @@ import {
 import { MPRView } from "./mprView";
 
 /**
- * MPRManager class
- *
- * global_data is more or less the internal state (this),
- * plus some other internal variable as defaultTool ecc
- *
- * methods:
- *  - onCrosshairPointSelected
- *  - updateLevels
- *  - onScrolled
- *  - onRotate
- *  - onThickness
- *  - createVolumeActor
- *
+ * Internal state of a single view
+ * @typedef {Object} State
+ * @property {Number[]} slicePlaneNormal - The slice plane normal as [x,y,z]
+ * @property {Number[]} sliceViewUp - The up vector as [x,y,z]
+ * @property {Number} slicePlaneXRotation - The x axis rotation in deg
+ * @property {Number} slicePlaneYRotation - The y axis rotation in deg
+ * @property {Number} viewRotation - The view rotation in deg
+ * @property {Number} sliceThickness - The MIP slice thickness in px
+ * @property {String} blendMode - The active blending mode ("MIP", "MinIP", "Average")
+ * @property {Object} window - wwwl
+ * @property {Number} window.ww - Window width
+ * @property {Number} window.wl - Window level
  */
+
+/** A manager for MPR views */
 export class MPRManager {
+  /**
+   * Create a manager.
+   * @param {Object} elements - The 3 target HTML elements {key1:{}, key2:{}, key3:{}}.
+   * @param {HTMLElement} elements.element - The target HTML elements.
+   * @param {String} elements.key - The target HTML elements.
+   */
   constructor(elements) {
     this.VERBOSE = false; // TODO setter
     this.syncWindowLevels = true; // TODO setter
@@ -99,6 +105,10 @@ export class MPRManager {
     this.initMPR();
   }
 
+  /**
+   * Initialize the three MPR views
+   * @private
+   */
   initMPR() {
     Object.keys(this.elements).forEach((key, i) => {
       try {
@@ -109,9 +119,13 @@ export class MPRManager {
       }
     });
 
-    if (this.VERBOSE) console.log("initialized", global_data);
+    if (this.VERBOSE) console.log("initialized");
   }
 
+  /**
+   * Get initial State object
+   * @returns {State} The initial internal state
+   */
   getInitialState() {
     // cycle on keys, and reduce extracting only useful properties
     // NOTE: initialize reduce with cloned object!
@@ -145,13 +159,18 @@ export class MPRManager {
     };
   }
 
-  setImage(data, image) {
+  /**
+   * Set the image to render
+   * @param {State} state - The current manager state
+   * @param {Array} image - The pixel data from DICOM serie
+   */
+  setImage(state, image) {
     let actor = createVolumeActor(image);
     this.volumes.push(actor);
     this.sliceIntersection = getVolumeCenter(actor.getMapper());
 
     Object.keys(this.elements).forEach(key => {
-      this.mprViews[key].initView(actor, data);
+      this.mprViews[key].initView(actor, state);
     });
 
     if (this.activeTool) {
@@ -159,31 +178,47 @@ export class MPRManager {
     }
   }
 
-  setTool(toolName, global_data) {
+  /**
+   * Set the active tool
+   * @param {String} toolName - "level" or "crosshair"
+   * @param {State} state - The current manager state
+   */
+  setTool(toolName, state) {
     switch (toolName) {
       case "level":
-        this.setLevelTool(global_data);
+        this.setLevelTool(state);
         break;
       case "crosshair":
-        this.setCrosshairTool(global_data);
+        this.setCrosshairTool(state);
         break;
     }
   }
 
-  setLevelTool(global_data) {
-    Object.entries(global_data.views).forEach(([key]) => {
+  /**
+   * Set "level" as active tool
+   * @private
+   * @param {State} state - The current manager state
+   */
+  setLevelTool(state) {
+    Object.entries(state.views).forEach(([key]) => {
       const istyle = vtkInteractorStyleMPRWindowLevel.newInstance();
       istyle.setOnScroll(this.onScrolled);
       istyle.setOnLevelsChanged(levels => {
-        this.updateLevels({ ...levels, srcKey: key }, global_data);
+        this.updateLevels({ ...levels, srcKey: key }, state);
       });
       this.mprViews[key].setInteractor(istyle);
     });
+    this.activeTool = "level";
   }
 
-  setCrosshairTool(global_data) {
+  /**
+   * Set "crosshair" as active tool
+   * @private
+   * @param {State} state - The current manager state
+   */
+  setCrosshairTool(state) {
     let self = this;
-    Object.entries(global_data.views).forEach(([key]) => {
+    Object.entries(state.views).forEach(([key]) => {
       const istyle = vtkInteractorStyleMPRCrosshairs.newInstance();
       istyle.setOnScroll(() => {
         self.onScrolled();
@@ -195,6 +230,11 @@ export class MPRManager {
     });
   }
 
+  /**
+   * Update slice positions on user interaction (for crosshair tool)
+   * @private
+   * @param {Object} {}
+   */
   onCrosshairPointSelected({ srcKey, worldPos }) {
     Object.keys(this.elements).forEach(key => {
       if (key !== srcKey) {
@@ -232,17 +272,22 @@ export class MPRManager {
     });
   }
 
-  // depends on global_data AND this.mprViews
-  updateLevels({ windowCenter, windowWidth, srcKey }, global_data) {
-    global_data.views[srcKey].window.center = windowCenter;
-    global_data.views[srcKey].window.width = windowWidth;
+  /**
+   * Update wwwl on user interaction (for level tool)
+   * @private
+   * @param {Object} {}
+   * @param {State} state - The current manager state
+   */
+  updateLevels({ windowCenter, windowWidth, srcKey }, state) {
+    state.views[srcKey].window.center = windowCenter;
+    state.views[srcKey].window.width = windowWidth;
 
     if (this.syncWindowLevels) {
       Object.keys(this.elements)
         .filter(key => key !== srcKey)
         .forEach(k => {
-          global_data.views[k].window.center = windowCenter;
-          global_data.views[k].window.width = windowWidth;
+          state.views[k].window.center = windowCenter;
+          state.views[k].window.width = windowWidth;
           this.mprViews[k].genericRenderWindow
             .getInteractor()
             .getInteractorStyle()
@@ -252,6 +297,10 @@ export class MPRManager {
     }
   }
 
+  /**
+   * Update slice position when scrolling
+   * @private
+   */
   onScrolled() {
     let planes = [];
     Object.keys(this.elements).forEach(key => {
@@ -272,25 +321,27 @@ export class MPRManager {
     }
   }
 
-  // depends on global_data and viewsArray
-  // (key, axis: x or y, ABSOLUTE angle in deg)
-  onRotate(key, axis, angle, global_data) {
+  /**
+   * Update slice planes on rotation
+   * @param {String} key - One of the initially provided keys (identify a view)
+   * @param {String} axis - 'x' or 'y' axis
+   * @param {Number} angle - The amount of rotation [deg], absolute
+   * @param {State} state - The current manager state
+   */
+  onRotate(key, axis, angle, state) {
     // Match the source axis to the associated plane
     switch (key) {
       case "top":
-        if (axis === "x") global_data.views.front.slicePlaneYRotation = angle;
-        else if (axis === "y")
-          global_data.views.left.slicePlaneYRotation = angle;
+        if (axis === "x") state.views.front.slicePlaneYRotation = angle;
+        else if (axis === "y") state.views.left.slicePlaneYRotation = angle;
         break;
       case "left":
-        if (axis === "x") global_data.views.top.slicePlaneXRotation = angle;
-        else if (axis === "y")
-          global_data.views.front.slicePlaneXRotation = angle;
+        if (axis === "x") state.views.top.slicePlaneXRotation = angle;
+        else if (axis === "y") state.views.front.slicePlaneXRotation = angle;
         break;
       case "front":
-        if (axis === "x") global_data.views.top.slicePlaneYRotation = angle;
-        else if (axis === "y")
-          global_data.views.left.slicePlaneXRotation = angle;
+        if (axis === "x") state.views.top.slicePlaneYRotation = angle;
+        else if (axis === "y") state.views.left.slicePlaneXRotation = angle;
         break;
     }
 
@@ -299,28 +350,34 @@ export class MPRManager {
     Object.keys(this.elements)
       .filter(c => c !== key)
       .forEach(k => {
-        this.mprViews[k].updateSlicePlane(global_data.views[k]);
+        this.mprViews[k].updateSlicePlane(state.views[k]);
       });
 
-    if (this.VERBOSE) console.log("afterOnRotate", global_data);
+    if (this.VERBOSE) console.log("afterOnRotate", state);
   }
 
-  // depends on global_data and this.mprViews
-  onThickness(key, axis, thickness, global_data) {
+  /**
+   * Update slice planes on rotation
+   * @param {String} key - One of the initially provided keys (identify a view)
+   * @param {String} axis - 'x' or 'y' axis
+   * @param {Number} thickness - The amount of thickness [px], absolute
+   * @param {State} state - The current manager state
+   */
+  onThickness(key, axis, thickness, state) {
     const shouldBeMIP = thickness > 1;
     let view;
     switch (key) {
       case "top":
-        if (axis === "x") view = global_data.views.front;
-        else if (axis === "y") view = global_data.views.left;
+        if (axis === "x") view = state.views.front;
+        else if (axis === "y") view = state.views.left;
         break;
       case "left":
-        if (axis === "x") view = global_data.views.top;
-        else if (axis === "y") view = global_data.views.front;
+        if (axis === "x") view = state.views.top;
+        else if (axis === "y") view = state.views.front;
         break;
       case "front":
-        if (axis === "x") view = global_data.views.top;
-        else if (axis === "y") view = global_data.views.left;
+        if (axis === "x") view = state.views.top;
+        else if (axis === "y") view = state.views.left;
         break;
     }
 

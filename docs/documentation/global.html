@@ -35,7 +35,7 @@
     
     <input type="text" id="nav-search" placeholder="Search" />
     
-    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="MPRManager.html">MPRManager</a></li></ul><h3>Global</h3><ul><li><a href="global.html#createSyntheticImageData">createSyntheticImageData</a></li><li><a href="global.html#getPlaneIntersection">getPlaneIntersection</a></li><li><a href="global.html#PLANE_NORMALS">PLANE_NORMALS</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="MPRManager.html">MPRManager</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MPRManager.html#getInitialState">getInitialState</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onRotate">onRotate</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onThickness">onThickness</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setTool">setTool</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#State">State</a></li></ul>
 </nav>
 
 <div id="main">
@@ -123,11 +123,15 @@
     
 
     
-        <h3 class="subsection-title">Members</h3>
+
+    
+
+    
+        <h3 class="subsection-title">Type Definitions</h3>
 
         
-            
-<h4 class="name" id="getPlaneIntersection"><span class="type-signature">(constant) </span>getPlaneIntersection<span class="type-signature"></span></h4>
+                
+<h4 class="name" id="State">State</h4>
 
 
 
@@ -138,7 +142,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="utils.js.html">utils.js</a>, <a href="utils.js.html#line210">line 210</a>
+        <a href="mprManager.js.html">mprManager.js</a>, <a href="mprManager.js.html#line15">line 15</a>
     </li></ul></dd>
     
 
@@ -175,201 +179,11 @@
 
 
 
-
-
-<div class="description usertext">
-    <p>Planes are of type <code>{position:[x,y,z], normal:[x,y,z]}</code><br>
-returns an [x,y,z] array, or NaN if they do not intersect.</p>
-</div>
-
-
-
-
-
-
-
-
-        
-            
-<h4 class="name" id="PLANE_NORMALS"><span class="type-signature">(constant) </span>PLANE_NORMALS<span class="type-signature"></span></h4>
-
-
-
-
-
-<dl class="details">
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="mprView.js.html">mprView.js</a>, <a href="mprView.js.html#line29">line 29</a>
-    </li></ul></dd>
-    
+    <h5 class="subsection-title">Properties:</h5>
 
     
 
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-<div class="description usertext">
-    <p>MPRView class</p>
-<p>viewportData is the internal state (this)</p>
-<p>methods:</p>
-<ul>
-<li>
-<p>initView OK</p>
-</li>
-<li>
-<p>updateVolumesForRendering OK</p>
-</li>
-<li>
-<p>updateSlicePlane OK</p>
-</li>
-<li>
-<p>onResize OK</p>
-</li>
-<li>
-<p>setLevelTool</p>
-</li>
-<li>
-<p>setCrosshairTool</p>
-</li>
-<li>
-<p>setInteractor</p>
-</li>
-<li>
-<p>onCrosshairPointSelected ? must update other views -&gt; need a just a setter for worldPos</p>
-</li>
-<li>
-<p>updateLevels ? idem, just a setter for wwwl</p>
-</li>
-<li>
-<p>updateBlendMode OK</p>
-</li>
-<li>
-<p>setter for height and width</p>
-</li>
-</ul>
-</div>
-
-
-
-
-
-
-
-
-        
-    
-
-    
-        <h3 class="subsection-title">Methods</h3>
-
-        
-            
-
-    
-
-    <h4 class="name" id="createSyntheticImageData"><span class="type-signature"></span>createSyntheticImageData<span class="signature">(dims)</span><span class="type-signature"></span></h4>
-
-    
-
-
-
-
-<dl class="details">
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="utils.js.html">utils.js</a>, <a href="utils.js.html#line143">line 143</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-<div class="description usertext">
-    <p>Function to create synthetic image data with correct dimensions<br>
-Can be use for debug</p>
-</div>
-
-
-
-
-
-
-
-
-
-
-
-    <h5>Parameters:</h5>
-    
-
-<table class="params">
+<table class="props">
     <thead>
     <tr>
         
@@ -391,13 +205,13 @@ Can be use for debug</p>
 
         <tr>
             
-                <td class="name"><code>dims</code></td>
+                <td class="name"><code>slicePlaneNormal</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type">Array</span>
+<span class="param-type">Array.&lt;Number></span>
 
 
             
@@ -407,7 +221,239 @@ Can be use for debug</p>
 
             
 
-            <td class="description last"><p>Array[int]</p></td>
+            <td class="description last"><p>The slice plane normal as [x,y,z]</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>sliceViewUp</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;Number></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>The up vector as [x,y,z]</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>slicePlaneXRotation</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Number</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>The x axis rotation in deg</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>slicePlaneYRotation</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Number</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>The y axis rotation in deg</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>viewRotation</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Number</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>The view rotation in deg</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>sliceThickness</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Number</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>The MIP slice thickness in px</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>blendMode</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">String</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>The active blending mode (&quot;MIP&quot;, &quot;MinIP&quot;, &quot;Average&quot;)</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>window</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Object</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>wwwl</p>
+                <h6>Properties</h6>
+
+<table class="props">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>ww</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Number</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>Window width</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>wl</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Number</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>Window level</p></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+            </td>
         </tr>
 
     
@@ -419,22 +465,28 @@ Can be use for debug</p>
 
 
 
+<div class="description usertext">
+    <p>Internal state of a single view</p>
+</div>
+
+
+
+    <h5>Type:</h5>
+    <ul>
+        <li>
+            
+<span class="param-type">Object</span>
+
+
+        </li>
+    </ul>
 
 
 
 
 
 
-
-
-
-
-
-
-
-        
-    
-
+            
     
 
     

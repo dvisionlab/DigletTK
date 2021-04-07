@@ -116,10 +116,10 @@ export function loadSerieWithLarvitar(cb) {
   larvitar.larvitar_store.addViewport("viewer");
 
   // load dicom and render
-  demoFileList.forEach(function (demoFile) {
+  demoFileList.forEach(function(demoFile) {
     createFile(demoFile, () => {
       larvitar.resetImageParsing();
-      larvitar.readFiles(demoFiles, function (seriesStack, err) {
+      larvitar.readFiles(demoFiles, function(seriesStack, err) {
         // return the first series of the study
         let seriesId = _.keys(seriesStack)[0];
         let serie = seriesStack[seriesId];
@@ -136,6 +136,7 @@ export function loadSerieWithLarvitar(cb) {
 
 /**
  * Function to create synthetic image data with correct dimensions
+ * @private
  * Can be use for debug
  * @param {Array} dims - Array[int]
  */
@@ -206,6 +207,7 @@ export function getVOI(volume) {
 /**
  * Planes are of type `{position:[x,y,z], normal:[x,y,z]}`
  * returns an [x,y,z] array, or NaN if they do not intersect.
+ * @private
  */
 export const getPlaneIntersection = (plane1, plane2, plane3) => {
   try {
