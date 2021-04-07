@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html class="h-100 overflow-hidden">
+  <head>
+    <meta charset="UTF-8" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl"
+      crossorigin="anonymous"
+    />
+    <title>DigletTK - Basic rendering example</title>
+  </head>
+
+  <body class="h-100" style="background-color: #eeceb8">
+
+    <div class="row h-100">
+
+      <!-- views -->
+      <div class="col-8 h-100">
+
+        <div class="row h-50">
+          <div
+            id="viewer"
+            class="h-100"
+            style="background-color: rgb(0, 0, 0)"
+          ></div>
+        </div>
+
+        <div class="row h-50">
+          <div
+            id="viewer-2"
+            class="h-100"
+            style="background-color: rgb(0, 0, 0)"
+          ></div>
+        </div>
+      </div>
+
+      <!-- code preview -->
+      <div class="col-4 h-100">
+        <pre class="h-100">
+
+... instructions ...
+
+          <h3>Code Example</h3>
+
+          <code class="javascript" data-lang="javascript">
+
+            ...some code here...
+                
+          </code>
+        </pre>
+          
+      </div>
+        
+    </div>
+    
+
+    <script src="../../dist/diglettk_ex.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+    <script src="./larvitar.js"></script>
+
+    <script>
+
+        console.log(dtk)
+
+        const element = document.getElementById('viewer-2')
+        
+        dtk.loadSerieWithLarvitar(serie => {
+            // build vtk volume with larvitar
+            const image = dtk.buildVtkVolume(serie);
+            // run vr
+            let vr = new dtk.VRView(element);
+            // set an image
+            vr.setImage(image);
+        })
+    </script>
+  </body>
+</html>
