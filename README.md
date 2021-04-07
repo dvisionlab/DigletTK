@@ -80,11 +80,11 @@ dtk.loadSerieWithLarvitar(serie => {
 - [ ] Measuring tools
 - [ ] Segmentations (Cornerstone.js >>> data >>> vtk.js)
 - [ ] Presets and colormaps
-- [ ] Multi Slice Image Mapper (another MPR implementation)
+- [ ] Multi Slice Image Mapper (a different MPR implementation)
 
 ### TODO
 
 - [ ] documentation
-- [ ] rollup config
+- [x] ~~rollup config~~ webpack config
 - [ ] examples
 - [ ] npm package
