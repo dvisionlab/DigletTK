@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html class="h-100 overflow-hidden">
+  <head>
+    <meta charset="UTF-8" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl"
+      crossorigin="anonymous"
+    />
+    <title>DigletTK - Basic rendering example</title>
+  </head>
+
+  <body class="h-100" style="background-color: #eeceb8">
+
+    <div class="row h-100">
+
+      <!-- quadview -->
+      <div class="col-8 h-100">
+
+        <div class="row h-50">
+          <div
+            id="viewer"
+            class="col-6 h-100"
+            style="background-color: rgb(0, 0, 0)"
+          ></div>
+          <div
+            id="viewer-1"
+            class="col-6 h-100"
+            style="background-color: rgb(0, 0, 0)"
+          ></div>
+
+        </div>
+
+        <div class="row h-50">
+          <div
+            id="viewer-2"
+            class="col-6 h-100"
+            style="background-color: rgb(0, 0, 0)"
+          ></div>
+          <div
+            id="viewer-3"
+            class="col-6 h-100"
+            style="background-color: rgb(0, 0, 0)"
+          ></div>
+
+        </div>
+      </div>
+
+      <!-- code preview -->
+      <div class="col-4 h-100">
+        <pre class="h-100">
+
+  Press QWERTY to rotate 10 deg on x/y axis on each view 
+  Press ASDFGH to increase MIP thickness 10 px on x/y axis on each view 
+  + shift to decrease rotation / thickness
+  Press any other key to reset
+
+
+
+          <h3>Code Example</h3>
+
+          <code class="javascript" data-lang="javascript">
+  // =====================
+  // Define viewports ====
+  // =====================
+  
+  const targetElements = {
+    top: {
+      element: document.getElementById("viewer-1"),
+      key: "top",
+      height: 300, // TODO: use this 
+      width: 300 
+    },
+    left: {
+      element: document.getElementById("viewer-2"),
+      key: "left"
+    },
+      front: {
+        element: document.getElementById("viewer-3"),
+        key: "front"
+      }
+    };
+    
+    // =============================================
+    // Import a serie with Larvitar and load mpr ===
+    // =============================================
+    
+    dtk.loadSerieWithLarvitar(serie => {
+      // build vtk volume with larvitar
+      const image = dtk.buildVtkVolume(serie);
+      // run mpr
+      let mpr = new dtk.MPRManager(targetElements);
+      // get initial state obj
+      let state = mpr.getInitialState();
+      console.log("state", state);
+      // set image
+      mpr.setImage(state, image);
+      // set active tool ("level" or "crosshair")
+      mpr.setTool("level", state);
+      // add keyoboard events to interact with mpr
+      addEvents(mpr, state);
+    });
+                
+          </code>
+        </pre>
+          
+      </div>
+        
+    </div>
+    
+
+    <script src="./diglettk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+    <script src="./larvitar.js"></script>
+
+    <script>
+
+      // =====================
+      // Define viewports ====
+      // =====================
+
+      const targetElements = {
+        top: {
+          element: document.getElementById("viewer-1"),
+          key: "top",
+          height: 300, // TODO: use this 
+          width: 300 
+        },
+        left: {
+          element: document.getElementById("viewer-2"),
+          key: "left"
+        },
+        front: {
+          element: document.getElementById("viewer-3"),
+          key: "front"
+        }
+      };
+
+      // =============================================
+      // Import a serie with Larvitar and load mpr ===
+      // =============================================
+
+      dtk.loadSerieWithLarvitar(serie => {
+        // build vtk volume with larvitar
+        const image = dtk.buildVtkVolume(serie);
+        // run mpr
+        let mpr = new dtk.MPRManager(targetElements);
+        // get initial state obj
+        let state = mpr.getInitialState();
+        console.log("state", state);
+        // set image
+        mpr.setImage(state, image);
+        // set active tool ("level" or "crosshair")
+        mpr.setTool("level", state);
+        // add keyoboard events to interact with mpr
+        addEvents(mpr, state);
+      });
+
+      // =======================================
+      // TESTING EVENTS ========================
+      // Q,W,E,R,T,Y rotate 10 deg clockwise ===
+      // + shift rotate 10 deg ccw =============
+      // any other key reset views =============
+      // =======================================
+
+      function addEvents(mpr, global_data) {
+        let stateUI = {
+          top: { angle: { x: 0, y: 0 }, dist: 0 },
+          left: { angle: { x: 0, y: 0 }, dist: 0 },
+          front: { angle: { x: 0, y: 0 }, dist: 0 }
+        };
+
+        document.addEventListener("keypress", e => {
+          let key, axis, action;
+
+          switch (e.code) {
+            case "KeyQ":
+              action = "rotate";
+              key = "top";
+              axis = "x";
+              break;
+            case "KeyW":
+              action = "rotate";
+              key = "top";
+              axis = "y";
+              break;
+            case "KeyE":
+              action = "rotate";
+              key = "left";
+              axis = "x";
+              break;
+            case "KeyR":
+              action = "rotate";
+              key = "left";
+              axis = "y";
+              break;
+            case "KeyT":
+              action = "rotate";
+              key = "front";
+              axis = "x";
+              break;
+            case "KeyY":
+              action = "rotate";
+              key = "front";
+              axis = "y";
+              break;
+            case "KeyA":
+              action = "thickness";
+              key = "top";
+              axis = "x";
+              break;
+            case "KeyS":
+              action = "thickness";
+              key = "top";
+              axis = "y";
+              break;
+            case "KeyD":
+              action = "thickness";
+              key = "left";
+              axis = "x";
+              break;
+            case "KeyF":
+              action = "thickness";
+              key = "left";
+              axis = "y";
+              break;
+            case "KeyG":
+              action = "thickness";
+              key = "front";
+              axis = "x";
+              break;
+            case "KeyH":
+              action = "thickness";
+              key = "front";
+              axis = "y";
+              break;
+          }
+
+          if (key && axis && action == "rotate") {
+            // MOVE BY +/- 10 deg
+            let oldAngle = stateUI[key].angle[axis];
+            let angle = e.shiftKey ? oldAngle - 10 : oldAngle + 10;
+            console.log(key, axis, oldAngle, angle);
+            mpr.onRotate(key, axis, angle, global_data);
+            stateUI[key].angle[axis] = angle;
+          } else if (key && axis && action == "thickness") {
+            // MOVE BY +/- 10 px
+            let oldDist = stateUI[key].dist;
+            let dist = e.shiftKey ? oldDist - 10 : oldDist + 10;
+            console.log(key, axis, oldDist, dist);
+            mpr.onThickness(key, axis, dist, global_data);
+            stateUI[key].dist = dist;
+          } else {
+            // RESET
+            mpr.onRotate("top", "x", 0, global_data);
+            mpr.onThickness("top", "x", 0, global_data);
+            mpr.onRotate("top", "y", 0, global_data);
+            mpr.onThickness("top", "y", 0, global_data);
+            mpr.onRotate("left", "x", 0, global_data);
+            mpr.onThickness("left", "x", 0, global_data);
+            mpr.onRotate("left", "y", 0, global_data);
+            mpr.onThickness("left", "y", 0, global_data);
+            mpr.onRotate("front", "x", 0, global_data);
+            mpr.onThickness("front", "x", 0, global_data);
+            mpr.onRotate("front", "y", 0, global_data);
+            mpr.onThickness("front", "y", 0, global_data);
+            stateUI.top.angle.x = 0;
+            stateUI.top.angle.y = 0;
+            stateUI.top.dist = 0;
+            stateUI.left.angle.x = 0;
+            stateUI.left.angle.y = 0;
+            stateUI.left.dist = 0;
+            stateUI.front.angle.x = 0;
+            stateUI.front.angle.y = 0;
+            stateUI.front.dist = 0;
+          }
+        });
+      }
+    </script>
+  </body>
+</html>
