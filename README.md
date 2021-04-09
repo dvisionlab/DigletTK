@@ -17,6 +17,8 @@ It also provides glue-functions to easily integrate with cornerstone.js, via [La
 
 ## Use
 
+Examples and docs at http://diglettk.dvisionlab.com/. Short mpr version:
+
 ```javascript
 /** 
  Define viewports as:
