@@ -84,6 +84,10 @@ diglettk.loadSerieWithLarvitar(serie => {
             let vr = new diglettk.VRView(element);
             // set an image
             vr.setImage(image);
+            // set image cropping
+            vr.setCropWidget();
+
+            window.vr = vr
         })
     </script>
   </body>
