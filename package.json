@@ -27,7 +27,8 @@
   },
   "homepage": "https://github.com/dvisionlab/DigletTK#readme",
   "dependencies": {
-    "vtk.js": "^17.5.0"
+    "vtk.js": "^17.5.0",
+    "worker-loader": "^3.0.8"
   },
   "devDependencies": {
     "docdash": "^1.2.0",
