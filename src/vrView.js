@@ -39,6 +39,10 @@ export class VRView {
     this.genericRenderWindow = genericRenderWindow;
   }
 
+  /**
+   * Set the image to be rendered
+   * @param {ArrayBuffer} image - The image content data as buffer array
+   */
   setImage(image) {
     // TODO remove all volumes
     console.log(image);
@@ -100,6 +104,23 @@ export class VRView {
     this.ofun = piecewiseFun;
   }
 
+  setActorProperties() {
+    // this.actor.getProperty().setRGBTransferFunction(0, lutFuncs.ctfun);
+    // this.actor.getProperty().setScalarOpacity(0, lutFuncs.ofun);
+    this.actor.getProperty().setScalarOpacityUnitDistance(0, 30.0);
+    this.actor.getProperty().setInterpolationTypeToLinear();
+    this.actor.getProperty().setUseGradientOpacity(0, true);
+    this.actor.getProperty().setGradientOpacityMinimumValue(0, 2);
+    this.actor.getProperty().setGradientOpacityMinimumOpacity(0, 0.0);
+    this.actor.getProperty().setGradientOpacityMaximumValue(0, 20);
+    this.actor.getProperty().setGradientOpacityMaximumOpacity(0, 2.0); // mod
+    this.actor.getProperty().setShade(true);
+    this.actor.getProperty().setAmbient(state.ambient);
+    this.actor.getProperty().setDiffuse(state.diffuse);
+    this.actor.getProperty().setSpecular(state.specular);
+    this.actor.getProperty().setSpecularPower(state.specularPower);
+  }
+
   setCropWidget() {
     // --- setup our widget manager and widget ---
 
@@ -143,6 +164,10 @@ export class VRView {
     this.renderWindow.render();
   }
 
+  /**
+   * Append a vtkPiecewiseGaussianWidget into the target element
+   * @param {HTMLElement} widgetContainer - The target element to place the widget
+   */
   addPGwidget(widgetContainer) {
     const PGwidget = vtkPiecewiseGaussianWidget.newInstance({
       numberOfBins: 256,
@@ -160,7 +185,7 @@ export class VRView {
       buttonStrokeColor: "rgba(0, 0, 0, 1)",
       buttonFillColor: "rgba(255, 255, 255, 1)",
       strokeWidth: 1,
-      activeStrokeWidth: 1,
+      activeStrokeWidth: 1.5,
       buttonStrokeWidth: 1,
       handleWidth: 1,
       iconSize: 0, // Can be 0 if you want to remove buttons (dblClick for (+) / rightClick for (-))
@@ -184,6 +209,10 @@ export class VRView {
     console.log(this.PGwidget);
   }
 
+  /**
+   * Update the PGwidget after an image has been loaded
+   * @private
+   */
   updateWidget() {
     this.PGwidget.setDataArray(
       this.actor
@@ -204,6 +233,10 @@ export class VRView {
     });
   }
 
+  /**
+   * Binds callbacks to user interactions on PGwidget
+   * @private
+   */
   setWidgetCallbacks() {
     this.PGwidget.bindMouseListeners();
 
@@ -227,22 +260,5 @@ export class VRView {
 
   setSampleDistance(distance) {
     this.actor.getMapper().setSampleDistance(distance);
-  }
-
-  setActorProperties() {
-    // this.actor.getProperty().setRGBTransferFunction(0, lutFuncs.ctfun);
-    // this.actor.getProperty().setScalarOpacity(0, lutFuncs.ofun);
-    this.actor.getProperty().setScalarOpacityUnitDistance(0, 30.0);
-    this.actor.getProperty().setInterpolationTypeToLinear();
-    this.actor.getProperty().setUseGradientOpacity(0, true);
-    this.actor.getProperty().setGradientOpacityMinimumValue(0, 2);
-    this.actor.getProperty().setGradientOpacityMinimumOpacity(0, 0.0);
-    this.actor.getProperty().setGradientOpacityMaximumValue(0, 20);
-    this.actor.getProperty().setGradientOpacityMaximumOpacity(0, 2.0); // mod
-    this.actor.getProperty().setShade(true);
-    this.actor.getProperty().setAmbient(state.ambient);
-    this.actor.getProperty().setDiffuse(state.diffuse);
-    this.actor.getProperty().setSpecular(state.specular);
-    this.actor.getProperty().setSpecularPower(state.specularPower);
   }
 }
