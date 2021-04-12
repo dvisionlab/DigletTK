@@ -8,10 +8,18 @@
       integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl"
       crossorigin="anonymous"
     />
-    <title>DigletTK - Basic rendering example</title>
+    <link
+    rel="stylesheet"
+    href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/styles/vs2015.min.css"
+  />
+    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/highlight.min.js"></script>
+    <script>
+      hljs.highlightAll();
+    </script>
+    <title>DigletTK - MPR example</title>
   </head>
 
-  <body class="h-100" style="background-color: #eeceb8">
+  <body class="h-100" style="background-color: #000000; color:#ffffff">
 
     <div class="row h-100">
 
@@ -55,12 +63,7 @@
   Press ASDFGH to increase MIP thickness 10 px on x/y axis on each view 
   + shift to decrease rotation / thickness
   Press any other key to reset
-
-
-
-          <h3>Code Example</h3>
-
-          <code class="javascript" data-lang="javascript">
+          <code class="javascript">
   // =====================
   // Define viewports ====
   // =====================
@@ -109,7 +112,6 @@
         
     </div>
     
-
     <script src="./diglettk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
     <script src="./larvitar.js"></script>
@@ -141,11 +143,11 @@
       // Import a serie with Larvitar and load mpr ===
       // =============================================
 
-      dtk.loadSerieWithLarvitar(serie => {
+      diglettk.loadSerieWithLarvitar(serie => {
         // build vtk volume with larvitar
-        const image = dtk.buildVtkVolume(serie);
+        const image = diglettk.buildVtkVolume(serie);
         // run mpr
-        let mpr = new dtk.MPRManager(targetElements);
+        let mpr = new diglettk.MPRManager(targetElements);
         // get initial state obj
         let state = mpr.getInitialState();
         console.log("state", state);

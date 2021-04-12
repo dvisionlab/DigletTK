@@ -8,7 +8,15 @@
       integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl"
       crossorigin="anonymous"
     />
-    <title>DigletTK - Basic rendering example</title>
+    <link
+    rel="stylesheet"
+    href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/styles/vs2015.min.css"
+  />
+    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/highlight.min.js"></script>
+    <script>
+      hljs.highlightAll();
+    </script>
+    <title>DigletTK - VR example</title>
   </head>
 
   <body class="h-100" style="background-color: #eeceb8">
@@ -38,15 +46,21 @@
       <!-- code preview -->
       <div class="col-4 h-100">
         <pre class="h-100">
-
-... instructions ...
-
           <h3>Code Example</h3>
 
-          <code class="javascript" data-lang="javascript">
+          <code class="javascript">
 
-            ...some code here...
-                
+const element = document.getElementById('viewer-2')
+
+diglettk.loadSerieWithLarvitar(serie => {
+    // build vtk volume with larvitar
+    const image = diglettk.buildVtkVolume(serie);
+    // run vr
+    let vr = new diglettk.VRView(element);
+    // set an image
+    vr.setImage(image);
+})                
+
           </code>
         </pre>
           
@@ -55,21 +69,19 @@
     </div>
     
 
-    <script src="../../dist/diglettk.js"></script>
+    <script src="./diglettk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
     <script src="./larvitar.js"></script>
 
     <script>
 
-        console.log(dtk)
-
         const element = document.getElementById('viewer-2')
         
-        dtk.loadSerieWithLarvitar(serie => {
+        diglettk.loadSerieWithLarvitar(serie => {
             // build vtk volume with larvitar
-            const image = dtk.buildVtkVolume(serie);
+            const image = diglettk.buildVtkVolume(serie);
             // run vr
-            let vr = new dtk.VRView(element);
+            let vr = new diglettk.VRView(element);
             // set an image
             vr.setImage(image);
         })
