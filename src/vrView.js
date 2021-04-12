@@ -19,7 +19,13 @@ export class VRView {
     this.renderWindow = null;
     this.actor = null;
 
+    // piecewise gaussian widget stuff
+    this.PGwidget = null;
+    this.gaussians = null;
+
     this.initVR();
+
+    window.vr = this;
   }
 
   initVR() {
@@ -30,8 +36,7 @@ export class VRView {
 
     this.renderer = genericRenderWindow.getRenderer();
     this.renderWindow = genericRenderWindow.getRenderWindow();
-
-    this.addPGwidget();
+    this.genericRenderWindow = genericRenderWindow;
   }
 
   setImage(image) {
@@ -46,8 +51,8 @@ export class VRView {
     this.renderer.addVolume(actor);
 
     this.updateWidget();
+    this.setWidgetCallbacks();
     // TODO
-    // setWidgetCallbacks(phase);
     // setupInteractor(center, phase);
     // setCamera(center);
 
@@ -77,7 +82,6 @@ export class VRView {
 
     // update lookup table mapping range based on input dataset
 
-    console.log(actor);
     const range = actor
       .getMapper()
       .getInputData()
@@ -139,14 +143,15 @@ export class VRView {
     this.renderWindow.render();
   }
 
-  addPGwidget() {
+  addPGwidget(widgetContainer) {
     const PGwidget = vtkPiecewiseGaussianWidget.newInstance({
       numberOfBins: 256,
-      size: [400, 200]
+      size: [widgetContainer.offsetWidth - 5, widgetContainer.offsetHeight - 5]
     });
+    // TODO expose style
     PGwidget.updateStyle({
       backgroundColor: "rgba(255, 255, 255, 0.6)",
-      histogramColor: "rgba(100, 100, 100, 0.5)",
+      histogramColor: "rgba(50, 50, 50, 0.8)",
       strokeColor: "rgb(0, 0, 0)",
       activeColor: "rgb(255, 255, 255)",
       handleColor: "rgb(50, 150, 50)",
@@ -154,26 +159,29 @@ export class VRView {
       buttonDisableStrokeColor: "rgba(0, 0, 0, 0.5)",
       buttonStrokeColor: "rgba(0, 0, 0, 1)",
       buttonFillColor: "rgba(255, 255, 255, 1)",
-      strokeWidth: 2,
-      activeStrokeWidth: 3,
-      buttonStrokeWidth: 1.5,
-      handleWidth: 3,
-      iconSize: 20, // Can be 0 if you want to remove buttons (dblClick for (+) / rightClick for (-))
-      padding: 10
+      strokeWidth: 1,
+      activeStrokeWidth: 1,
+      buttonStrokeWidth: 1,
+      handleWidth: 1,
+      iconSize: 0, // Can be 0 if you want to remove buttons (dblClick for (+) / rightClick for (-))
+      padding: 1
     });
-
-    const widgetContainer = document.createElement("div");
-    this.element.appendChild(widgetContainer);
-
-    widgetContainer.style.position = "absolute";
-    widgetContainer.style.top = "5%";
-    widgetContainer.style.background = "rgba(255, 255, 255, 0.3)";
-    widgetContainer.style.float = "right";
 
     // to hide widget
     PGwidget.setContainer(widgetContainer); // Set to null to hide
 
+    // resize callback
+    window.addEventListener("resize", evt => {
+      PGwidget.setSize(
+        widgetContainer.offsetWidth - 5,
+        widgetContainer.offsetHeight - 5
+      );
+      PGwidget.render();
+    });
+
     this.PGwidget = PGwidget;
+
+    console.log(this.PGwidget);
   }
 
   updateWidget() {
@@ -186,13 +194,34 @@ export class VRView {
         .getData()
     );
 
+    // TODO initilize in a smarter way
     this.PGwidget.addGaussian(0.5, 0.7, 0.3, -0.02, -0.1); // x, y, ampiezza, sbilanciamento, andamento
-
     this.PGwidget.applyOpacity(this.ofun);
     this.PGwidget.setColorTransferFunction(this.ctfun);
     this.ctfun.onModified(() => {
       this.PGwidget.render();
       this.renderWindow.render();
+    });
+  }
+
+  setWidgetCallbacks() {
+    this.PGwidget.bindMouseListeners();
+
+    this.PGwidget.onAnimation(start => {
+      if (start) {
+        this.renderWindow.getInteractor().requestAnimation(this.PGwidget);
+      } else {
+        this.renderWindow.getInteractor().cancelAnimation(this.PGwidget);
+      }
+    });
+
+    this.PGwidget.onOpacityChange(widget => {
+      this.PGwidget = widget;
+      this.gaussians = widget.getGaussians().slice(); // store
+      this.PGwidget.applyOpacity(this.ofun);
+      if (!this.renderWindow.getInteractor().isAnimating()) {
+        this.renderWindow.render();
+      }
     });
   }
 

@@ -45,22 +45,31 @@
 
       <!-- code preview -->
       <div class="col-4 h-100">
+        <!-- widget target element -->
+        <h3 style="margin-bottom: 20px;">Opacity Widget</h3>
+        <pre>
+Drag outside the gaussian to move it along the histogram.
+Drag inside the gaussian to modify its shape.
+Double click to add a curve.
+Right click to delete a curve.
+        </pre>
+        <div id="widget" style="height: 120px; margin:auto; border: 3px solid green"></div>
+        <h3 style="margin-top: 20px; margin-bottom: 10px;">Code Example</h3>
         <pre class="h-100">
-          <h3>Code Example</h3>
-
           <code class="javascript">
-
 const element = document.getElementById('viewer-2')
+const widgetContainer = document.getElementById("widget");
 
 diglettk.loadSerieWithLarvitar(serie => {
-    // build vtk volume with larvitar
-    const image = diglettk.buildVtkVolume(serie);
-    // run vr
-    let vr = new diglettk.VRView(element);
-    // set an image
-    vr.setImage(image);
-})                
-
+  // build vtk volume with larvitar
+  const image = diglettk.buildVtkVolume(serie);
+  // run vr
+  let vr = new diglettk.VRView(element);
+  // add widget to control opacity and color functions
+  vr.addPGwidget(widgetContainer);
+  // set an image
+  vr.setImage(image);
+})
           </code>
         </pre>
           
@@ -76,18 +85,17 @@ diglettk.loadSerieWithLarvitar(serie => {
     <script>
 
         const element = document.getElementById('viewer-2')
+        const widgetContainer = document.getElementById("widget");
         
         diglettk.loadSerieWithLarvitar(serie => {
             // build vtk volume with larvitar
             const image = diglettk.buildVtkVolume(serie);
             // run vr
             let vr = new diglettk.VRView(element);
+            // add widget to control opacity and color functions
+            vr.addPGwidget(widgetContainer);
             // set an image
             vr.setImage(image);
-            // set image cropping
-            vr.setCropWidget();
-
-            window.vr = vr
         })
     </script>
   </body>
