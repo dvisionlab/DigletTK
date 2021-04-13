@@ -30,12 +30,35 @@ export class VRView {
     this.PGwidget = null;
     this.gaussians = null;
 
-    this.ww = 0;
-    this.wl = 0;
+    this.ww = 0.3;
+    this.wl = 0.3;
 
     this.initVR();
 
+    this.wwwl = [0, 0];
     window.vr = this;
+  }
+
+  // ___ //
+  set wwwl(value) {
+    if (!this.actor) {
+      return;
+    }
+
+    const dataArray = this.actor
+      .getMapper()
+      .getInputData()
+      .getPointData()
+      .getScalars();
+
+    const range = dataArray.getRange();
+    let rel_ww = value[0] / (range[1] - range[0]);
+    let rel_wl = (value[1] - range[0]) / range[1];
+
+    this.wl = rel_wl;
+    this.ww = rel_ww;
+
+    this.updateWidget();
   }
 
   initVR() {
@@ -55,7 +78,6 @@ export class VRView {
    */
   setImage(image) {
     // TODO remove all volumes
-    console.log(image);
     let actor = createVolumeActor(image);
 
     this.actor = actor;
@@ -71,7 +93,7 @@ export class VRView {
     // TODO
     // - implement a strategy to set rays distance
     // - setup interactors (ex. blurring or wwwl or crop)
-    // this.setupInteractor();
+    this.setupInteractor();
 
     this.blurOnInteraction(true);
 
@@ -235,8 +257,6 @@ export class VRView {
     });
 
     this.PGwidget = PGwidget;
-
-    console.log(this.PGwidget);
   }
 
   /**
@@ -244,17 +264,38 @@ export class VRView {
    * @private
    */
   updateWidget() {
-    this.PGwidget.setDataArray(
-      this.actor
-        .getMapper()
-        .getInputData()
-        .getPointData()
-        .getScalars()
-        .getData()
-    );
+    const dataArray = this.actor
+      .getMapper()
+      .getInputData()
+      .getPointData()
+      .getScalars();
 
-    // TODO initilize in a smarter way
-    this.PGwidget.addGaussian(0.33, 0.7, 0.3, -0.02, -0.1); // x, y, ampiezza, sbilanciamento, andamento
+    this.PGwidget.setDataArray(dataArray.getData());
+
+    let gaussians = this.PGwidget.getGaussians();
+
+    if (gaussians.length > 0) {
+      let gaussian = gaussians[0];
+
+      gaussian.position = this.wl;
+      gaussian.width = this.ww;
+
+      this.PGwidget.setGaussians([gaussian]);
+    } else {
+      // TODO initilize in a smarter way
+      const default_opacity = 1.0;
+      const default_skew = 0.0;
+      const default_bias = 0.0;
+
+      this.PGwidget.addGaussian(
+        this.wl,
+        default_opacity,
+        this.ww,
+        default_bias,
+        default_skew
+      ); // x, y, ampiezza, sbilanciamento, andamento
+    }
+
     this.PGwidget.applyOpacity(this.ofun);
     this.PGwidget.setColorTransferFunction(this.ctfun);
     this.ctfun.onModified(() => {
@@ -358,9 +399,9 @@ export class VRView {
       self.wl = wl;
 
       // TODO update widget
-      // let gaussians = self.PGwidget.getGaussians().slice(); // NOTE: slice() to clone!
-      // gaussians[0].position = wl + self.wl; //TODO:foreach
-      // self.PGwidget.setGaussians(gaussians);
+      let gaussians = self.PGwidget.getGaussians().slice(); // NOTE: slice() to clone!
+      gaussians[0].position = self.wl; //TODO: foreach
+      self.PGwidget.setGaussians(gaussians);
     }
 
     function setWW(v) {
@@ -369,9 +410,9 @@ export class VRView {
       self.ww = ww;
 
       // TODO update widget
-      // let gaussians = self.PGwidget.getGaussians().slice(); // NOTE: slice() to clone!
-      // gaussians[0].width = ww * self.ww; //TODO foreach
-      // self.PGwidget.setGaussians(gaussians);
+      let gaussians = self.PGwidget.getGaussians().slice(); // NOTE: slice() to clone!
+      gaussians[0].width = self.ww; //TODO: foreach
+      self.PGwidget.setGaussians(gaussians);
     }
 
     rangeManipulator.setVerticalListener(-1, 1, 0.001, getWL, setWL);

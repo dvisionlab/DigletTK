@@ -88,8 +88,10 @@ diglettk.loadSerieWithLarvitar(serie => {
         const widgetContainer = document.getElementById("widget");
         
         diglettk.loadSerieWithLarvitar(serie => {
+          console.log(serie)
             // build vtk volume with larvitar
             const image = diglettk.buildVtkVolume(serie);
+            console.log(image)
             // run vr
             let vr = new diglettk.VRView(element);
             // add widget to control opacity and color functions

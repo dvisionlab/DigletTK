@@ -243,11 +243,17 @@ export function createVolumeActor(contentData) {
 
   volumeMapper.setInputData(contentData);
 
+  // set a default wwwl
+  const dataRange = contentData
+    .getPointData()
+    .getScalars()
+    .getRange();
+
   // FIXME: custom range mapping
   const rgbTransferFunction = volumeActor
     .getProperty()
     .getRGBTransferFunction(0);
-  rgbTransferFunction.setMappingRange(500, 3000);
+  rgbTransferFunction.setMappingRange(dataRange[0], dataRange[1]);
 
   // update slice min/max values for interface
   // Crate imageMapper for I,J,K planes
