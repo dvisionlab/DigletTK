@@ -136,8 +136,8 @@ export function loadSerieWithLarvitar(cb) {
 
 /**
  * Function to create synthetic image data with correct dimensions
- * @private
  * Can be use for debug
+ * @private
  * @param {Array} dims - Array[int]
  */
 // eslint-disable-next-line no-unused-vars
@@ -243,11 +243,17 @@ export function createVolumeActor(contentData) {
 
   volumeMapper.setInputData(contentData);
 
+  // set a default wwwl
+  const dataRange = contentData
+    .getPointData()
+    .getScalars()
+    .getRange();
+
   // FIXME: custom range mapping
   const rgbTransferFunction = volumeActor
     .getProperty()
     .getRGBTransferFunction(0);
-  rgbTransferFunction.setMappingRange(500, 3000);
+  rgbTransferFunction.setMappingRange(dataRange[0], dataRange[1]);
 
   // update slice min/max values for interface
   // Crate imageMapper for I,J,K planes
