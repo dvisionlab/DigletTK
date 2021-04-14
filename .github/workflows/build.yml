@@ -54,16 +54,10 @@ jobs:
           path: ./templates/
 
       # Generate docs
+      # ls && ./node_modules/.bin/jsdoc -c jsdoc.json
       - name: Generate docs
         run: |
-          ls && ./node_modules/.bin/jsdoc -c jsdoc.json
-
-      # - name: Build
-      #   uses: andstor/jsdoc-action@v1
-      #   with:
-      #     source_dir: ./src
-      #     recurse: true
-      #     output_dir: ./out
+          ls && yarn generate-docs
 
       # Commit Package
       - name: Commit package
