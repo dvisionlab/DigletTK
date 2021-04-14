@@ -16,7 +16,8 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
+      - name: Clone repo
+        uses: actions/checkout@v2
 
       # Setup node environment
       - name: Setup Node.js environment
@@ -47,7 +48,9 @@ jobs:
           mkdir templates && cd templates
 
       # Clone template
-      - uses: actions/checkout@v2
+      - name: Clone docdash template
+        uses: actions/checkout@v2
+        with:
           repository: clenemt/docdash
 
       # Generate docs
