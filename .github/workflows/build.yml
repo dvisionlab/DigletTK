@@ -44,18 +44,26 @@ jobs:
       # Create template folder
       - name: Create template folder
         run: |
-          mkdir templates && cd templates
+          mkdir templates
 
       # Clone template
       - name: Clone docdash template
         uses: actions/checkout@v2
         with:
           repository: clenemt/docdash
+          path: ./templates/
 
       # Generate docs
       - name: Generate docs
         run: |
-          ls && ../node_modules/.bin/jsdoc -c jsdoc.json
+          ls && ./node_modules/.bin/jsdoc -c jsdoc.json
+
+      # - name: Build
+      #   uses: andstor/jsdoc-action@v1
+      #   with:
+      #     source_dir: ./src
+      #     recurse: true
+      #     output_dir: ./out
 
       # Commit Package
       - name: Commit package
