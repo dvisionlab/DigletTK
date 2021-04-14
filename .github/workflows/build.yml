@@ -27,20 +27,19 @@ jobs:
 
       # Install node modules
       - name: Install node modules
-        # working-directory: frontend
         run: |
           yarn install
 
       # Build Package
-      - name: Build package
-        run: |
-          export NODE_OPTIONS=--max_old_space_size=4096
-          yarn build
+      # - name: Build package
+      #   run: |
+      #     export NODE_OPTIONS=--max_old_space_size=4096
+      #     yarn build
 
       # Copy into examples dir
-      - name: Copy into examples
-        run: |
-          cp ./dist/diglettk.js ./docs/examples/diglettk.js
+      # - name: Copy into examples
+      #   run: |
+      #     cp ./dist/diglettk.js ./docs/examples/diglettk.js
 
       # Create template folder
       - name: Create template folder
@@ -56,7 +55,7 @@ jobs:
       # Generate docs
       - name: Generate docs
         run: |
-          pwd && yarn run generate-docs
+          node_modules/.bin/jsdoc -c jsdoc.json
 
       # Commit Package
       - name: Commit package
