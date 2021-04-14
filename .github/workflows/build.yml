@@ -55,7 +55,7 @@ jobs:
       # Generate docs
       - name: Generate docs
         run: |
-          ./node_modules/.bin/jsdoc -c jsdoc.json
+          ls && ../node_modules/.bin/jsdoc -c jsdoc.json
 
       # Commit Package
       - name: Commit package
