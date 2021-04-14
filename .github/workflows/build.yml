@@ -56,7 +56,7 @@ jobs:
       # Generate docs
       - name: Generate docs
         run: |
-          yarn generate-docs
+          pwd && cd .. && yarn generate-docs
 
       # Commit Package
       - name: Commit package
