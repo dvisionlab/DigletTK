@@ -283,6 +283,7 @@ export class VRView {
 
   /**
    * Append a vtkPiecewiseGaussianWidget into the target element
+   * @private
    * @param {HTMLElement} widgetContainer - The target element to place the widget
    */
   addPGwidget() {
@@ -434,6 +435,7 @@ export class VRView {
 
   /**
    * Init wwwl interactor
+   * @private
    * LEFT DRAG : rotate
    * CTRL: pan
    * SCROLL: zoom
