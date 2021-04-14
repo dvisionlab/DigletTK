@@ -32,7 +32,6 @@ jobs:
 
       # Build Package
       - name: Build package
-        # working-directory: frontend
         run: |
           export NODE_OPTIONS=--max_old_space_size=4096
           yarn build
@@ -42,6 +41,23 @@ jobs:
         run: |
           cp ./dist/diglettk.js ./docs/examples/diglettk.js
 
+      # Create template folder
+      - name: Create template folder
+        run: |
+          mkdir templates
+      
+      # Clone template
+      - uses: actions/checkout@master
+        working-directory: templates
+          with:
+            name: clenemt/docdash
+            ref: refs/heads/release
+      
+      # Generate docs
+      - name: Generate docs
+        run: |
+          yarn generate-docs
+
       # Commit Package
       - name: Commit package
         run: |
@@ -49,7 +65,3 @@ jobs:
           git config --global user.email 'ronzim@users.noreply.github.com'
           git commit -am "Automated package build"
           git push
-      # Generate docs
-      # - name: Generate docs
-      #   run: |
-      #     yarn generate-docs
