@@ -94,10 +94,10 @@ diglettk.loadSerieWithLarvitar(serie => {
             console.log(image)
             // run vr
             let vr = new diglettk.VRView(element);
-            // add widget to control opacity and color functions
-            vr.addPGwidget(widgetContainer);
             // set an image
             vr.setImage(image);
+            // set widget element to control opacity 
+            vr.widgetElement = widgetContainer;
         })
     </script>
   </body>

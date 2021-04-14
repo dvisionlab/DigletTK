@@ -15,31 +15,39 @@ import vtkInteractorStyleManipulator from "vtk.js/Sources/Interaction/Style/Inte
 
 import { getVolumeCenter, createVolumeActor } from "./utils";
 
+/** A view for Volume Rendering scene */
 export class VRView {
   /**
    * Create a volume rendering scene
+   * @param {HTMLElement} element - the target html element to render the scene
    */
   constructor(element) {
     this.element = element;
     this.renderer = null;
     this.renderWindow = null;
     this.actor = null;
-    this.raysDistance = 1.5; // TODO set/get
+    this.raysDistance = 1.5;
 
     // piecewise gaussian widget stuff
+    this.PGwidgetElement = null;
     this.PGwidget = null;
     this.gaussians = null;
 
+    // normalized ww wl
     this.ww = 0.3;
     this.wl = 0.3;
 
-    this.initVR();
-
+    // absolute ww wl
     this.wwwl = [0, 0];
+
+    this.initVR();
     window.vr = this;
   }
 
-  // ___ //
+  /**
+   * wwwl
+   * @type {Array}
+   */
   set wwwl(value) {
     if (!this.actor) {
       return;
@@ -58,9 +66,62 @@ export class VRView {
     this.wl = rel_wl;
     this.ww = rel_ww;
 
-    this.updateWidget();
+    if (this.PGwidget) {
+      this.updateWidget();
+    }
   }
 
+  get wwwl() {
+    const dataArray = this.actor
+      .getMapper()
+      .getInputData()
+      .getPointData()
+      .getScalars();
+
+    const range = dataArray.getRange();
+
+    let abs_ww = rel_ww * (range[1] - range[0]);
+    let abs_wl = rel_wl * range[1] + range[0];
+    return [abs_ww, abs_wl];
+  }
+
+  /**
+   * raysDistance
+   * @type {Number}
+   */
+  set resolution(value) {
+    this.raysDistance = 1 / value;
+  }
+
+  get resolution() {
+    return Math.round(1 / this.raysDistance);
+  }
+
+  /**
+   * Presets
+   * @type {Array}
+   */
+  get presetsList() {
+    return vtkColorMaps.rgbPresetNames;
+  }
+
+  /**
+   * PGwidgetElement (set null to hide)
+   * @type {HTMLelement}
+   */
+  set widgetElement(element) {
+    this.PGwidgetElement = element;
+    let h = element.offsetHeight ? element.offsetHeight - 5 : 100;
+    let w = element.offsetWidth ? element.offsetWidth - 5 : 300;
+    this.PGwidget.setSize(w, h);
+    this.PGwidget.setContainer(this.PGwidgetElement);
+    this.PGwidget.render();
+  }
+
+  /**
+   * Initialize rendering scene
+   * @private
+   */
   initVR() {
     const genericRenderWindow = vtkGenericRenderWindow.newInstance();
     genericRenderWindow.setContainer(this.element);
@@ -70,6 +131,8 @@ export class VRView {
     this.renderer = genericRenderWindow.getRenderer();
     this.renderWindow = genericRenderWindow.getRenderWindow();
     this.genericRenderWindow = genericRenderWindow;
+
+    this.addPGwidget();
   }
 
   /**
@@ -82,14 +145,16 @@ export class VRView {
 
     this.actor = actor;
 
-    this.addLUT(actor);
+    this.setLUT("Grayscale");
 
     this.renderer.addVolume(actor);
 
     this.setCamera(actor.getCenter());
 
-    this.updateWidget();
-    this.setWidgetCallbacks();
+    if (this.PGwidget) {
+      this.updateWidget();
+      this.setWidgetCallbacks();
+    }
     // TODO
     // - implement a strategy to set rays distance
     // - setup interactors (ex. blurring or wwwl or crop)
@@ -119,24 +184,17 @@ export class VRView {
     this.renderer.getActiveCamera().setThickness(10000);
   }
 
-  addLUT(actor) {
-    // --- set up our color lookup table and opacity piecewise function
-
-    const lookupTable = vtkColorTransferFunction.newInstance();
-    const piecewiseFun = vtkPiecewiseFunction.newInstance();
-
+  /**
+   * Setup colormap and opacity function
+   * @param {String} lutName - as in presets list
+   */
+  setLUT(lutName) {
     // set up color transfer function
-    lookupTable.applyColorMap(vtkColorMaps.getPresetByName("Cool to Warm"));
-
-    // set up simple linear opacity function
-    // This assumes a data range of 0 -> 256
-    for (let i = 0; i <= 8; i++) {
-      piecewiseFun.addPoint(i * 32, i / 8);
-    }
+    const lookupTable = vtkColorTransferFunction.newInstance();
+    lookupTable.applyColorMap(vtkColorMaps.getPresetByName(lutName));
 
     // update lookup table mapping range based on input dataset
-
-    const range = actor
+    const range = this.actor
       .getMapper()
       .getInputData()
       .getPointData()
@@ -148,12 +206,16 @@ export class VRView {
     lookupTable.setMappingRange(...range);
     lookupTable.updateRange();
 
-    // set the actor properties
-    actor.getProperty().setRGBTransferFunction(0, lookupTable);
-    actor.getProperty().setScalarOpacity(0, piecewiseFun);
+    this.actor.getProperty().setRGBTransferFunction(0, lookupTable);
+
+    // set up opacity function (values will be set by PGwidget)
+    const piecewiseFun = vtkPiecewiseFunction.newInstance();
+    this.actor.getProperty().setScalarOpacity(0, piecewiseFun);
 
     this.ctfun = lookupTable;
     this.ofun = piecewiseFun;
+
+    this.updateWidget();
   }
 
   setActorProperties() {
@@ -220,10 +282,17 @@ export class VRView {
    * Append a vtkPiecewiseGaussianWidget into the target element
    * @param {HTMLElement} widgetContainer - The target element to place the widget
    */
-  addPGwidget(widgetContainer) {
+  addPGwidget() {
+    let containerWidth = this.PGwidgetElement
+      ? this.PGwidgetElement.offsetWidth - 5
+      : 300;
+    let containerHeight = this.PGwidgetElement
+      ? this.PGwidgetElement.offsetHeight - 5
+      : 100;
+
     const PGwidget = vtkPiecewiseGaussianWidget.newInstance({
       numberOfBins: 256,
-      size: [widgetContainer.offsetWidth - 5, widgetContainer.offsetHeight - 5]
+      size: [containerWidth, containerHeight]
     });
     // TODO expose style
     PGwidget.updateStyle({
@@ -245,7 +314,7 @@ export class VRView {
     });
 
     // to hide widget
-    PGwidget.setContainer(widgetContainer); // Set to null to hide
+    PGwidget.setContainer(this.PGwidgetElement); // Set to null to hide
 
     // resize callback
     window.addEventListener("resize", evt => {
@@ -286,7 +355,6 @@ export class VRView {
       const default_opacity = 1.0;
       const default_skew = 0.0;
       const default_bias = 0.0;
-
       this.PGwidget.addGaussian(
         this.wl,
         default_opacity,

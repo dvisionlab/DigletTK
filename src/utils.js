@@ -136,8 +136,8 @@ export function loadSerieWithLarvitar(cb) {
 
 /**
  * Function to create synthetic image data with correct dimensions
- * @private
  * Can be use for debug
+ * @private
  * @param {Array} dims - Array[int]
  */
 // eslint-disable-next-line no-unused-vars
