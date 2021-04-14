@@ -31,15 +31,15 @@ jobs:
           yarn install
 
       # Build Package
-      # - name: Build package
-      #   run: |
-      #     export NODE_OPTIONS=--max_old_space_size=4096
-      #     yarn build
+      - name: Build package
+        run: |
+          export NODE_OPTIONS=--max_old_space_size=4096
+          yarn build
 
       # Copy into examples dir
-      # - name: Copy into examples
-      #   run: |
-      #     cp ./dist/diglettk.js ./docs/examples/diglettk.js
+      - name: Copy into examples
+        run: |
+          cp ./dist/diglettk.js ./docs/examples/diglettk.js
 
       # Create template folder
       - name: Create template folder
@@ -54,15 +54,14 @@ jobs:
           path: ./templates/
 
       # Generate docs
-      # ls && ./node_modules/.bin/jsdoc -c jsdoc.json
       - name: Generate docs
         run: |
-          ls && yarn generate-docs
+          yarn generate-docs
 
-      # Commit Package
-      - name: Commit package
+      # Commit Package and Docs
+      - name: Commit package and docs
         run: |
           git config --global user.name 'Mattia-gh-action'
           git config --global user.email 'ronzim@users.noreply.github.com'
-          git commit -am "Automated package build"
+          git commit -am "Automated pakage and docs"
           git push
