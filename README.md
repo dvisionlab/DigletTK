@@ -81,7 +81,7 @@ dtk.loadSerieWithLarvitar(serie => {
 - [x] Volume Rendering
 - [ ] Measuring tools
 - [ ] Segmentations (Cornerstone.js >>> data >>> vtk.js)
-- [-] Presets and colormaps
+- [ ] Presets and colormaps
 - [ ] Multi Slice Image Mapper (a different MPR implementation)
 
 ### TODO
