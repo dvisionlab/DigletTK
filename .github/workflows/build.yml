@@ -47,10 +47,8 @@ jobs:
           mkdir templates && cd templates
 
       # Clone template
-      - uses: actions/checkout@master
-        with:
-          name: clenemt/docdash
-          ref: refs/heads/release
+      - uses: actions/checkout@v2
+          repository: clenemt/docdash
 
       # Generate docs
       - name: Generate docs
