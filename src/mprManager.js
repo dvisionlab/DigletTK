@@ -189,7 +189,6 @@ export class MPRManager {
    * @param {Object} {}
    */
   onCrosshairPointSelected({ srcKey, worldPos }) {
-    console.log(worldPos, srcKey);
     Object.keys(this.elements).forEach(key => {
       if (key !== srcKey) {
         // We are basically doing the same as getSlice but with the world coordinate
