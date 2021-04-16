@@ -108,12 +108,12 @@ export class MPRView {
     }
   }
 
-  initView(actor, data) {
+  initView(actor, data, onScrollCb) {
     // dv: store volumes and element in viewport data
     this.volumes.push(actor);
 
     const istyle = vtkInteractorStyleMPRSlice.newInstance();
-    istyle.setOnScroll(data.onStackScroll); // TODO check this
+    istyle.setOnScroll(onScrollCb);
     const inter = this.renderWindow.getInteractor();
     inter.setInteractorStyle(istyle);
 

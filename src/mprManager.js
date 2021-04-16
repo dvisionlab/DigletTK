@@ -118,7 +118,10 @@ export class MPRManager {
     this.sliceIntersection = getVolumeCenter(actor.getMapper());
 
     Object.keys(this.elements).forEach(key => {
-      this.mprViews[key].initView(actor, state);
+      this.mprViews[key].initView(actor, state, () => {
+        console.log(">>>", this);
+        this.onScrolled.call(this);
+      });
     });
 
     if (this.activeTool) {
@@ -150,7 +153,9 @@ export class MPRManager {
   setLevelTool(state) {
     Object.entries(state.views).forEach(([key]) => {
       const istyle = vtkInteractorStyleMPRWindowLevel.newInstance();
-      istyle.setOnScroll(this.onScrolled);
+      istyle.setOnScroll(() => {
+        this.onScrolled();
+      });
       istyle.setOnLevelsChanged(levels => {
         this.updateLevels({ ...levels, srcKey: key }, state);
       });
@@ -176,6 +181,7 @@ export class MPRManager {
       });
       this.mprViews[key].setInteractor(istyle);
     });
+    this.activeTool = "crosshair";
   }
 
   /**
@@ -251,6 +257,7 @@ export class MPRManager {
    */
   onScrolled() {
     let planes = [];
+    console.log("this", this);
     Object.keys(this.elements).forEach(key => {
       const camera = this.mprViews[key].genericRenderWindow
         .getRenderer()
