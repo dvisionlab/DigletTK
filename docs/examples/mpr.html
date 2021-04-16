@@ -89,11 +89,13 @@
     // Import a serie with Larvitar and load mpr ===
     // =============================================
     
-    dtk.loadSerieWithLarvitar(serie => {
+    diglettk.loadSerieWithLarvitar(larvitar, serie => {
+      let header = larvitar.buildHeader(serie);
+      let data = larvitar.buildData(serie, false);
       // build vtk volume with larvitar
-      const image = dtk.buildVtkVolume(serie);
+      const image = diglettk.buildVtkVolume(header, data);
       // run mpr
-      let mpr = new dtk.MPRManager(targetElements);
+      let mpr = new diglettk.MPRManager(targetElements);
       // get initial state obj
       let state = mpr.getInitialState();
       console.log("state", state);

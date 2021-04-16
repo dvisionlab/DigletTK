@@ -60,17 +60,18 @@ Right click to delete a curve.
 const element = document.getElementById('viewer-2')
 const widgetContainer = document.getElementById("widget");
 
-diglettk.loadSerieWithLarvitar(serie => {
+diglettk.loadSerieWithLarvitar(larvitar, serie => {
+  let header = larvitar.buildHeader(serie);
+  let data = larvitar.buildData(serie, false);
   console.log(serie)
-    // build vtk volume with larvitar
-    const image = diglettk.buildVtkVolume(serie);
-    console.log(image)
-    // run vr
-    let vr = new diglettk.VRView(element);
-    // set an image
-    vr.setImage(image);
-    // set widget element to control opacity 
-    vr.widgetElement = widgetContainer;
+  // build vtk volume with larvitar
+  const image = diglettk.buildVtkVolume(header, data);
+  // run vr
+  let vr = new diglettk.VRView(element);
+  // set an image
+  vr.setImage(image);
+  // set widget element to control opacity 
+  vr.widgetElement = widgetContainer;
 })
           </code>
         </pre>
