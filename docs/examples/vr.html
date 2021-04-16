@@ -102,6 +102,9 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
             vr.setImage(image);
             // set widget element to control opacity 
             vr.widgetElement = widgetContainer;
+            // set a LUT 
+            let lutList = vr.getLutList();
+            vr.lut = lutList[10];
         })
     </script>
   </body>

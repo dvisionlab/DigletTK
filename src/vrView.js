@@ -34,7 +34,7 @@ export class VRView {
     this.gaussians = null;
 
     // normalized ww wl
-    this.ww = 0.3;
+    this.ww = 0.25;
     this.wl = 0.3;
 
     // absolute ww wl
@@ -147,7 +147,7 @@ export class VRView {
 
     this.actor = actor;
 
-    this.setLUT("Grayscale");
+    this.lut = "Grayscale";
 
     this.renderer.addVolume(actor);
 
@@ -188,10 +188,10 @@ export class VRView {
   }
 
   /**
-   * Setup colormap and opacity function
-   * @param {String} lutName - as in presets list
+   * Set colormap and opacity function
+   * @type {String} lutName - as in presets list
    */
-  setLUT(lutName) {
+  set lut(lutName) {
     // set up color transfer function
     const lookupTable = vtkColorTransferFunction.newInstance();
     lookupTable.applyColorMap(vtkColorMaps.getPresetByName(lutName));
@@ -204,7 +204,8 @@ export class VRView {
       .getScalars()
       .getRange();
 
-    // TODO generalize: remapping to max/min hist (as bool)
+    // TODO generalize: remapping to max/min hist (as bool) (rescale LUT)
+    // PGwidget.getOpacityRange(); -> rescale on gaussian curve
     range[1] -= 2500;
     lookupTable.setMappingRange(...range);
     lookupTable.updateRange();
@@ -221,6 +222,17 @@ export class VRView {
     this.updateWidget();
   }
 
+  /**
+   * TODO
+   * @returns
+   */
+  getLutList() {
+    return vtkColorMaps.rgbPresetNames;
+  }
+
+  /**
+   * TODO
+   */
   setActorProperties() {
     // this.actor.getProperty().setRGBTransferFunction(0, lutFuncs.ctfun);
     // this.actor.getProperty().setScalarOpacity(0, lutFuncs.ofun);
