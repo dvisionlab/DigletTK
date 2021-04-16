@@ -119,7 +119,6 @@ export class MPRManager {
 
     Object.keys(this.elements).forEach(key => {
       this.mprViews[key].initView(actor, state, () => {
-        console.log(">>>", this);
         this.onScrolled.call(this);
       });
     });
@@ -190,6 +189,7 @@ export class MPRManager {
    * @param {Object} {}
    */
   onCrosshairPointSelected({ srcKey, worldPos }) {
+    console.log(worldPos, srcKey);
     Object.keys(this.elements).forEach(key => {
       if (key !== srcKey) {
         // We are basically doing the same as getSlice but with the world coordinate
@@ -220,7 +220,8 @@ export class MPRManager {
       const renderer = this.mprViews[key].genericRenderWindow.getRenderer();
       const wPos = vtkCoordinate.newInstance();
       wPos.setCoordinateSystemToWorld();
-      wPos.setValue(worldPos);
+
+      wPos.setValue(...worldPos);
 
       const displayPosition = wPos.getComputedDisplayValue(renderer);
     });
@@ -257,7 +258,6 @@ export class MPRManager {
    */
   onScrolled() {
     let planes = [];
-    console.log("this", this);
     Object.keys(this.elements).forEach(key => {
       const camera = this.mprViews[key].genericRenderWindow
         .getRenderer()
