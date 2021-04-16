@@ -63,6 +63,14 @@
   Press ASDFGH to increase MIP thickness 10 px on x/y axis on each view 
   + shift to decrease rotation / thickness
   Press any other key to reset
+
+  <div class="btn-group" role="group" aria-label="Basic radio toggle button group">
+    <input type="radio" class="btn-check" name="btnradio" id="btn-level" autocomplete="off" checked onclick="updateTool('level')">
+    <label class="btn btn-outline-danger" for="btn-level">Level Tool</label>
+  
+    <input type="radio" class="btn-check" name="btnradio" id="btn-cross" autocomplete="off" onclick="updateTool('crosshair')">
+    <label class="btn btn-outline-danger" for="btn-cross">Crosshair Tool</label>
+  </div>
           <code class="javascript">
   // =====================
   // Define viewports ====
@@ -120,6 +128,8 @@
 
     <script>
 
+      let mpr, state;
+
       // =====================
       // Define viewports ====
       // =====================
@@ -151,14 +161,14 @@
         // build vtk volume with larvitar
         const image = diglettk.buildVtkVolume(header, data);
         // run mpr
-        let mpr = new diglettk.MPRManager(targetElements);
+        mpr = new diglettk.MPRManager(targetElements);
         // get initial state obj
-        let state = mpr.getInitialState();
+        state = mpr.getInitialState();
         console.log("state", state);
         // set image
         mpr.setImage(state, image);
         // set active tool ("level" or "crosshair")
-        mpr.setTool("level", state);
+        mpr.setTool("crosshair", state);
         // add keyoboard events to interact with mpr
         addEvents(mpr, state);
       });
@@ -282,7 +292,17 @@
             stateUI.front.dist = 0;
           }
         });
+
       }
+
+      // =======================
+      // switch tool ===========
+      // =======================
+
+      function updateTool(tool){
+        mpr.setTool(tool, state);
+      }
+
     </script>
   </body>
 </html>
