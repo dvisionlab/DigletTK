@@ -4,12 +4,7 @@ import vtkPlane from "vtk.js/Sources/Common/DataModel/Plane";
 import vtkVolume from "vtk.js/Sources/Rendering/Core/Volume";
 import vtkVolumeMapper from "vtk.js/Sources/Rendering/Core/VolumeMapper";
 
-export function buildVtkVolume(serie) {
-  // TODO load and cache
-  //   setTimeout(() => {
-  let header = larvitar.buildHeader(serie);
-  let data = larvitar.buildData(serie, false);
-
+export function buildVtkVolume(header, data) {
   const dims = [
     header.volume.cols,
     header.volume.rows,
@@ -42,7 +37,6 @@ export function buildVtkVolume(serie) {
   volume.modified();
 
   return volume;
-  //   }, 2000);
 }
 
 // fit to window
@@ -84,7 +78,7 @@ export function fitToWindow(genericRenderWindow, dir) {
   }
 }
 
-export function loadSerieWithLarvitar(cb) {
+export function loadSerieWithLarvitar(lrv, cb) {
   let demoFiles = [];
   let counter = 0;
   let demoFileList = getDemoFileNames();
@@ -110,22 +104,22 @@ export function loadSerieWithLarvitar(cb) {
   }
 
   // init all larvitar
-  larvitar.initLarvitarStore();
-  larvitar.initializeImageLoader();
-  larvitar.initializeCSTools();
-  larvitar.larvitar_store.addViewport("viewer");
+  lrv.initLarvitarStore();
+  lrv.initializeImageLoader();
+  lrv.initializeCSTools();
+  lrv.larvitar_store.addViewport("viewer");
 
   // load dicom and render
   demoFileList.forEach(function(demoFile) {
     createFile(demoFile, () => {
-      larvitar.resetImageParsing();
-      larvitar.readFiles(demoFiles, function(seriesStack, err) {
+      lrv.resetImageParsing();
+      lrv.readFiles(demoFiles, function(seriesStack, err) {
         // return the first series of the study
         let seriesId = _.keys(seriesStack)[0];
         let serie = seriesStack[seriesId];
 
         // hack to avoid load and cache (render + timeout)
-        larvitar.renderImage(serie, "viewer");
+        lrv.renderImage(serie, "viewer");
         if (cb) {
           setTimeout(cb, 2000, serie);
         }

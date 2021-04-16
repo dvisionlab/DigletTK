@@ -82,9 +82,9 @@ export class MPRView {
     }
 
     // DISTANCE WDG
-    let widgetManager = vtkWidgetManager.newInstance();
-    widgetManager.setRenderer(this.renderer);
-    this.widgetManager = widgetManager;
+    // let widgetManager = vtkWidgetManager.newInstance();
+    // widgetManager.setRenderer(this.renderer);
+    // this.widgetManager = widgetManager;
 
     // update view node tree so that vtkOpenGLHardwareSelector can access the vtkOpenGLRenderer instance.
     const oglrw = this.genericRenderWindow.getOpenGLRenderWindow();
