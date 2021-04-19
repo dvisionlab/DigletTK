@@ -25,9 +25,7 @@ Examples and docs at http://diglettk.dvisionlab.com/. Short mpr version:
 
  {
      key: String - The view id (must be unique)
-     element: HTMLElement - The target rendering div,
-     height: Number - The viewport initial height,
-     width: Number - The viewport initial width
+     element: HTMLElement - The target rendering div
  }
 
  */
@@ -35,21 +33,15 @@ Examples and docs at http://diglettk.dvisionlab.com/. Short mpr version:
 const targetElements = {
   top: {
     element: document.getElementById("viewer-1"),
-    key: "top",
-    height: 300,
-    width: 300
+    key: "top"
   },
   left: {
     element: document.getElementById("viewer-2"),
-    key: "left",
-    height: 300,
-    width: 300
+    key: "left"
   },
   front: {
     element: document.getElementById("viewer-3"),
-    key: "front",
-    height: 300,
-    width: 300
+    key: "front"
   }
 };
 
@@ -57,14 +49,15 @@ const targetElements = {
 import * as dtk from "DigletTK";
 
 // load a dicom serie using larvitar glue function
-dtk.loadSerieWithLarvitar(serie => {
-  // build vtk volume from larvitar serie
-  const image = dtk.buildVtkVolume(serie);
-  // run mpr manager
-  let mpr = new dtk.MPRManager(targetElements);
+dtk.loadSerieWithLarvitar(larvitar, serie => {
+  let header = larvitar.buildHeader(serie);
+  let data = larvitar.buildData(serie, false);
+  // build vtk volume with larvitar
+  const image = dtk.buildVtkVolume(header, data);
+  // run mpr
+  mpr = new dtk.MPRManager(targetElements);
   // get initial state obj: this object will be used to share data updates
-  let state = mpr.getInitialState();
-  console.log("state", state);
+  state = mpr.getInitialState();
   // set image
   mpr.setImage(state, image);
   // set active tool ("level" or "crosshair")
@@ -81,7 +74,7 @@ dtk.loadSerieWithLarvitar(serie => {
 - [x] Volume Rendering
 - [ ] Measuring tools
 - [ ] Segmentations (Cornerstone.js >>> data >>> vtk.js)
-- [ ] Presets and colormaps
+- [x] Colormaps
 - [ ] Multi Slice Image Mapper (a different MPR implementation)
 
 ### TODO
