@@ -26,7 +26,9 @@ export class VRView {
     this.renderer = null;
     this.renderWindow = null;
     this.actor = null;
-    this.raysDistance = 1.5;
+    this._raysDistance = 1.5;
+    this._blurOnInteraction = null;
+    this._rescaleLUT = true; // TODO setter
 
     // piecewise gaussian widget stuff
     this.PGwidgetElement = null;
@@ -90,11 +92,11 @@ export class VRView {
    * @type {Number}
    */
   set resolution(value) {
-    this.raysDistance = 1 / value;
+    this._raysDistance = 1 / value;
   }
 
   get resolution() {
-    return Math.round(1 / this.raysDistance);
+    return Math.round(1 / this._raysDistance);
   }
 
   /**
@@ -116,6 +118,27 @@ export class VRView {
     this.PGwidget.setSize(w, h);
     this.PGwidget.setContainer(this.PGwidgetElement);
     this.PGwidget.render();
+  }
+
+  /**
+   * Flag to set lut rescaling on opacity range
+   * @type {bool}
+   */
+  set rescaleLUT(bool) {
+    this._rescaleLUT = bool;
+    let range;
+    if (this._rescaleLUT && this.PGwidget) {
+      range = this.PGwidget.getOpacityRange();
+    } else {
+      range = this.actor
+        .getMapper()
+        .getInputData()
+        .getPointData()
+        .getScalars()
+        .getRange();
+    }
+    this.ctfun.setMappingRange(...range);
+    this.ctfun.updateRange();
   }
 
   /**
@@ -163,7 +186,7 @@ export class VRView {
 
     this.setupWwwlInteractor();
 
-    this.blurOnInteraction(true);
+    this.blurOnInteraction = true;
 
     this.renderer.resetCamera();
     this.renderWindow.render();
@@ -189,7 +212,8 @@ export class VRView {
 
   /**
    * Set colormap and opacity function
-   * @type {String} lutName - as in presets list
+   * lutName - as in presets list
+   * @type {String}
    */
   set lut(lutName) {
     // set up color transfer function
@@ -197,16 +221,18 @@ export class VRView {
     lookupTable.applyColorMap(vtkColorMaps.getPresetByName(lutName));
 
     // update lookup table mapping range based on input dataset
-    const range = this.actor
-      .getMapper()
-      .getInputData()
-      .getPointData()
-      .getScalars()
-      .getRange();
+    let range;
 
-    // TODO generalize: remapping to max/min hist (as bool) (rescale LUT)
-    // PGwidget.getOpacityRange(); -> rescale on gaussian curve
-    range[1] -= 2500;
+    if (this._rescaleLUT && this.PGwidget) {
+      range = this.PGwidget.getOpacityRange();
+    } else {
+      range = this.actor
+        .getMapper()
+        .getInputData()
+        .getPointData()
+        .getScalars()
+        .getRange();
+    }
     lookupTable.setMappingRange(...range);
     lookupTable.updateRange();
 
@@ -223,14 +249,15 @@ export class VRView {
   }
 
   /**
-   * TODO
-   * @returns
+   * Get vtk LUTs list
+   * @returns {Array} - Lut list as array of strings
    */
   getLutList() {
     return vtkColorMaps.rgbPresetNames;
   }
 
   /**
+   * Set actor appearance properties
    * TODO
    */
   setActorProperties() {
@@ -410,6 +437,12 @@ export class VRView {
       if (!this.renderWindow.getInteractor().isAnimating()) {
         this.renderWindow.render();
       }
+
+      if (this._rescaleLUT && this.PGwidget) {
+        const range = this.PGwidget.getOpacityRange();
+        this.ctfun.setMappingRange(...range);
+        this.ctfun.updateRange();
+      }
     });
   }
 
@@ -419,28 +452,29 @@ export class VRView {
 
   /**
    * Toggle blurring on interaction (Increase performance)
-   * @param {bool} toggle - if true, blur on interaction
+   * @type {bool} toggle - if true, blur on interaction
    */
-  blurOnInteraction(toggle) {
+  set blurOnInteraction(toggle) {
+    this._blurOnInteraction = toggle;
     let interactor = this.renderWindow.getInteractor();
     let mapper = this.actor.getMapper();
 
     if (toggle) {
       interactor.onLeftButtonPress(() => {
-        mapper.setSampleDistance(this.raysDistance * 5);
+        mapper.setSampleDistance(this._raysDistance * 5);
       });
 
       interactor.onLeftButtonRelease(() => {
-        mapper.setSampleDistance(this.raysDistance);
+        mapper.setSampleDistance(this._raysDistance);
         this.renderWindow.render();
       });
     } else {
       interactor.onLeftButtonPress(() => {
-        mapper.setSampleDistance(this.raysDistance);
+        mapper.setSampleDistance(this._raysDistance);
       });
 
       interactor.onLeftButtonRelease(() => {
-        mapper.setSampleDistance(this.raysDistance);
+        mapper.setSampleDistance(this._raysDistance);
       });
     }
   }

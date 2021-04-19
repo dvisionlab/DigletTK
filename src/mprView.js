@@ -319,4 +319,11 @@ export class MPRView {
     // set current slice (fake) to make distance widget working
     // istyle.setCurrentImageNumber(0);
   }
+
+  /**
+   * Destroy webgl content and release listeners
+   */
+  destroy() {
+    this._renderWindow.delete();
+  }
 }

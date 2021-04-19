@@ -53,6 +53,19 @@ Drag inside the gaussian to modify its shape.
 Double click to add a curve.
 Right click to delete a curve.
         </pre>
+
+        <!-- inputs -->
+        <form class="form-inline">
+          <div style="margin-bottom: 4px;"> 
+            <label class="sr-only" for="select-lut">LUT</label>
+            <select style="max-width: 150px;" id="select-lut" onchange="updateLut(this.options[this.selectedIndex].text)">
+            </select>
+            <input checked type="checkbox" class="custom-control-input" id="customControlAutosizing" onchange="updateRescale(this.checked)">
+            <label class="custom-control-label" for="customControlAutosizing">rescale LUT</label>
+          </div>
+        </form>
+        <!-- end inputs -->
+
         <div id="widget" style="height: 120px; margin:auto; border: 3px solid green"></div>
         <h3 style="margin-top: 20px; margin-bottom: 10px;">Code Example</h3>
         <pre class="h-100">
@@ -72,6 +85,8 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
   vr.setImage(image);
   // set widget element to control opacity 
   vr.widgetElement = widgetContainer;
+  // set a LUT 
+  vr.lut = "2hot";
 })
           </code>
         </pre>
@@ -87,6 +102,31 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
 
     <script>
 
+        let vr = null;
+
+        function fillSelect(list) {
+          let select = document.getElementById('select-lut');
+          let index = 0;
+          for(let element of list)
+            {
+              var opt = document.createElement("option");
+              opt.value= index;
+              opt.innerHTML = element;
+              select.appendChild(opt);
+              index++;
+            }
+        }
+
+        function updateLut(v) {
+          console.log('update LUT', v)
+          vr.lut = v;
+        }
+
+        function updateRescale(v) {
+          console.log('rescale', v)
+          vr.rescaleLUT = v;
+        }
+
         const element = document.getElementById('viewer-2')
         const widgetContainer = document.getElementById("widget");
         
@@ -97,14 +137,15 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
             // build vtk volume with larvitar
             const image = diglettk.buildVtkVolume(header, data);
             // run vr
-            let vr = new diglettk.VRView(element);
+            vr = new diglettk.VRView(element);
             // set an image
             vr.setImage(image);
             // set widget element to control opacity 
             vr.widgetElement = widgetContainer;
             // set a LUT 
             let lutList = vr.getLutList();
-            vr.lut = lutList[10];
+            fillSelect(lutList)
+            vr.lut = lutList[0];
         })
     </script>
   </body>
