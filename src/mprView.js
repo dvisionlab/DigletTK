@@ -8,41 +8,25 @@ import { degrees2radians } from "./utils";
 
 /**
  * MPRView class
+ * This is not intended to be used directly by user
+ * Use MPRManager instead: it will create three instances of MPRView
  * @private
- * @todo
  *
- * viewportData is the internal state (this)
- *
- * methods:
- *  - initView OK
- *  - updateVolumesForRendering OK
- *  - updateSlicePlane OK
- *  - onResize OK
- *  - setLevelTool
- *  - setCrosshairTool
- *  - setInteractor
- *  - onCrosshairPointSelected ? must update other views -> need a just a setter for worldPos
- *  - updateLevels ? idem, just a setter for wwwl
- *  - updateBlendMode OK
- *
- *  - setter for height and width
  */
 
+// TODO move to constants
 const PLANE_NORMALS = [[0, 0, 1], [1, 0, 0], [0, -1, 0]];
-
 const VIEW_UPS = [[0, -1, 0], [0, 0, -1], [0, 0, -1]];
 export class MPRView {
   constructor(key, i, element) {
     this.VERBOSE = false;
-    this.key = key;
-    this.volumes = [];
-    this.width = 300; // TODO set container.offsetWidth
-    this.height = 300; // TODO set container.offsetHight
-    this.renderer = null;
-    this.parallel = false; // TODO setter
-    this.onCreated = null; // TODO
-    this.onDestroyed = null; // TODO check on original code
-    this.element = element;
+    this._key = key;
+    this._element = element;
+    this._volumes = [];
+    this._renderer = null;
+    this._parallel = false; // TODO setter
+    // this.onCreated = null; // TODO
+    // this.onDestroyed = null; // TODO
 
     // init global data
     this.slicePlaneNormal = PLANE_NORMALS[i];
@@ -50,76 +34,112 @@ export class MPRView {
     this.slicePlaneXRotation = 0;
     this.slicePlaneYRotation = 0;
     this.viewRotation = 0;
-    this.sliceThickness = 0.1;
-    this.blendMode = "MIP";
+    this._sliceThickness = 0.1;
+    this._blendMode = "MIP";
     this.window = {
       width: 0,
       center: 0
     };
 
-    // ex global_data
-
     // cache the view vectors so we can apply the rotations without modifying the original value
-    // moved to constructor
-    // this.cachedSlicePlane = [...data.views[key].slicePlaneNormal];
-    // this.cachedSliceViewUp = [...data.views[key].sliceViewUp];
-    this.cachedSlicePlane = [...this.slicePlaneNormal];
-    this.cachedSliceViewUp = [...this.sliceViewUp];
+    this._cachedSlicePlane = [...this.slicePlaneNormal];
+    this._cachedSliceViewUp = [...this.sliceViewUp];
 
-    this.genericRenderWindow = vtkGenericRenderWindow.newInstance({
+    this._genericRenderWindow = vtkGenericRenderWindow.newInstance({
       background: [0, 0, 0]
     });
 
-    this.genericRenderWindow.setContainer(element);
+    this._genericRenderWindow.setContainer(element);
 
-    let widgets = [];
+    this._renderWindow = this._genericRenderWindow.getRenderWindow();
+    this._renderer = this._genericRenderWindow.getRenderer();
 
-    this.renderWindow = this.genericRenderWindow.getRenderWindow();
-    this.renderer = this.genericRenderWindow.getRenderer();
-
-    if (this.parallel) {
-      this.renderer.getActiveCamera().setParallelProjection(true);
+    if (this._parallel) {
+      this._renderer.getActiveCamera().setParallelProjection(true);
     }
 
-    // DISTANCE WDG
-    // let widgetManager = vtkWidgetManager.newInstance();
-    // widgetManager.setRenderer(this.renderer);
-    // this.widgetManager = widgetManager;
-
     // update view node tree so that vtkOpenGLHardwareSelector can access the vtkOpenGLRenderer instance.
-    const oglrw = this.genericRenderWindow.getOpenGLRenderWindow();
+    const oglrw = this._genericRenderWindow.getOpenGLRenderWindow();
     oglrw.buildPass(true);
 
     /*
-         // TODO: Use for maintaining clipping range for MIP
-         const interactor = this.renderWindow.getInteractor();
-         //const clippingRange = renderer.getActiveCamera().getClippingRange();
-     
-         interactor.onAnimation(() => {
-           renderer.getActiveCamera().setClippingRange(...r);
-         });
-      */
+    // Use for maintaining clipping range for MIP (TODO)
+    const interactor = this.renderWindow.getInteractor();
+    //const clippingRange = renderer.getActiveCamera().getClippingRange();
+
+    interactor.onAnimation(() => {
+      renderer.getActiveCamera().setClippingRange(...r);
+    });
+    */
 
     // force the initial draw to set the canvas to the parent bounds.
     this.onResize();
-
-    if (this.onCreated) {
-      this.onCreated();
-    }
   }
 
+  /**
+   * blendMode - "MIP", "MinIP", "Average"
+   * @type {String}
+   */
+  set blendMode(blendMode) {
+    this._blendMode = blendMode;
+    this.updateBlendMode(this._sliceThickness, this._blendMode);
+  }
+
+  /**
+   * sliceThickness
+   * @type {Number}
+   */
+  set sliceThickness(thickness) {
+    this._sliceThickness = thickness;
+    const istyle = this.renderWindow.getInteractor().getInteractorStyle();
+    // set thickness if the current interactor has it (it should, but just in case)
+    istyle.setSlabThickness && istyle.setSlabThickness(this._sliceThickness);
+    this.updateBlendMode(this._sliceThickness, this._blendMode);
+  }
+
+  /**
+   * wwwl
+   * @type {Array}
+   */
+  set wwwl([wl, ww]) {
+    this.window.center = wl;
+    this.window.width = ww;
+
+    this._genericRenderWindow
+      .getInteractor()
+      .getInteractorStyle()
+      .setWindowLevel(ww, wl);
+
+    this._genericRenderWindow.getRenderWindow().render();
+  }
+
+  /**
+   * camera
+   * @type {vtkCamera}
+   */
+  get camera() {
+    return this._genericRenderWindow.getRenderer().getActiveCamera();
+  }
+
+  /**
+   * Initialize view: add actor to scene and setup controls & props
+   * @private
+   * @param {vtkActor} actor
+   * @param {State} data
+   * @param {Function} onScrollCb
+   */
   initView(actor, data, onScrollCb) {
     // dv: store volumes and element in viewport data
-    this.volumes.push(actor);
+    this._volumes.push(actor);
 
     const istyle = vtkInteractorStyleMPRSlice.newInstance();
     istyle.setOnScroll(onScrollCb);
-    const inter = this.renderWindow.getInteractor();
+    const inter = this._renderWindow.getInteractor();
     inter.setInteractorStyle(istyle);
 
     //  TODO: assumes the volume is always set for this mounted state...Throw an error?
-    if (this.VERBOSE) console.log(this.volumes);
-    const istyleVolumeMapper = this.volumes[0].getMapper();
+    if (this.VERBOSE) console.log(this._volumes);
+    const istyleVolumeMapper = this._volumes[0].getMapper();
 
     istyle.setVolumeMapper(istyleVolumeMapper);
 
@@ -131,36 +151,40 @@ export class MPRView {
     // add the current volumes to the vtk renderer
     this.updateVolumesForRendering();
 
-    if (this.VERBOSE) console.log("view data", this.key, data.views[this.key]);
-    this.updateSlicePlane(data.views[this.key]);
+    if (this.VERBOSE) console.log("view data", this._key, data.views[this.key]);
+    this.updateSlicePlane(data.views[this._key]);
 
     // force the initial draw to set the canvas to the parent bounds.
     this.onResize();
-
-    if (this.onCreated) {
-      this.onCreated();
-    }
   }
 
+  /**
+   * cleanup the scene and add new volume
+   * @private
+   */
   updateVolumesForRendering() {
-    this.renderer.removeAllVolumes();
-    let volumes = this.volumes;
+    this._renderer.removeAllVolumes();
+    let volumes = this._volumes;
     if (volumes && volumes.length) {
       volumes.forEach(volume => {
         if (!volume.isA("vtkVolume")) {
           console.warn("Data to <Vtk2D> is not vtkVolume data");
         } else {
-          this.renderer.addVolume(volume);
+          this._renderer.addVolume(volume);
         }
       });
     }
-    this.renderWindow.render();
+    this._renderWindow.render();
   }
 
+  /**
+   * Recompute slice plane after changes
+   * @param {State} viewData
+   */
   updateSlicePlane(viewData) {
     // cached things are in viewport data
-    let cachedSlicePlane = this.cachedSlicePlane;
-    let cachedSliceViewUp = this.cachedSliceViewUp;
+    let cachedSlicePlane = this._cachedSlicePlane;
+    let cachedSliceViewUp = this._cachedSliceViewUp;
     if (this.VERBOSE) console.log(viewData);
     // TODO: optimize so you don't have to calculate EVERYTHING every time?
 
@@ -175,17 +199,6 @@ export class MPRView {
 
     // rotate the viewUp vector as the Y component
     let sliceYRotVector = viewData.sliceViewUp;
-
-    // const yQuat = quat.create();
-    // quat.setAxisAngle(yQuat, input.sliceViewUp, degrees2radians(viewData.slicePlaneYRotation));
-    // quat.normalize(yQuat, yQuat);
-
-    // Rotate the slicePlaneNormal using the x & y rotations.
-    // const planeQuat = quat.create();
-    // quat.add(planeQuat, xQuat, yQuat);
-    // quat.normalize(planeQuat, planeQuat);
-
-    // vec3.transformQuat(viewData.cachedSlicePlane, viewData.slicePlaneNormal, planeQuat);
 
     const planeMat = mat4.create();
     mat4.rotate(
@@ -229,7 +242,7 @@ export class MPRView {
     vec3.transformQuat(cachedSliceViewUp, viewData.sliceViewUp, viewRotQuat);
 
     // update the view's slice
-    const renderWindow = this.genericRenderWindow.getRenderWindow();
+    const renderWindow = this._genericRenderWindow.getRenderWindow();
     const istyle = renderWindow.getInteractor().getInteractorStyle();
     if (istyle && istyle.setSliceNormal) {
       istyle.setSliceNormal(cachedSlicePlane, cachedSliceViewUp);
@@ -238,43 +251,50 @@ export class MPRView {
     renderWindow.render();
   }
 
+  /**
+   * on resize callback
+   * @private
+   */
   onResize() {
     // TODO: debounce for performance reasons?
-    this.genericRenderWindow.resize();
-
-    const [width, height] = [
-      this.element.offsetWidth,
-      this.element.offsetHeight
-    ];
-    this.width = width;
-    this.height = height;
+    this._genericRenderWindow.resize();
   }
 
+  /**
+   * update blending after changes
+   * @private
+   * @param {Number} thickness
+   * @param {String} blendMode
+   */
   updateBlendMode(thickness, blendMode) {
     if (thickness >= 1) {
       switch (blendMode) {
         case "MIP":
-          this.volumes[0].getMapper().setBlendModeToMaximumIntensity();
+          this._volumes[0].getMapper().setBlendModeToMaximumIntensity();
           break;
         case "MINIP":
-          this.volumes[0].getMapper().setBlendModeToMinimumIntensity();
+          this._volumes[0].getMapper().setBlendModeToMinimumIntensity();
           break;
         case "AVG":
-          this.volumes[0].getMapper().setBlendModeToAverageIntensity();
+          this._volumes[0].getMapper().setBlendModeToAverageIntensity();
           break;
         case "none":
         default:
-          this.volumes[0].getMapper().setBlendModeToComposite();
+          this._volumes[0].getMapper().setBlendModeToComposite();
           break;
       }
     } else {
       this.volumes[0].getMapper().setBlendModeToComposite();
     }
-    this.renderWindow.render();
+    this._renderWindow.render();
   }
 
+  /**
+   * Setup interactor
+   * @param {vtkInteractorStyle} istyle
+   */
   setInteractor(istyle) {
-    const renderWindow = this.genericRenderWindow.getRenderWindow();
+    const renderWindow = this._genericRenderWindow.getRenderWindow();
     // We are assuming the old style is always extended from the MPRSlice style
     const oldStyle = renderWindow.getInteractor().getInteractorStyle();
 
@@ -294,7 +314,7 @@ export class MPRView {
     if (istyle.setSlabThickness && oldStyle.getSlabThickness()) {
       istyle.setSlabThickness(oldStyle.getSlabThickness());
     }
-    istyle.setVolumeMapper(this.volumes[0]);
+    istyle.setVolumeMapper(this._volumes[0]);
 
     // set current slice (fake) to make distance widget working
     // istyle.setCurrentImageNumber(0);

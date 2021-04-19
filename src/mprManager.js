@@ -84,8 +84,8 @@ export class MPRManager {
         slicePlaneXRotation,
         slicePlaneYRotation,
         viewRotation,
-        sliceThickness,
-        blendMode,
+        _sliceThickness,
+        _blendMode,
         window
       } = result[key];
       result[key] = {
@@ -94,8 +94,8 @@ export class MPRManager {
         slicePlaneXRotation,
         slicePlaneYRotation,
         viewRotation,
-        sliceThickness,
-        blendMode,
+        sliceThickness: _sliceThickness,
+        blendMode: _blendMode,
         window
       };
       return result;
@@ -240,13 +240,7 @@ export class MPRManager {
       Object.keys(this.elements)
         .filter(key => key !== srcKey)
         .forEach(k => {
-          state.views[k].window.center = windowCenter;
-          state.views[k].window.width = windowWidth;
-          this.mprViews[k].genericRenderWindow
-            .getInteractor()
-            .getInteractorStyle()
-            .setWindowLevel(windowWidth, windowCenter);
-          this.mprViews[k].genericRenderWindow.getRenderWindow().render();
+          this.mprViews[k].wwwl = [windowCenter, windowWidth];
         });
     }
   }
@@ -258,10 +252,7 @@ export class MPRManager {
   onScrolled() {
     let planes = [];
     Object.keys(this.elements).forEach(key => {
-      const camera = this.mprViews[key].genericRenderWindow
-        .getRenderer()
-        .getActiveCamera();
-
+      const camera = this.mprViews[key].camera;
       planes.push({
         position: camera.getFocalPoint(),
         normal: camera.getDirectionOfProjection()
@@ -336,18 +327,10 @@ export class MPRManager {
     }
 
     view.sliceThickness = thickness;
-    // TODO: consts instead of magic strings
-    if (shouldBeMIP && view.blendMode === "none") view.blendMode = "MIP";
-    // else if(!shouldBeMIP) {
-    //   view.blendMode = "none"
-    // }
 
-    // dv: ex-watcher mpr
-    const istyle = this.mprViews[key].renderWindow
-      .getInteractor()
-      .getInteractorStyle();
-    // set thickness if the current interactor has it (it should, but just in case)
-    istyle.setSlabThickness && istyle.setSlabThickness(thickness);
-    this.mprViews[key].updateBlendMode(thickness, "MIP");
+    // if thickness > 1 switch to MIP
+    if (shouldBeMIP && view.blendMode === "none") view.blendMode = "MIP";
+
+    this.mprViews[key].sliceThickness = thickness;
   }
 }
