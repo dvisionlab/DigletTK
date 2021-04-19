@@ -36,8 +36,6 @@ export class MPRView {
     this.VERBOSE = false;
     this.key = key;
     this.volumes = [];
-    this.width = 300; // TODO set container.offsetWidth
-    this.height = 300; // TODO set container.offsetHight
     this.renderer = null;
     this.parallel = false; // TODO setter
     this.onCreated = null; // TODO
@@ -50,19 +48,14 @@ export class MPRView {
     this.slicePlaneXRotation = 0;
     this.slicePlaneYRotation = 0;
     this.viewRotation = 0;
-    this.sliceThickness = 0.1;
-    this.blendMode = "MIP";
+    this._sliceThickness = 0.1;
+    this._blendMode = "MIP";
     this.window = {
       width: 0,
       center: 0
     };
 
-    // ex global_data
-
     // cache the view vectors so we can apply the rotations without modifying the original value
-    // moved to constructor
-    // this.cachedSlicePlane = [...data.views[key].slicePlaneNormal];
-    // this.cachedSliceViewUp = [...data.views[key].sliceViewUp];
     this.cachedSlicePlane = [...this.slicePlaneNormal];
     this.cachedSliceViewUp = [...this.sliceViewUp];
 
@@ -72,8 +65,6 @@ export class MPRView {
 
     this.genericRenderWindow.setContainer(element);
 
-    let widgets = [];
-
     this.renderWindow = this.genericRenderWindow.getRenderWindow();
     this.renderer = this.genericRenderWindow.getRenderer();
 
@@ -81,24 +72,19 @@ export class MPRView {
       this.renderer.getActiveCamera().setParallelProjection(true);
     }
 
-    // DISTANCE WDG
-    // let widgetManager = vtkWidgetManager.newInstance();
-    // widgetManager.setRenderer(this.renderer);
-    // this.widgetManager = widgetManager;
-
     // update view node tree so that vtkOpenGLHardwareSelector can access the vtkOpenGLRenderer instance.
     const oglrw = this.genericRenderWindow.getOpenGLRenderWindow();
     oglrw.buildPass(true);
 
     /*
-         // TODO: Use for maintaining clipping range for MIP
-         const interactor = this.renderWindow.getInteractor();
-         //const clippingRange = renderer.getActiveCamera().getClippingRange();
-     
-         interactor.onAnimation(() => {
-           renderer.getActiveCamera().setClippingRange(...r);
-         });
-      */
+    // Use for maintaining clipping range for MIP (TODO)
+    const interactor = this.renderWindow.getInteractor();
+    //const clippingRange = renderer.getActiveCamera().getClippingRange();
+
+    interactor.onAnimation(() => {
+      renderer.getActiveCamera().setClippingRange(...r);
+    });
+    */
 
     // force the initial draw to set the canvas to the parent bounds.
     this.onResize();
@@ -106,6 +92,19 @@ export class MPRView {
     if (this.onCreated) {
       this.onCreated();
     }
+  }
+
+  set blendMode(blendMode) {
+    this._blendMode = blendMode;
+    this.updateBlendMode(this._sliceThickness, this._blendMode);
+  }
+
+  set sliceThickness(thickness) {
+    this._sliceThickness = thickness;
+    const istyle = this.renderWindow.getInteractor().getInteractorStyle();
+    // set thickness if the current interactor has it (it should, but just in case)
+    istyle.setSlabThickness && istyle.setSlabThickness(this._sliceThickness);
+    this.updateBlendMode(this._sliceThickness, this._blendMode);
   }
 
   initView(actor, data, onScrollCb) {
@@ -176,17 +175,6 @@ export class MPRView {
     // rotate the viewUp vector as the Y component
     let sliceYRotVector = viewData.sliceViewUp;
 
-    // const yQuat = quat.create();
-    // quat.setAxisAngle(yQuat, input.sliceViewUp, degrees2radians(viewData.slicePlaneYRotation));
-    // quat.normalize(yQuat, yQuat);
-
-    // Rotate the slicePlaneNormal using the x & y rotations.
-    // const planeQuat = quat.create();
-    // quat.add(planeQuat, xQuat, yQuat);
-    // quat.normalize(planeQuat, planeQuat);
-
-    // vec3.transformQuat(viewData.cachedSlicePlane, viewData.slicePlaneNormal, planeQuat);
-
     const planeMat = mat4.create();
     mat4.rotate(
       planeMat,
@@ -241,13 +229,6 @@ export class MPRView {
   onResize() {
     // TODO: debounce for performance reasons?
     this.genericRenderWindow.resize();
-
-    const [width, height] = [
-      this.element.offsetWidth,
-      this.element.offsetHeight
-    ];
-    this.width = width;
-    this.height = height;
   }
 
   updateBlendMode(thickness, blendMode) {

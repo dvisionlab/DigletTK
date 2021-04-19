@@ -336,18 +336,10 @@ export class MPRManager {
     }
 
     view.sliceThickness = thickness;
-    // TODO: consts instead of magic strings
-    if (shouldBeMIP && view.blendMode === "none") view.blendMode = "MIP";
-    // else if(!shouldBeMIP) {
-    //   view.blendMode = "none"
-    // }
 
-    // dv: ex-watcher mpr
-    const istyle = this.mprViews[key].renderWindow
-      .getInteractor()
-      .getInteractorStyle();
-    // set thickness if the current interactor has it (it should, but just in case)
-    istyle.setSlabThickness && istyle.setSlabThickness(thickness);
-    this.mprViews[key].updateBlendMode(thickness, "MIP");
+    // if thickness > 1 switch to MIP
+    if (shouldBeMIP && view.blendMode === "none") view.blendMode = "MIP";
+
+    this.mprViews[key].sliceThickness = thickness;
   }
 }
