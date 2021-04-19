@@ -27,7 +27,8 @@ export class VRView {
     this.renderWindow = null;
     this.actor = null;
     this._raysDistance = 1.5;
-    this._blurOnInteraction = true;
+    this._blurOnInteraction = null;
+    this._rescaleLUT = true; // TODO setter
 
     // piecewise gaussian widget stuff
     this.PGwidgetElement = null;
@@ -120,6 +121,27 @@ export class VRView {
   }
 
   /**
+   * Flag to set lut rescaling on opacity range
+   * @type {bool}
+   */
+  set rescaleLUT(bool) {
+    this._rescaleLUT = bool;
+    let range;
+    if (this._rescaleLUT && this.PGwidget) {
+      range = this.PGwidget.getOpacityRange();
+    } else {
+      range = this.actor
+        .getMapper()
+        .getInputData()
+        .getPointData()
+        .getScalars()
+        .getRange();
+    }
+    this.ctfun.setMappingRange(...range);
+    this.ctfun.updateRange();
+  }
+
+  /**
    * Initialize rendering scene
    * @private
    */
@@ -164,7 +186,7 @@ export class VRView {
 
     this.setupWwwlInteractor();
 
-    this.blurOnInteraction(true);
+    this.blurOnInteraction = true;
 
     this.renderer.resetCamera();
     this.renderWindow.render();
@@ -199,16 +221,18 @@ export class VRView {
     lookupTable.applyColorMap(vtkColorMaps.getPresetByName(lutName));
 
     // update lookup table mapping range based on input dataset
-    const range = this.actor
-      .getMapper()
-      .getInputData()
-      .getPointData()
-      .getScalars()
-      .getRange();
+    let range;
 
-    // TODO generalize: remapping to max/min hist (as bool) (rescale LUT)
-    // PGwidget.getOpacityRange(); -> rescale on gaussian curve
-    range[1] -= 2500;
+    if (this._rescaleLUT && this.PGwidget) {
+      range = this.PGwidget.getOpacityRange();
+    } else {
+      range = this.actor
+        .getMapper()
+        .getInputData()
+        .getPointData()
+        .getScalars()
+        .getRange();
+    }
     lookupTable.setMappingRange(...range);
     lookupTable.updateRange();
 
@@ -412,6 +436,12 @@ export class VRView {
       this.PGwidget.applyOpacity(this.ofun);
       if (!this.renderWindow.getInteractor().isAnimating()) {
         this.renderWindow.render();
+      }
+
+      if (this._rescaleLUT && this.PGwidget) {
+        const range = this.PGwidget.getOpacityRange();
+        this.ctfun.setMappingRange(...range);
+        this.ctfun.updateRange();
       }
     });
   }
