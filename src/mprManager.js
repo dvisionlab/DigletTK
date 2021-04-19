@@ -333,4 +333,13 @@ export class MPRManager {
 
     this.mprViews[key].sliceThickness = thickness;
   }
+
+  /**
+   * Destroy webgl content and release listeners
+   */
+  destroy() {
+    Object.keys(this.elements).forEach(k => {
+      this.elements[k].renderWindow.delete();
+    });
+  }
 }

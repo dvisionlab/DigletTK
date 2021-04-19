@@ -26,7 +26,8 @@ export class VRView {
     this.renderer = null;
     this.renderWindow = null;
     this.actor = null;
-    this.raysDistance = 1.5;
+    this._raysDistance = 1.5;
+    this._blurOnInteraction = true;
 
     // piecewise gaussian widget stuff
     this.PGwidgetElement = null;
@@ -90,11 +91,11 @@ export class VRView {
    * @type {Number}
    */
   set resolution(value) {
-    this.raysDistance = 1 / value;
+    this._raysDistance = 1 / value;
   }
 
   get resolution() {
-    return Math.round(1 / this.raysDistance);
+    return Math.round(1 / this._raysDistance);
   }
 
   /**
@@ -189,7 +190,8 @@ export class VRView {
 
   /**
    * Set colormap and opacity function
-   * @type {String} lutName - as in presets list
+   * lutName - as in presets list
+   * @type {String}
    */
   set lut(lutName) {
     // set up color transfer function
@@ -223,14 +225,15 @@ export class VRView {
   }
 
   /**
-   * TODO
-   * @returns
+   * Get vtk LUTs list
+   * @returns {Array} - Lut list as array of strings
    */
   getLutList() {
     return vtkColorMaps.rgbPresetNames;
   }
 
   /**
+   * Set actor appearance properties
    * TODO
    */
   setActorProperties() {
@@ -419,28 +422,29 @@ export class VRView {
 
   /**
    * Toggle blurring on interaction (Increase performance)
-   * @param {bool} toggle - if true, blur on interaction
+   * @type {bool} toggle - if true, blur on interaction
    */
-  blurOnInteraction(toggle) {
+  set blurOnInteraction(toggle) {
+    this._blurOnInteraction = toggle;
     let interactor = this.renderWindow.getInteractor();
     let mapper = this.actor.getMapper();
 
     if (toggle) {
       interactor.onLeftButtonPress(() => {
-        mapper.setSampleDistance(this.raysDistance * 5);
+        mapper.setSampleDistance(this._raysDistance * 5);
       });
 
       interactor.onLeftButtonRelease(() => {
-        mapper.setSampleDistance(this.raysDistance);
+        mapper.setSampleDistance(this._raysDistance);
         this.renderWindow.render();
       });
     } else {
       interactor.onLeftButtonPress(() => {
-        mapper.setSampleDistance(this.raysDistance);
+        mapper.setSampleDistance(this._raysDistance);
       });
 
       interactor.onLeftButtonRelease(() => {
-        mapper.setSampleDistance(this.raysDistance);
+        mapper.setSampleDistance(this._raysDistance);
       });
     }
   }
