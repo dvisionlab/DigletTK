@@ -84,8 +84,8 @@ export class MPRManager {
         slicePlaneXRotation,
         slicePlaneYRotation,
         viewRotation,
-        sliceThickness,
-        blendMode,
+        _sliceThickness,
+        _blendMode,
         window
       } = result[key];
       result[key] = {
@@ -94,8 +94,8 @@ export class MPRManager {
         slicePlaneXRotation,
         slicePlaneYRotation,
         viewRotation,
-        sliceThickness,
-        blendMode,
+        sliceThickness: _sliceThickness,
+        blendMode: _blendMode,
         window
       };
       return result;
@@ -240,13 +240,7 @@ export class MPRManager {
       Object.keys(this.elements)
         .filter(key => key !== srcKey)
         .forEach(k => {
-          state.views[k].window.center = windowCenter;
-          state.views[k].window.width = windowWidth;
-          this.mprViews[k].genericRenderWindow
-            .getInteractor()
-            .getInteractorStyle()
-            .setWindowLevel(windowWidth, windowCenter);
-          this.mprViews[k].genericRenderWindow.getRenderWindow().render();
+          this.mprViews[k].wwwl = [windowCenter, windowWidth];
         });
     }
   }
@@ -258,10 +252,7 @@ export class MPRManager {
   onScrolled() {
     let planes = [];
     Object.keys(this.elements).forEach(key => {
-      const camera = this.mprViews[key].genericRenderWindow
-        .getRenderer()
-        .getActiveCamera();
-
+      const camera = this.mprViews[key].camera;
       planes.push({
         position: camera.getFocalPoint(),
         normal: camera.getDirectionOfProjection()
