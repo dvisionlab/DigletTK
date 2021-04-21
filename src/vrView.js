@@ -25,6 +25,7 @@ export class VRView {
     this.element = element;
     this.renderer = null;
     this.renderWindow = null;
+    this._genericRenderWindow = null;
     this.actor = null;
     this._raysDistance = 1.5;
     this._blurOnInteraction = null;
@@ -153,7 +154,7 @@ export class VRView {
 
     this.renderer = genericRenderWindow.getRenderer();
     this.renderWindow = genericRenderWindow.getRenderWindow();
-    this.genericRenderWindow = genericRenderWindow;
+    this._genericRenderWindow = genericRenderWindow;
 
     this.addPGwidget();
   }
@@ -540,6 +541,14 @@ export class VRView {
     interactorStyle.addMouseManipulator(zoomManipulator);
     interactorStyle.setCenterOfRotation(this.actor.getCenter());
     this.renderWindow.getInteractor().setInteractorStyle(interactorStyle);
+  }
+
+  /**
+   * on resize callback
+   */
+  resize() {
+    // TODO: debounce for performance reasons?
+    this._genericRenderWindow.resize();
   }
 
   /**
