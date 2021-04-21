@@ -63,5 +63,5 @@ jobs:
         run: |
           git config --global user.name 'Mattia-gh-action'
           git config --global user.email 'ronzim@users.noreply.github.com'
-          git commit -am "Automated pakage and docs"
+          git commit --allow-empty -am "Automated package and docs"
           git push
