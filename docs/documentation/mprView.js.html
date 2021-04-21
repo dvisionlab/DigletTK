@@ -56,7 +56,7 @@ import vtkInteractorStyleMPRSlice from "./vtk/vtkInteractorMPRSlice";
 
 import { quat, vec3, mat4 } from "gl-matrix";
 
-import { degrees2radians } from "./utils";
+import { degrees2radians, fill2DView } from "./utils";
 
 /**
  * MPRView class
@@ -74,9 +74,9 @@ export class MPRView {
     this.VERBOSE = false;
     this._key = key;
     this._element = element;
-    this._volumes = [];
+    this._volume = null;
     this._renderer = null;
-    this._parallel = false; // TODO setter
+    this._parallel = true; // TODO setter
     // this.onCreated = null; // TODO
     // this.onDestroyed = null; // TODO
 
@@ -116,7 +116,7 @@ export class MPRView {
 
     /*
     // Use for maintaining clipping range for MIP (TODO)
-    const interactor = this.renderWindow.getInteractor();
+    const interactor = this._renderWindow.getInteractor();
     //const clippingRange = renderer.getActiveCamera().getClippingRange();
 
     interactor.onAnimation(() => {
@@ -143,7 +143,7 @@ export class MPRView {
    */
   set sliceThickness(thickness) {
     this._sliceThickness = thickness;
-    const istyle = this.renderWindow.getInteractor().getInteractorStyle();
+    const istyle = this._renderWindow.getInteractor().getInteractorStyle();
     // set thickness if the current interactor has it (it should, but just in case)
     istyle.setSlabThickness &amp;&amp; istyle.setSlabThickness(this._sliceThickness);
     this.updateBlendMode(this._sliceThickness, this._blendMode);
@@ -182,7 +182,7 @@ export class MPRView {
    */
   initView(actor, data, onScrollCb) {
     // dv: store volumes and element in viewport data
-    this._volumes.push(actor);
+    this._volume = actor;
 
     const istyle = vtkInteractorStyleMPRSlice.newInstance();
     istyle.setOnScroll(onScrollCb);
@@ -191,7 +191,7 @@ export class MPRView {
 
     //  TODO: assumes the volume is always set for this mounted state...Throw an error?
     if (this.VERBOSE) console.log(this._volumes);
-    const istyleVolumeMapper = this._volumes[0].getMapper();
+    const istyleVolumeMapper = this._volume.getMapper();
 
     istyle.setVolumeMapper(istyleVolumeMapper);
 
@@ -206,8 +206,8 @@ export class MPRView {
     if (this.VERBOSE) console.log("view data", this._key, data.views[this.key]);
     this.updateSlicePlane(data.views[this._key]);
 
-    // force the initial draw to set the canvas to the parent bounds.
-    this.onResize();
+    // set camera to fill viewport
+    this.fill2DView(this._genericRenderWindow, this._key);
   }
 
   /**
@@ -216,15 +216,12 @@ export class MPRView {
    */
   updateVolumesForRendering() {
     this._renderer.removeAllVolumes();
-    let volumes = this._volumes;
-    if (volumes &amp;&amp; volumes.length) {
-      volumes.forEach(volume => {
-        if (!volume.isA("vtkVolume")) {
-          console.warn("Data to &lt;Vtk2D> is not vtkVolume data");
-        } else {
-          this._renderer.addVolume(volume);
-        }
-      });
+    if (this._volume) {
+      if (!this._volume.isA("vtkVolume")) {
+        console.warn("Data to &lt;Vtk2D> is not vtkVolume data");
+      } else {
+        this._renderer.addVolume(this._volume);
+      }
     }
     this._renderWindow.render();
   }
@@ -303,6 +300,41 @@ export class MPRView {
     renderWindow.render();
   }
 
+  // fit to window (vtk.js 11 version: https://github.com/Kitware/paraview-glance/issues/230)
+  fill2DView() {
+    // Based this code: https://github.com/Kitware/paraview-glance/issues/230#issuecomment-445779222
+    const bounds = this._renderer.computeVisiblePropBounds();
+    const dim = [
+      (bounds[1] - bounds[0]) / 2,
+      (bounds[3] - bounds[2]) / 2,
+      (bounds[5] - bounds[4]) / 2
+    ];
+    const w = this._genericRenderWindow.getContainer().clientWidth;
+    const h = this._genericRenderWindow.getContainer().clientHeight;
+    const r = w / h;
+
+    let x;
+    let y;
+    if (this._key === "left") {
+      x = dim[1];
+      y = dim[2];
+    } else if (this._key === "front") {
+      x = dim[0];
+      y = dim[2];
+    } else if (this._key === "top") {
+      x = dim[0];
+      y = dim[1];
+    }
+    if (r >= x / y) {
+      // use width
+      this._renderer.getActiveCamera().setParallelScale(y + 1);
+    } else {
+      // use height
+      this._renderer.getActiveCamera().setParallelScale(x / r + 1);
+    }
+    this.onResize();
+  }
+
   /**
    * on resize callback
    * @private
@@ -322,21 +354,21 @@ export class MPRView {
     if (thickness >= 1) {
       switch (blendMode) {
         case "MIP":
-          this._volumes[0].getMapper().setBlendModeToMaximumIntensity();
+          this._volume.getMapper().setBlendModeToMaximumIntensity();
           break;
         case "MINIP":
-          this._volumes[0].getMapper().setBlendModeToMinimumIntensity();
+          this._volume.getMapper().setBlendModeToMinimumIntensity();
           break;
         case "AVG":
-          this._volumes[0].getMapper().setBlendModeToAverageIntensity();
+          this._volume.getMapper().setBlendModeToAverageIntensity();
           break;
         case "none":
         default:
-          this._volumes[0].getMapper().setBlendModeToComposite();
+          this._volume.getMapper().setBlendModeToComposite();
           break;
       }
     } else {
-      this.volumes[0].getMapper().setBlendModeToComposite();
+      this._volume.getMapper().setBlendModeToComposite();
     }
     this._renderWindow.render();
   }
@@ -366,7 +398,7 @@ export class MPRView {
     if (istyle.setSlabThickness &amp;&amp; oldStyle.getSlabThickness()) {
       istyle.setSlabThickness(oldStyle.getSlabThickness());
     }
-    istyle.setVolumeMapper(this._volumes[0]);
+    istyle.setVolumeMapper(this._volume);
 
     // set current slice (fake) to make distance widget working
     // istyle.setCurrentImageNumber(0);
