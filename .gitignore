@@ -1,3 +1,5 @@
 /node_modules/
 /templates/
 /.vscode/
+
+/docs/examples/test_*
