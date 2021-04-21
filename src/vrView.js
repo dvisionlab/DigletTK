@@ -27,14 +27,15 @@ export class VRView {
     this.renderWindow = null;
     this._genericRenderWindow = null;
     this.actor = null;
-    this._raysDistance = 1.5;
+    this._raysDistance = 2.5;
     this._blurOnInteraction = null;
-    this._rescaleLUT = true; // TODO setter
+    this._rescaleLUT = false; // cannot initialize true (must set lut before)
 
     // piecewise gaussian widget stuff
     this.PGwidgetElement = null;
     this.PGwidget = null;
     this.gaussians = null;
+    this._PGwidgetLoaded = false;
 
     // normalized ww wl
     this.ww = 0.25;
@@ -45,6 +46,7 @@ export class VRView {
 
     this.initVR();
     window.vr = this;
+    window.vtkColorMaps = vtkColorMaps;
   }
 
   /**
@@ -93,11 +95,13 @@ export class VRView {
    * @type {Number}
    */
   set resolution(value) {
-    this._raysDistance = 1 / value;
+    this._raysDistance = 5 / value;
+    this.actor.getMapper().setSampleDistance(this._raysDistance);
+    this.renderWindow.render();
   }
 
   get resolution() {
-    return Math.round(1 / this._raysDistance);
+    return Math.round(this._raysDistance * 5);
   }
 
   /**
@@ -224,7 +228,7 @@ export class VRView {
     // update lookup table mapping range based on input dataset
     let range;
 
-    if (this._rescaleLUT && this.PGwidget) {
+    if (this._rescaleLUT && this._PGwidgetLoaded) {
       range = this.PGwidget.getOpacityRange();
     } else {
       range = this.actor
@@ -234,6 +238,7 @@ export class VRView {
         .getScalars()
         .getRange();
     }
+
     lookupTable.setMappingRange(...range);
     lookupTable.updateRange();
 
@@ -414,6 +419,8 @@ export class VRView {
       this.PGwidget.render();
       this.renderWindow.render();
     });
+
+    this._PGwidgetLoaded = true;
   }
 
   /**
