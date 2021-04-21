@@ -78,17 +78,18 @@ export function fitToWindow(genericRenderWindow, dir) {
   }
 }
 
-export function loadSerieWithLarvitar(lrv, cb) {
+let larvitarInitialized = false;
+
+export function loadDemoSerieWithLarvitar(name, lrv, cb) {
   let demoFiles = [];
   let counter = 0;
   let demoFileList = getDemoFileNames();
 
   function getDemoFileNames() {
+    let numberOfFiles = name == "knee" ? 24 : 364;
     let demoFileList = [];
-    for (let i = 1; i < 24; i++) {
-      // for (let i = 1; i < 364; i++) {
-      let filename = "anon" + i;
-      // let filename = `anon (${i})`;
+    for (let i = 1; i < numberOfFiles; i++) {
+      let filename = `${name} (${i})`;
       demoFileList.push(filename);
     }
     return demoFileList;
@@ -105,11 +106,14 @@ export function loadSerieWithLarvitar(lrv, cb) {
     }
   }
 
-  // init all larvitar
-  lrv.initLarvitarStore();
-  lrv.initializeImageLoader();
-  lrv.initializeCSTools();
-  lrv.larvitar_store.addViewport("viewer");
+  if (!larvitarInitialized) {
+    // init all larvitar
+    lrv.initLarvitarStore();
+    lrv.initializeImageLoader();
+    lrv.initializeCSTools();
+    lrv.larvitar_store.addViewport("viewer");
+    larvitarInitialized = true;
+  }
 
   // load dicom and render
   demoFileList.forEach(function(demoFile) {
