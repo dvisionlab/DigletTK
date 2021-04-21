@@ -35,7 +35,7 @@
     
     <input type="text" id="nav-search" placeholder="Search" />
     
-    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="MPRManager.html">MPRManager</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MPRManager.html#getInitialState">getInitialState</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onRotate">onRotate</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onThickness">onThickness</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setTool">setTool</a></li></ul></li><li><a href="VRView.html">VRView</a><ul class='methods'><li data-type='method' style='display: none;'><a href="VRView.html#blurOnInteraction">blurOnInteraction</a></li><li data-type='method' style='display: none;'><a href="VRView.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setCamera">setCamera</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setLUT">setLUT</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#State">State</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="MPRManager.html">MPRManager</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MPRManager.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#getInitialState">getInitialState</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onRotate">onRotate</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onThickness">onThickness</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setTool">setTool</a></li></ul></li><li><a href="VRView.html">VRView</a><ul class='methods'><li data-type='method' style='display: none;'><a href="VRView.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="VRView.html#getLutList">getLutList</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setActorProperties">setActorProperties</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setCamera">setCamera</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setImage">setImage</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#State">State</a></li></ul>
 </nav>
 
 <div id="main">
@@ -136,8 +136,8 @@ export class MPRManager {
         slicePlaneXRotation,
         slicePlaneYRotation,
         viewRotation,
-        sliceThickness,
-        blendMode,
+        _sliceThickness,
+        _blendMode,
         window
       } = result[key];
       result[key] = {
@@ -146,8 +146,8 @@ export class MPRManager {
         slicePlaneXRotation,
         slicePlaneYRotation,
         viewRotation,
-        sliceThickness,
-        blendMode,
+        sliceThickness: _sliceThickness,
+        blendMode: _blendMode,
         window
       };
       return result;
@@ -292,13 +292,7 @@ export class MPRManager {
       Object.keys(this.elements)
         .filter(key => key !== srcKey)
         .forEach(k => {
-          state.views[k].window.center = windowCenter;
-          state.views[k].window.width = windowWidth;
-          this.mprViews[k].genericRenderWindow
-            .getInteractor()
-            .getInteractorStyle()
-            .setWindowLevel(windowWidth, windowCenter);
-          this.mprViews[k].genericRenderWindow.getRenderWindow().render();
+          this.mprViews[k].wwwl = [windowCenter, windowWidth];
         });
     }
   }
@@ -310,10 +304,7 @@ export class MPRManager {
   onScrolled() {
     let planes = [];
     Object.keys(this.elements).forEach(key => {
-      const camera = this.mprViews[key].genericRenderWindow
-        .getRenderer()
-        .getActiveCamera();
-
+      const camera = this.mprViews[key].camera;
       planes.push({
         position: camera.getFocalPoint(),
         normal: camera.getDirectionOfProjection()
@@ -388,19 +379,20 @@ export class MPRManager {
     }
 
     view.sliceThickness = thickness;
-    // TODO: consts instead of magic strings
-    if (shouldBeMIP &amp;&amp; view.blendMode === "none") view.blendMode = "MIP";
-    // else if(!shouldBeMIP) {
-    //   view.blendMode = "none"
-    // }
 
-    // dv: ex-watcher mpr
-    const istyle = this.mprViews[key].renderWindow
-      .getInteractor()
-      .getInteractorStyle();
-    // set thickness if the current interactor has it (it should, but just in case)
-    istyle.setSlabThickness &amp;&amp; istyle.setSlabThickness(thickness);
-    this.mprViews[key].updateBlendMode(thickness, "MIP");
+    // if thickness > 1 switch to MIP
+    if (shouldBeMIP &amp;&amp; view.blendMode === "none") view.blendMode = "MIP";
+
+    this.mprViews[key].sliceThickness = thickness;
+  }
+
+  /**
+   * Destroy webgl content and release listeners
+   */
+  destroy() {
+    Object.keys(this.elements).forEach(k => {
+      this.elements[k].renderWindow.delete();
+    });
   }
 }
 </code></pre>

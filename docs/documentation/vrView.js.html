@@ -35,7 +35,7 @@
     
     <input type="text" id="nav-search" placeholder="Search" />
     
-    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="MPRManager.html">MPRManager</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MPRManager.html#getInitialState">getInitialState</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onRotate">onRotate</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onThickness">onThickness</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setTool">setTool</a></li></ul></li><li><a href="VRView.html">VRView</a><ul class='methods'><li data-type='method' style='display: none;'><a href="VRView.html#blurOnInteraction">blurOnInteraction</a></li><li data-type='method' style='display: none;'><a href="VRView.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setCamera">setCamera</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setLUT">setLUT</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#State">State</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="MPRManager.html">MPRManager</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MPRManager.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#getInitialState">getInitialState</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onRotate">onRotate</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onThickness">onThickness</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setTool">setTool</a></li></ul></li><li><a href="VRView.html">VRView</a><ul class='methods'><li data-type='method' style='display: none;'><a href="VRView.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="VRView.html#getLutList">getLutList</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setActorProperties">setActorProperties</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setCamera">setCamera</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setImage">setImage</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#State">State</a></li></ul>
 </nav>
 
 <div id="main">
@@ -78,7 +78,9 @@ export class VRView {
     this.renderer = null;
     this.renderWindow = null;
     this.actor = null;
-    this.raysDistance = 1.5;
+    this._raysDistance = 1.5;
+    this._blurOnInteraction = null;
+    this._rescaleLUT = true; // TODO setter
 
     // piecewise gaussian widget stuff
     this.PGwidgetElement = null;
@@ -86,7 +88,7 @@ export class VRView {
     this.gaussians = null;
 
     // normalized ww wl
-    this.ww = 0.3;
+    this.ww = 0.25;
     this.wl = 0.3;
 
     // absolute ww wl
@@ -142,11 +144,11 @@ export class VRView {
    * @type {Number}
    */
   set resolution(value) {
-    this.raysDistance = 1 / value;
+    this._raysDistance = 1 / value;
   }
 
   get resolution() {
-    return Math.round(1 / this.raysDistance);
+    return Math.round(1 / this._raysDistance);
   }
 
   /**
@@ -168,6 +170,27 @@ export class VRView {
     this.PGwidget.setSize(w, h);
     this.PGwidget.setContainer(this.PGwidgetElement);
     this.PGwidget.render();
+  }
+
+  /**
+   * Flag to set lut rescaling on opacity range
+   * @type {bool}
+   */
+  set rescaleLUT(bool) {
+    this._rescaleLUT = bool;
+    let range;
+    if (this._rescaleLUT &amp;&amp; this.PGwidget) {
+      range = this.PGwidget.getOpacityRange();
+    } else {
+      range = this.actor
+        .getMapper()
+        .getInputData()
+        .getPointData()
+        .getScalars()
+        .getRange();
+    }
+    this.ctfun.setMappingRange(...range);
+    this.ctfun.updateRange();
   }
 
   /**
@@ -199,7 +222,7 @@ export class VRView {
 
     this.actor = actor;
 
-    this.setLUT("Grayscale");
+    this.lut = "Grayscale";
 
     this.renderer.addVolume(actor);
 
@@ -215,7 +238,7 @@ export class VRView {
 
     this.setupWwwlInteractor();
 
-    this.blurOnInteraction(true);
+    this.blurOnInteraction = true;
 
     this.renderer.resetCamera();
     this.renderWindow.render();
@@ -240,24 +263,28 @@ export class VRView {
   }
 
   /**
-   * Setup colormap and opacity function
-   * @param {String} lutName - as in presets list
+   * Set colormap and opacity function
+   * lutName - as in presets list
+   * @type {String}
    */
-  setLUT(lutName) {
+  set lut(lutName) {
     // set up color transfer function
     const lookupTable = vtkColorTransferFunction.newInstance();
     lookupTable.applyColorMap(vtkColorMaps.getPresetByName(lutName));
 
     // update lookup table mapping range based on input dataset
-    const range = this.actor
-      .getMapper()
-      .getInputData()
-      .getPointData()
-      .getScalars()
-      .getRange();
+    let range;
 
-    // TODO generalize: remapping to max/min hist (as bool)
-    range[1] -= 2500;
+    if (this._rescaleLUT &amp;&amp; this.PGwidget) {
+      range = this.PGwidget.getOpacityRange();
+    } else {
+      range = this.actor
+        .getMapper()
+        .getInputData()
+        .getPointData()
+        .getScalars()
+        .getRange();
+    }
     lookupTable.setMappingRange(...range);
     lookupTable.updateRange();
 
@@ -273,6 +300,18 @@ export class VRView {
     this.updateWidget();
   }
 
+  /**
+   * Get vtk LUTs list
+   * @returns {Array} - Lut list as array of strings
+   */
+  getLutList() {
+    return vtkColorMaps.rgbPresetNames;
+  }
+
+  /**
+   * Set actor appearance properties
+   * TODO
+   */
   setActorProperties() {
     // this.actor.getProperty().setRGBTransferFunction(0, lutFuncs.ctfun);
     // this.actor.getProperty().setScalarOpacity(0, lutFuncs.ofun);
@@ -450,6 +489,12 @@ export class VRView {
       if (!this.renderWindow.getInteractor().isAnimating()) {
         this.renderWindow.render();
       }
+
+      if (this._rescaleLUT &amp;&amp; this.PGwidget) {
+        const range = this.PGwidget.getOpacityRange();
+        this.ctfun.setMappingRange(...range);
+        this.ctfun.updateRange();
+      }
     });
   }
 
@@ -459,28 +504,29 @@ export class VRView {
 
   /**
    * Toggle blurring on interaction (Increase performance)
-   * @param {bool} toggle - if true, blur on interaction
+   * @type {bool} toggle - if true, blur on interaction
    */
-  blurOnInteraction(toggle) {
+  set blurOnInteraction(toggle) {
+    this._blurOnInteraction = toggle;
     let interactor = this.renderWindow.getInteractor();
     let mapper = this.actor.getMapper();
 
     if (toggle) {
       interactor.onLeftButtonPress(() => {
-        mapper.setSampleDistance(this.raysDistance * 5);
+        mapper.setSampleDistance(this._raysDistance * 5);
       });
 
       interactor.onLeftButtonRelease(() => {
-        mapper.setSampleDistance(this.raysDistance);
+        mapper.setSampleDistance(this._raysDistance);
         this.renderWindow.render();
       });
     } else {
       interactor.onLeftButtonPress(() => {
-        mapper.setSampleDistance(this.raysDistance);
+        mapper.setSampleDistance(this._raysDistance);
       });
 
       interactor.onLeftButtonRelease(() => {
-        mapper.setSampleDistance(this.raysDistance);
+        mapper.setSampleDistance(this._raysDistance);
       });
     }
   }

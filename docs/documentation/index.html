@@ -35,7 +35,7 @@
     
     <input type="text" id="nav-search" placeholder="Search" />
     
-    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="MPRManager.html">MPRManager</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MPRManager.html#getInitialState">getInitialState</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onRotate">onRotate</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onThickness">onThickness</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setTool">setTool</a></li></ul></li><li><a href="VRView.html">VRView</a><ul class='methods'><li data-type='method' style='display: none;'><a href="VRView.html#blurOnInteraction">blurOnInteraction</a></li><li data-type='method' style='display: none;'><a href="VRView.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setCamera">setCamera</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setLUT">setLUT</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#State">State</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="MPRManager.html">MPRManager</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MPRManager.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#getInitialState">getInitialState</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onRotate">onRotate</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onThickness">onThickness</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setTool">setTool</a></li></ul></li><li><a href="VRView.html">VRView</a><ul class='methods'><li data-type='method' style='display: none;'><a href="VRView.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="VRView.html#getLutList">getLutList</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setActorProperties">setActorProperties</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setCamera">setCamera</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setImage">setImage</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#State">State</a></li></ul>
 </nav>
 
 <div id="main">
@@ -88,9 +88,7 @@ It also provides glue-functions to easily integrate with cornerstone.js, via <a 
 
  {
      key: String - The view id (must be unique)
-     element: HTMLElement - The target rendering div,
-     height: Number - The viewport initial height,
-     width: Number - The viewport initial width
+     element: HTMLElement - The target rendering div
  }
 
  */
@@ -98,21 +96,15 @@ It also provides glue-functions to easily integrate with cornerstone.js, via <a 
 const targetElements = {
   top: {
     element: document.getElementById(&quot;viewer-1&quot;),
-    key: &quot;top&quot;,
-    height: 300,
-    width: 300
+    key: &quot;top&quot;
   },
   left: {
     element: document.getElementById(&quot;viewer-2&quot;),
-    key: &quot;left&quot;,
-    height: 300,
-    width: 300
+    key: &quot;left&quot;
   },
   front: {
     element: document.getElementById(&quot;viewer-3&quot;),
-    key: &quot;front&quot;,
-    height: 300,
-    width: 300
+    key: &quot;front&quot;
   }
 };
 
@@ -120,14 +112,15 @@ const targetElements = {
 import * as dtk from &quot;DigletTK&quot;;
 
 // load a dicom serie using larvitar glue function
-dtk.loadSerieWithLarvitar(serie => {
-  // build vtk volume from larvitar serie
-  const image = dtk.buildVtkVolume(serie);
-  // run mpr manager
-  let mpr = new dtk.MPRManager(targetElements);
+dtk.loadSerieWithLarvitar(larvitar, serie => {
+  let header = larvitar.buildHeader(serie);
+  let data = larvitar.buildData(serie, false);
+  // build vtk volume with larvitar
+  const image = dtk.buildVtkVolume(header, data);
+  // run mpr
+  mpr = new dtk.MPRManager(targetElements);
   // get initial state obj: this object will be used to share data updates
-  let state = mpr.getInitialState();
-  console.log(&quot;state&quot;, state);
+  state = mpr.getInitialState();
   // set image
   mpr.setImage(state, image);
   // set active tool (&quot;level&quot; or &quot;crosshair&quot;)
@@ -143,7 +136,7 @@ dtk.loadSerieWithLarvitar(serie => {
 <li>[x] Volume Rendering</li>
 <li>[ ] Measuring tools</li>
 <li>[ ] Segmentations (Cornerstone.js &gt;&gt;&gt; data &gt;&gt;&gt; vtk.js)</li>
-<li>[ ] Presets and colormaps</li>
+<li>[x] Colormaps</li>
 <li>[ ] Multi Slice Image Mapper (a different MPR implementation)</li>
 </ul>
 <h3 id="todo">TODO</h3>
