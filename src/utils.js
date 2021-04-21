@@ -85,8 +85,10 @@ export function loadSerieWithLarvitar(lrv, cb) {
 
   function getDemoFileNames() {
     let demoFileList = [];
-    for (let i = 1; i < 25; i++) {
+    for (let i = 1; i < 24; i++) {
+      // for (let i = 1; i < 364; i++) {
       let filename = "anon" + i;
+      // let filename = `anon (${i})`;
       demoFileList.push(filename);
     }
     return demoFileList;
