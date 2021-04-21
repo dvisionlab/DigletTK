@@ -44,7 +44,7 @@ export class MPRManager {
 
     this.elements = elements;
 
-    this.volumes = [];
+    this.volume = null;
 
     this.sliceIntersection = [0, 0, 0];
 
@@ -117,7 +117,7 @@ export class MPRManager {
    */
   setImage(state, image) {
     let actor = createVolumeActor(image);
-    this.volumes.push(actor);
+    this.volume = actor;
     this.sliceIntersection = getVolumeCenter(actor.getMapper());
 
     Object.keys(this.elements).forEach(key => {
@@ -127,7 +127,7 @@ export class MPRManager {
     });
 
     if (this.activeTool) {
-      this.setTool(this.activeTool);
+      this.setTool(this.activeTool, state);
     }
   }
 
