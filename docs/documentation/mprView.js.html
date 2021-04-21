@@ -66,9 +66,9 @@ import { degrees2radians } from "./utils";
  *
  */
 
-// TODO move to constants
-const PLANE_NORMALS = [[0, 0, 1], [1, 0, 0], [0, -1, 0]];
-const VIEW_UPS = [[0, -1, 0], [0, 0, -1], [0, 0, -1]];
+// TODO move to constants (calculate from image directions?)
+const PLANE_NORMALS = [[0, 0, 1], [-1, 0, 0], [0, 1, 0]];
+const VIEW_UPS = [[0, -1, 0], [0, 0, 1], [0, 0, 1]];
 export class MPRView {
   constructor(key, i, element) {
     this.VERBOSE = false;
