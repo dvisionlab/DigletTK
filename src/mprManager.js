@@ -51,6 +51,9 @@ export class MPRManager {
     this.mprViews = {};
 
     this.initMPR();
+
+    // FOR DEV
+    window.mpr = this;
   }
 
   /**
@@ -332,6 +335,20 @@ export class MPRManager {
     if (shouldBeMIP && view.blendMode === "none") view.blendMode = "MIP";
 
     this.mprViews[key].sliceThickness = thickness;
+  }
+
+  /**
+   * Force views resize
+   * @param {String} key - If provided, resize just its view, otherwise all views
+   */
+  resize(key) {
+    if (key) {
+      this.mprViews[key].onResize();
+    } else {
+      Object.values(this.mprViews).forEach(view => {
+        view.onResize();
+      });
+    }
   }
 
   /**
