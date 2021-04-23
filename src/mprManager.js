@@ -313,28 +313,31 @@ export class MPRManager {
    */
   onThickness(key, axis, thickness, state) {
     const shouldBeMIP = thickness > 1;
-    let view;
+    let target_view;
     switch (key) {
       case "top":
-        if (axis === "x") view = state.views.front;
-        else if (axis === "y") view = state.views.left;
+        if (axis === "x") target_view = "front";
+        else if (axis === "y") target_view = "left";
         break;
       case "left":
-        if (axis === "x") view = state.views.top;
-        else if (axis === "y") view = state.views.front;
+        if (axis === "x") target_view = "top";
+        else if (axis === "y") target_view = "front";
         break;
       case "front":
-        if (axis === "x") view = state.views.top;
-        else if (axis === "y") view = state.views.left;
+        if (axis === "x") target_view = "top";
+        else if (axis === "y") target_view = "left";
         break;
     }
 
-    view.sliceThickness = thickness;
-
     // if thickness > 1 switch to MIP
-    if (shouldBeMIP && view.blendMode === "none") view.blendMode = "MIP";
+    if (shouldBeMIP && this.mprViews[target_view].blendMode === "none") {
+      this.mprViews[target_view].blendMode = "MIP";
+      state.mprViews[target_view].blendMode = "MIP";
+    }
 
-    this.mprViews[key].sliceThickness = thickness;
+    // update both internal and external state
+    this.mprViews[target_view].sliceThickness = thickness;
+    state.views[target_view].sliceThickness = thickness;
   }
 
   /**
