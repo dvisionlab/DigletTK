@@ -45,8 +45,6 @@ export class VRView {
     this.wwwl = [0, 0];
 
     this.initVR();
-    window.vr = this;
-    window.vtkColorMaps = vtkColorMaps;
   }
 
   /**
@@ -562,6 +560,8 @@ export class VRView {
    * Destroy webgl content and release listeners
    */
   destroy() {
+    this.actor.delete();
+    this.renderWindow.getInteractor().delete();
     this.renderWindow.delete();
   }
 }
