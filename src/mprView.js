@@ -1,5 +1,4 @@
 import vtkGenericRenderWindow from "vtk.js/Sources/Rendering/Misc/GenericRenderWindow";
-import vtkWidgetManager from "vtk.js/Sources/Widgets/Core/WidgetManager";
 import vtkInteractorStyleMPRSlice from "./vtk/vtkInteractorMPRSlice";
 
 import { quat, vec3, mat4 } from "gl-matrix";
@@ -123,7 +122,6 @@ export class MPRView {
 
   /**
    * Initialize view: add actor to scene and setup controls & props
-   * @private
    * @param {vtkActor} actor
    * @param {State} data
    * @param {Function} onScrollCb
@@ -355,7 +353,34 @@ export class MPRView {
   /**
    * Destroy webgl content and release listeners
    */
-  destroy() {
-    this._renderWindow.delete();
-  }
+  // destroy() {
+  //   console.log("DESTROY", this._key);
+
+  //   this.VERBOSE = null;
+  //   this._key = null;
+  //   this._element = null;
+  //   this._volume.getMapper().delete();
+  //   this._volume.delete();
+  //   this._volume = null;
+
+  //   this._renderer.delete();
+  //   this._renderer = null;
+  //   this._parallel = null;
+
+  //   this.slicePlaneNormal = null;
+  //   this.sliceViewUp = null;
+  //   this.slicePlaneXRotation = null;
+  //   this.slicePlaneYRotation = null;
+  //   this.viewRotation = null;
+  //   this._sliceThickness = null;
+  //   this._blendMode = null;
+  //   this.window = null;
+
+  //   this._cachedSlicePlane = null;
+  //   this._cachedSliceViewUp = null;
+
+  //   this._genericRenderWindow.delete();
+
+  //   // delete resize listener ?
+  // }
 }

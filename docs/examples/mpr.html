@@ -2,6 +2,9 @@
 <html class="h-100 overflow-hidden">
   <head>
     <meta charset="UTF-8" />
+    <!-- <meta http-equiv='cache-control' content='no-cache'>
+    <meta http-equiv='expires' content='0'>
+    <meta http-equiv='pragma' content='no-cache'> -->
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css"
       rel="stylesheet"
@@ -155,10 +158,23 @@
       // Import a serie with Larvitar and load mpr ===
       // =============================================
 
-      diglettk.loadDemoSerieWithLarvitar('knee', larvitar, serie => {
+      let total_1 = window.performance.memory.totalJSHeapSize / (1024*1024);
+        let used_1 = window.performance.memory.usedJSHeapSize / (1024*1024);
+        console.log('init', total_1, used_1)
+
+      diglettk.loadDemoSerieWithLarvitar('thorax', larvitar, serie => {
+        let total_2 = window.performance.memory.totalJSHeapSize / (1024*1024);
+          let used_2 = window.performance.memory.usedJSHeapSize / (1024*1024);
+          console.log('--- diff 2', total_2-total_1, used_2-used_1)
+
+        // build vtk volume with larvitar
         let header = larvitar.buildHeader(serie);
         let data = larvitar.buildData(serie, false);
-        // build vtk volume with larvitar
+
+        let total_3 = window.performance.memory.totalJSHeapSize / (1024*1024);
+            let used_3 = window.performance.memory.usedJSHeapSize / (1024*1024);
+            console.log('--- diff 3', total_3-total_1, used_3-used_1)
+
         const image = diglettk.buildVtkVolume(header, data);
         // run mpr
         mpr = new diglettk.MPRManager(targetElements);
@@ -171,7 +187,27 @@
         mpr.setTool("level", state);
         // add keyoboard events to interact with mpr
         addEvents(mpr, state);
+
+        let total_4 = window.performance.memory.totalJSHeapSize / (1024*1024);
+            let used_4 = window.performance.memory.usedJSHeapSize / (1024*1024);
+            console.log('--- diff 4', total_4-total_1, used_4-used_1)
+          console.log('end', total_4, used_4)
       });
+
+      // window.destroyAll = function(){
+      //   mpr.destroy();
+      //   mpr = null;
+      //   state = null;
+
+      //     // data = null;
+      //     // image = null;
+
+      //     setInterval(()=>{
+      //       let total_5 = window.performance.memory.totalJSHeapSize / (1024*1024);
+      //       let used_5 = window.performance.memory.usedJSHeapSize / (1024*1024);
+      //       console.log('--- diff 5', total_5-total_1, used_5-used_1)
+      //     }, 2000)
+      // }
 
       // =======================================
       // TESTING EVENTS ========================

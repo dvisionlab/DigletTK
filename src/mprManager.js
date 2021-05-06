@@ -62,12 +62,12 @@ export class MPRManager {
    */
   initMPR() {
     Object.keys(this.elements).forEach((key, i) => {
-      try {
-        this.mprViews[key] = new MPRView(key, i, this.elements[key].element);
-      } catch (err) {
-        console.error("Error creating MPRView", key);
-        console.error(err);
-      }
+      // try {
+      this.mprViews[key] = new MPRView(key, i, this.elements[key].element);
+      // } catch (err) {
+      //   console.error("Error creating MPRView", key);
+      //   console.error(err);
+      // }
     });
 
     if (this.VERBOSE) console.log("initialized");
@@ -357,9 +357,9 @@ export class MPRManager {
   /**
    * Destroy webgl content and release listeners
    */
-  destroy() {
-    Object.keys(this.elements).forEach(k => {
-      this.elements[k].renderWindow.delete();
-    });
-  }
+  // destroy() {
+  //   Object.keys(this.elements).forEach(k => {
+  //     this.mprViews[k].destroy();
+  //   });
+  // }
 }
