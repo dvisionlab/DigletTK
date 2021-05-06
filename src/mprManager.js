@@ -201,7 +201,7 @@ export class MPRManager {
         // ~ swerik
         const renderWindow = this.mprViews[
           key
-        ].genericRenderWindow.getRenderWindow();
+        ]._genericRenderWindow.getRenderWindow();
 
         const istyle = renderWindow.getInteractor().getInteractorStyle();
         const sliceNormal = istyle.getSliceNormal();
@@ -219,7 +219,7 @@ export class MPRManager {
         renderWindow.render();
       }
 
-      const renderer = this.mprViews[key].genericRenderWindow.getRenderer();
+      const renderer = this.mprViews[key]._genericRenderWindow.getRenderer();
       const wPos = vtkCoordinate.newInstance();
       wPos.setCoordinateSystemToWorld();
 
