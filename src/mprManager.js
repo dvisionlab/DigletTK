@@ -357,9 +357,9 @@ export class MPRManager {
   /**
    * Destroy webgl content and release listeners
    */
-  // destroy() {
-  //   Object.keys(this.elements).forEach(k => {
-  //     this.mprViews[k].destroy();
-  //   });
-  // }
+  destroy() {
+    Object.keys(this.elements).forEach(k => {
+      this.mprViews[k].destroy();
+    });
+  }
 }

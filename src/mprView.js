@@ -353,34 +353,34 @@ export class MPRView {
   /**
    * Destroy webgl content and release listeners
    */
-  // destroy() {
-  //   console.log("DESTROY", this._key);
+  destroy() {
+    console.log("DESTROY", this._key);
 
-  //   this.VERBOSE = null;
-  //   this._key = null;
-  //   this._element = null;
-  //   this._volume.getMapper().delete();
-  //   this._volume.delete();
-  //   this._volume = null;
+    this.VERBOSE = null;
+    this._key = null;
+    this._element = null;
+    this._volume.getMapper().delete();
+    this._volume.delete();
+    this._volume = null;
 
-  //   this._renderer.delete();
-  //   this._renderer = null;
-  //   this._parallel = null;
+    this._renderer.delete();
+    this._renderer = null;
+    this._parallel = null;
 
-  //   this.slicePlaneNormal = null;
-  //   this.sliceViewUp = null;
-  //   this.slicePlaneXRotation = null;
-  //   this.slicePlaneYRotation = null;
-  //   this.viewRotation = null;
-  //   this._sliceThickness = null;
-  //   this._blendMode = null;
-  //   this.window = null;
+    this.slicePlaneNormal = null;
+    this.sliceViewUp = null;
+    this.slicePlaneXRotation = null;
+    this.slicePlaneYRotation = null;
+    this.viewRotation = null;
+    this._sliceThickness = null;
+    this._blendMode = null;
+    this.window = null;
 
-  //   this._cachedSlicePlane = null;
-  //   this._cachedSliceViewUp = null;
+    this._cachedSlicePlane = null;
+    this._cachedSliceViewUp = null;
 
-  //   this._genericRenderWindow.delete();
+    this._genericRenderWindow.delete();
 
-  //   // delete resize listener ?
-  // }
+    // delete resize listener ?
+  }
 }
