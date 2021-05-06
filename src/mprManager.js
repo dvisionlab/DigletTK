@@ -359,7 +359,7 @@ export class MPRManager {
    */
   destroy() {
     Object.keys(this.elements).forEach(k => {
-      this.elements[k].renderWindow.delete();
+      this.mprViews[k].destroy();
     });
   }
 }
