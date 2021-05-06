@@ -354,12 +354,15 @@ export class MPRView {
    * Destroy webgl content and release listeners
    */
   destroy() {
-    console.log("DESTROY", this._key);
+    if (this.VERBOSE) console.log("DESTROY", this._key);
 
     this.VERBOSE = null;
     this._key = null;
     this._element = null;
-    this._volume.getMapper().delete();
+    // mapper is in common btw views, check that it has not already been deleted by other view
+    if (this._volume.getMapper()) {
+      this._volume.getMapper().delete();
+    }
     this._volume.delete();
     this._volume = null;
 
