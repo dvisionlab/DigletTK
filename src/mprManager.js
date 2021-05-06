@@ -38,7 +38,7 @@ export class MPRManager {
   constructor(elements) {
     this.VERBOSE = false; // TODO setter
     this.syncWindowLevels = true; // TODO setter
-    this.activeTool = null; // TODO setter
+    this._activeTool = null;
 
     // TODO input sanity check
 
@@ -105,6 +105,7 @@ export class MPRManager {
     }, Object.assign({}, this.mprViews));
 
     return {
+      interactorCenters: {},
       sliceIntersection: [...this.sliceIntersection], // clone
       views: viewsState
     };
@@ -119,15 +120,17 @@ export class MPRManager {
     let actor = createVolumeActor(image);
     this.volume = actor;
     this.sliceIntersection = getVolumeCenter(actor.getMapper());
+    // update external state
+    state.sliceIntersection = [...this.sliceIntersection];
 
     Object.keys(this.elements).forEach(key => {
       this.mprViews[key].initView(actor, state, () => {
-        this.onScrolled.call(this);
+        this.onScrolled.call(this, state);
       });
     });
 
-    if (this.activeTool) {
-      this.setTool(this.activeTool, state);
+    if (this._activeTool) {
+      this.setTool(this._activeTool, state);
     }
   }
 
@@ -156,14 +159,14 @@ export class MPRManager {
     Object.entries(state.views).forEach(([key]) => {
       const istyle = vtkInteractorStyleMPRWindowLevel.newInstance();
       istyle.setOnScroll(() => {
-        this.onScrolled();
+        this.onScrolled(state);
       });
       istyle.setOnLevelsChanged(levels => {
         this.updateLevels({ ...levels, srcKey: key }, state);
       });
       this.mprViews[key].setInteractor(istyle);
     });
-    this.activeTool = "level";
+    this._activeTool = "level";
   }
 
   /**
@@ -176,14 +179,14 @@ export class MPRManager {
     Object.entries(state.views).forEach(([key]) => {
       const istyle = vtkInteractorStyleMPRCrosshairs.newInstance();
       istyle.setOnScroll(() => {
-        self.onScrolled();
+        self.onScrolled(state);
       });
       istyle.setOnClickCallback(({ worldPos }) => {
-        self.onCrosshairPointSelected({ worldPos, srcKey: key });
+        self.onCrosshairPointSelected({ worldPos, srcKey: key }, state);
       });
       this.mprViews[key].setInteractor(istyle);
     });
-    this.activeTool = "crosshair";
+    this._activeTool = "crosshair";
   }
 
   /**
@@ -191,7 +194,7 @@ export class MPRManager {
    * @private
    * @param {Object} {}
    */
-  onCrosshairPointSelected({ srcKey, worldPos }) {
+  onCrosshairPointSelected({ srcKey, worldPos }, externalState) {
     Object.keys(this.elements).forEach(key => {
       if (key !== srcKey) {
         // We are basically doing the same as getSlice but with the world coordinate
@@ -201,7 +204,7 @@ export class MPRManager {
         // ~ swerik
         const renderWindow = this.mprViews[
           key
-        ].genericRenderWindow.getRenderWindow();
+        ]._genericRenderWindow.getRenderWindow();
 
         const istyle = renderWindow.getInteractor().getInteractorStyle();
         const sliceNormal = istyle.getSliceNormal();
@@ -219,14 +222,12 @@ export class MPRManager {
         renderWindow.render();
       }
 
-      const renderer = this.mprViews[key].genericRenderWindow.getRenderer();
-      const wPos = vtkCoordinate.newInstance();
-      wPos.setCoordinateSystemToWorld();
-
-      wPos.setValue(...worldPos);
-
-      const displayPosition = wPos.getComputedDisplayValue(renderer);
+      this.updateInteractorCenters(externalState);
     });
+
+    // update both internal & external state
+    this.sliceIntersection = [...worldPos];
+    externalState.sliceIntersection = [...worldPos];
   }
 
   /**
@@ -252,8 +253,9 @@ export class MPRManager {
    * Update slice position when scrolling
    * @private
    */
-  onScrolled() {
+  onScrolled(state) {
     let planes = [];
+
     Object.keys(this.elements).forEach(key => {
       const camera = this.mprViews[key].camera;
       planes.push({
@@ -262,11 +264,21 @@ export class MPRManager {
         // this[viewportIndex].slicePlaneNormal
       });
     });
+
     const newPoint = getPlaneIntersection(...planes);
-    if (!Number.isNaN(newPoint)) {
-      //   global_data.sliceIntersection = newPoint; TODO return sliceIntersection
+
+    if (!newPoint.some(coord => Number.isNaN(coord))) {
+      this.sliceIntersection = [...newPoint];
+      state.sliceIntersection = [...newPoint];
       if (this.VERBOSE) console.log("updating slice intersection", newPoint);
     }
+
+    // leave things happen
+    setTimeout(() => {
+      this.updateInteractorCenters(state);
+    }, 0);
+
+    return newPoint;
   }
 
   /**
@@ -338,6 +350,25 @@ export class MPRManager {
     // update both internal and external state
     this.mprViews[target_view].sliceThickness = thickness;
     state.views[target_view].sliceThickness = thickness;
+  }
+
+  /**
+   * Update interactor centers coordinates on canvas
+   * @private
+   * @param {State} state - The current manager state
+   */
+  updateInteractorCenters(state) {
+    Object.keys(this.elements).forEach(key => {
+      // compute interactor centers display position
+      const renderer = this.mprViews[key]._genericRenderWindow.getRenderer();
+      const wPos = vtkCoordinate.newInstance();
+      wPos.setCoordinateSystemToWorld();
+      wPos.setValue(...this.sliceIntersection);
+      const displayPosition = wPos.getComputedDisplayValue(renderer);
+      if (this.VERBOSE) console.log("interactor center", key, displayPosition);
+      // set new interactor center on canvas into external state
+      state.interactorCenters[key] = displayPosition;
+    });
   }
 
   /**
