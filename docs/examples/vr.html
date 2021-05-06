@@ -131,10 +131,10 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
         const widgetContainer = document.getElementById("widget");
         
         diglettk.loadDemoSerieWithLarvitar('knee', larvitar, serie => {
+          // build vtk volume with larvitar
             let header = larvitar.buildHeader(serie);
             let data = larvitar.buildData(serie, false);
             console.log(serie)
-            // build vtk volume with larvitar
             const image = diglettk.buildVtkVolume(header, data);
             // run vr
             vr = new diglettk.VRView(element);

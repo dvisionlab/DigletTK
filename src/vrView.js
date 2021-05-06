@@ -560,8 +560,31 @@ export class VRView {
    * Destroy webgl content and release listeners
    */
   destroy() {
+    // leave these comments for now
+
+    // this.PGwidget.delete();
+    // this.actor.getMapper().delete();
+    // this.actor.delete();
+    // this.renderWindow.getInteractor().delete();
+    // this.renderWindow.delete();
+    // this.renderer.delete();
+
+    // this.renderer.delete();
+    // this.renderer = null;
+    // this.renderWindow.getInteractor().delete();
+    // this.renderWindow.delete();
+    // this.renderWindow = null;
+
+    this.element = null;
+    this._genericRenderWindow.delete();
+    this._genericRenderWindow = null;
+    this.actor.getMapper().delete();
     this.actor.delete();
-    this.renderWindow.getInteractor().delete();
-    this.renderWindow.delete();
+    this.actor = null;
+
+    this.PGwidgetElement = null;
+    this.PGwidget.delete();
+    this.PGwidget = null;
+    this.gaussians = null;
   }
 }
