@@ -184,7 +184,7 @@ function vtkInteractorStyleMPRSlice(publicAPI, model) {
     const renderer = model.interactor.getCurrentRenderer();
     const camera = renderer.getActiveCamera();
 
-    console.log("slice", slice);
+    // console.log("slice", slice);
 
     if (model.volumeMapper) {
       const range = publicAPI.getSliceRange();

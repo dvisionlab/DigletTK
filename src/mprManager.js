@@ -123,8 +123,6 @@ export class MPRManager {
     // update external state
     state.sliceIntersection = [...this.sliceIntersection];
 
-    console.log("setImage slice intersection", this.sliceIntersection);
-
     Object.keys(this.elements).forEach(key => {
       this.mprViews[key].initView(actor, state, () => {
         this.onScrolled.call(this, state);
@@ -197,8 +195,6 @@ export class MPRManager {
    * @param {Object} {}
    */
   onCrosshairPointSelected({ srcKey, worldPos }, externalState) {
-    console.log(worldPos, externalState);
-
     Object.keys(this.elements).forEach(key => {
       if (key !== srcKey) {
         // We are basically doing the same as getSlice but with the world coordinate
@@ -258,7 +254,6 @@ export class MPRManager {
    * @private
    */
   onScrolled(state) {
-    console.log("onScrolled state sliceintersection", state.sliceIntersection);
     let planes = [];
 
     Object.keys(this.elements).forEach(key => {
@@ -370,7 +365,7 @@ export class MPRManager {
       wPos.setCoordinateSystemToWorld();
       wPos.setValue(...this.sliceIntersection);
       const displayPosition = wPos.getComputedDisplayValue(renderer);
-      console.log(key, displayPosition);
+      if (this.VERBOSE) console.log("interactor center", key, displayPosition);
       // set new interactor center on canvas into external state
       state.interactorCenters[key] = displayPosition;
     });
