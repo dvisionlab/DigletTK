@@ -154,7 +154,7 @@ export class VRView {
   set cropWidget(visible) {
     if (!this._cropWidget) this.setupCropWidget();
     this._cropWidget.setVisibility(visible);
-    setTimeout(this.renderWindow.render, 0);
+    this.renderWindow.render();
   }
 
   /**
@@ -329,6 +329,7 @@ export class VRView {
     mapper.setInputConnection(cropFilter.getOutputPort());
 
     widgetManager.enablePicking();
+    this.widgetManager = widgetManager;
 
     this._cropWidget = widget; // or viewWidget ?
 
@@ -597,5 +598,8 @@ export class VRView {
     this.PGwidget.delete();
     this.PGwidget = null;
     this.gaussians = null;
+
+    this._cropWidget.delete();
+    this._cropWidget = null;
   }
 }
