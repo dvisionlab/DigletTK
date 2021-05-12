@@ -125,6 +125,7 @@ export class MPRManager {
 
     Object.keys(this.elements).forEach(key => {
       this.mprViews[key].initView(actor, state, () => {
+        console.log("call onScroll");
         this.onScrolled.call(this, state);
       });
     });
