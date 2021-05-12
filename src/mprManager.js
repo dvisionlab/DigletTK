@@ -116,7 +116,7 @@ export class MPRManager {
    * @param {State} state - The current manager state
    * @param {Array} image - The pixel data from DICOM serie
    */
-  setImage(state, image) {
+  setImage(state, image, centersCb) {
     let actor = createVolumeActor(image);
     this.volume = actor;
     this.sliceIntersection = getVolumeCenter(actor.getMapper());
@@ -129,11 +129,11 @@ export class MPRManager {
         state,
         // on scroll callback (it's fired but too early)
         () => {
-          this.onScrolled.call(this, state);
+          this.onScrolled.call(this, state, centersCb);
         },
         // on initialized callback (fire when all is set)
         () => {
-          this.onScrolled.call(this, state);
+          this.onScrolled.call(this, state, centersCb);
         }
       );
     });
@@ -262,7 +262,7 @@ export class MPRManager {
    * Update slice position when scrolling
    * @private
    */
-  onScrolled(state) {
+  onScrolled(state, centersCb) {
     let planes = [];
 
     Object.keys(this.elements).forEach(key => {
@@ -285,7 +285,7 @@ export class MPRManager {
       if (this.VERBOSE) console.log("updating slice intersection", newPoint);
     }
 
-    this.updateInteractorCenters(state);
+    this.updateInteractorCenters(state, centersCb);
 
     return newPoint;
   }
@@ -366,7 +366,7 @@ export class MPRManager {
    * @private
    * @param {State} state - The current manager state
    */
-  updateInteractorCenters(state) {
+  updateInteractorCenters(state, centersCb) {
     Object.keys(this.elements).forEach(key => {
       // compute interactor centers display position
       const renderer = this.mprViews[key]._genericRenderWindow.getRenderer();
@@ -378,6 +378,8 @@ export class MPRManager {
       // set new interactor center on canvas into external state
       state.interactorCenters[key] = displayPosition;
     });
+
+    centersCb(state.interactorCenters);
   }
 
   /**
