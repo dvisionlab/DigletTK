@@ -147,9 +147,14 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
             fillSelect(lutList)
             vr.lut = lutList[0];
 
-            // set crop widget 
-            vr.cropWidget = true;
-        })
+            // picker 
+            let obj = {
+              label : null,
+              p1: [null, null],
+              p2: [null, null]
+            }
+            vr.initPicker(obj);
+          })
     </script>
   </body>
 </html>
