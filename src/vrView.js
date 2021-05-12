@@ -654,7 +654,7 @@ export class VRView {
         console.log(`Picked: ${pickedPoint}`);
         const sphere = vtkSphereSource.newInstance();
         sphere.setCenter(pickedPoint);
-        sphere.setRadius(0.01);
+        sphere.setRadius(1);
         const sphereMapper = vtkMapper.newInstance();
         sphereMapper.setInputData(sphere.getOutputData());
         const sphereActor = vtkActor.newInstance();
