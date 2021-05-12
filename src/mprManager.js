@@ -105,7 +105,11 @@ export class MPRManager {
     }, Object.assign({}, this.mprViews));
 
     return {
-      interactorCenters: {},
+      // interactorCenters: { top: [0, 0], left: [0, 0], front: [0, 0] },
+      interactorCenters: Object.keys(this.elements).reduce(
+        (res, key) => ({ ...res, [key]: [0, 0] }),
+        {}
+      ),
       sliceIntersection: [...this.sliceIntersection], // clone
       views: viewsState
     };
@@ -379,7 +383,7 @@ export class MPRManager {
       state.interactorCenters[key] = displayPosition;
     });
 
-    centersCb(state.interactorCenters);
+    if (centersCb) centersCb(state.interactorCenters);
   }
 
   /**
