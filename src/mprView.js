@@ -126,7 +126,7 @@ export class MPRView {
    * @param {State} data
    * @param {Function} onScrollCb
    */
-  initView(actor, data, onScrollCb) {
+  initView(actor, data, onScrollCb, onInitialized) {
     // dv: store volumes and element in viewport data
     this._volume = actor;
 
@@ -154,6 +154,8 @@ export class MPRView {
 
     // set camera to fill viewport
     this.fill2DView(this._genericRenderWindow, this._key);
+
+    onInitialized();
   }
 
   /**

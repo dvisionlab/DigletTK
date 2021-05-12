@@ -124,10 +124,18 @@ export class MPRManager {
     state.sliceIntersection = [...this.sliceIntersection];
 
     Object.keys(this.elements).forEach(key => {
-      this.mprViews[key].initView(actor, state, () => {
-        console.log("call onScroll");
-        this.onScrolled.call(this, state);
-      });
+      this.mprViews[key].initView(
+        actor,
+        state,
+        // on scroll callback (it's fired but too early)
+        () => {
+          this.onScrolled.call(this, state);
+        },
+        // on initialized callback (fire when all is set)
+        () => {
+          this.onScrolled.call(this, state);
+        }
+      );
     });
 
     if (this._activeTool) {
@@ -268,16 +276,16 @@ export class MPRManager {
 
     const newPoint = getPlaneIntersection(...planes);
 
-    if (!newPoint.some(coord => Number.isNaN(coord))) {
+    if (
+      !Number.isNaN(newPoint) &&
+      !newPoint.some(coord => Number.isNaN(coord))
+    ) {
       this.sliceIntersection = [...newPoint];
       state.sliceIntersection = [...newPoint];
       if (this.VERBOSE) console.log("updating slice intersection", newPoint);
     }
 
-    // leave things happen
-    setTimeout(() => {
-      this.updateInteractorCenters(state);
-    }, 0);
+    this.updateInteractorCenters(state);
 
     return newPoint;
   }
