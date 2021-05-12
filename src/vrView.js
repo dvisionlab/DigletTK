@@ -37,6 +37,9 @@ export class VRView {
     this.gaussians = null;
     this._PGwidgetLoaded = false;
 
+    // crop widget
+    this._cropWidget = null;
+
     // normalized ww wl
     this.ww = 0.25;
     this.wl = 0.3;
@@ -142,6 +145,17 @@ export class VRView {
     }
     this.ctfun.setMappingRange(...range);
     this.ctfun.updateRange();
+  }
+
+  /**
+   * Crop widget on / off
+   * @type {bool}
+   */
+  set cropWidget(visible) {
+    if (!this._cropWidget) this.setupCropWidget();
+    this._cropWidget.setVisibility(visible);
+    this._widgetManager.renderWidgets();
+    this.renderWindow.render();
   }
 
   /**
@@ -281,22 +295,20 @@ export class VRView {
     this.actor.getProperty().setSpecularPower(state.specularPower);
   }
 
-  setCropWidget() {
-    // --- setup our widget manager and widget ---
-
+  setupCropWidget() {
+    // setup widget manager and widget
     const widgetManager = vtkWidgetManager.newInstance();
-    widgetManager.setUseSvgLayer(false);
+    // widgetManager.setUseSvgLayer(false);
     widgetManager.setRenderer(this.renderer);
 
-    // this is a widget factory
+    // widget factory
     const widget = vtkImageCroppingWidget.newInstance();
-    // this is an instance of a widget associated with a renderer
+    // instance of a widget associated with a renderer
     const viewWidget = widgetManager.addWidget(widget);
 
-    // --- set up crop filter
-
+    // setup crop filter
     const cropFilter = vtkImageCropFilter.newInstance();
-    // we listen to cropping widget state to inform the crop filter
+    // listen to cropping widget state to inform the crop filter
     const cropState = widget.getWidgetState().getCroppingPlanes();
     cropState.onModified(() => {
       cropFilter.setCroppingPlanes(cropState.getPlanes());
@@ -308,19 +320,20 @@ export class VRView {
     cropFilter.setCroppingPlanes(...image.getExtent());
     widget.copyImageDataDescription(image);
 
-    // other handles does not work in vtk.js 17.5.0 (use 16.14.0 ?)
-    // https://kitware.github.io/vtk-js/examples/ImageCroppingWidget.html
     widget.set({
-      faceHandlesEnabled: false,
-      edgeHandlesEnabled: false,
+      faceHandlesEnabled: true,
+      edgeHandlesEnabled: false, // set to true when solved: https://github.com/Kitware/vtk-js/issues/1905
       cornerHandlesEnabled: true
     });
 
     cropFilter.setInputData(image);
     mapper.setInputConnection(cropFilter.getOutputPort());
 
-    // --- Enable interactive picking of widgets ---
     widgetManager.enablePicking();
+
+    this._widgetManager = widgetManager;
+    this._cropWidget = widget; // or viewWidget ?
+
     this.renderWindow.render();
   }
 
@@ -586,5 +599,8 @@ export class VRView {
     this.PGwidget.delete();
     this.PGwidget = null;
     this.gaussians = null;
+
+    this._cropWidget.delete();
+    this._cropWidget = null;
   }
 }
