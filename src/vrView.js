@@ -245,6 +245,7 @@ export class VRView {
       .getActiveCamera()
       .setPosition(center[0], center[1] - 2000, center[2]);
     this.renderer.getActiveCamera().setThickness(10000);
+    this.renderer.getActiveCamera().setParallelProjection(true);
   }
 
   /**
