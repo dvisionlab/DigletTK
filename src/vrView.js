@@ -673,8 +673,8 @@ export class VRView {
         if (state.p1[0] && state.p2[0]) {
           // TODO a better check
           state.p1 = displayPosition;
-          state.p2 = [null, null];
-          state.label = null;
+          state.p2 = [undefined, undefined];
+          state.label = undefined;
         } else {
           state.p1[0]
             ? (state.p2 = displayPosition)
