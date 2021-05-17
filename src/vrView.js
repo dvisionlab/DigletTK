@@ -610,10 +610,37 @@ export class VRView {
   }
 
   /**
-   * initPicker
+   * Set active tool
+   * ("Length/Angle", {mouseButtonMask:1}, measurementState)
    */
 
+  setTool(toolName, options, measurementState) {
+    if (this._leftButtonCb) {
+      this._leftButtonCb.unsubscribe();
+    }
+
+    switch (toolName) {
+      case "Length":
+        this.initPicker(measurementState);
+        break;
+      case "Angle":
+        console.warn("Angle tool is not implemented yet");
+        break;
+      case "Rotation":
+        this.setupInteractor();
+        break;
+      default:
+        console.warn("No tool with found for", toolName);
+    }
+  }
+
+  /**
+   * initPicker
+   */
   initPicker(state) {
+    // no blur when measure
+    this.blurOnInteraction = false;
+
     // de-activate rotation
     let rotateManipulator = this.renderWindow
       .getInteractor()
@@ -659,83 +686,84 @@ export class VRView {
     // add picking plane to pick list
     picker.addPickList(planeActor);
 
-    // Pick on mouse right click
-    // TODO change button
-    this.renderWindow.getInteractor().onLeftButtonPress(callData => {
-      if (this.renderer !== callData.pokedRenderer) {
-        return;
-      }
+    // Pick on mouse left click
+    this._leftButtonCb = this.renderWindow
+      .getInteractor()
+      .onLeftButtonPress(callData => {
+        if (this.renderer !== callData.pokedRenderer) {
+          return;
+        }
 
-      const pos = callData.position;
-      const point = [pos.x, pos.y, 0.0];
-      picker.pick(point, this.renderer);
+        const pos = callData.position;
+        const point = [pos.x, pos.y, 0.0];
+        picker.pick(point, this.renderer);
 
-      if (picker.getActors().length === 0) {
-        const pickedPoint = picker.getPickPosition();
-        if (this.VERBOSE)
-          console.log(`No point picked, default: ${pickedPoint}`);
-        // const sphere = vtkSphereSource.newInstance();
-        // sphere.setCenter(pickedPoint);
-        // sphere.setRadius(0.01);
-        // const sphereMapper = vtkMapper.newInstance();
-        // sphereMapper.setInputData(sphere.getOutputData());
-        // const sphereActor = vtkActor.newInstance();
-        // sphereActor.setMapper(sphereMapper);
-        // sphereActor.getProperty().setColor(1.0, 0.0, 0.0);
-        // this.renderer.addActor(sphereActor);
-      } else {
-        const pickedPoints = picker.getPickedPositions();
-        const pickedPoint = pickedPoints[0]; // always a single point on a plane
-        if (this.VERBOSE) console.log(`Picked: ${pickedPoint}`);
-        // const sphere = vtkSphereSource.newInstance();
-        // sphere.setCenter(pickedPoint);
-        // sphere.setRadius(10);
-        // const sphereMapper = vtkMapper.newInstance();
-        // sphereMapper.setInputData(sphere.getOutputData());
-        // const sphereActor = vtkActor.newInstance();
-        // sphereActor.setMapper(sphereMapper);
-        // sphereActor.getProperty().setColor(0.0, 1.0, 0.0);
-        // this.renderer.addActor(sphereActor);
-
-        // canvas coord
-        const wPos = vtkCoordinate.newInstance();
-        wPos.setCoordinateSystemToWorld();
-        wPos.setValue(...pickedPoint);
-        const displayPosition = wPos.getComputedDisplayValue(this.renderer);
-
-        if (state.p1[0] && state.p2[0]) {
-          state.p1 = displayPosition;
-          state.p1_world = pickedPoint;
-          state.p2 = [undefined, undefined];
-          state.p2_world = [undefined, undefined];
-          state.label = undefined;
+        if (picker.getActors().length === 0) {
+          const pickedPoint = picker.getPickPosition();
+          if (this.VERBOSE)
+            console.log(`No point picked, default: ${pickedPoint}`);
+          // const sphere = vtkSphereSource.newInstance();
+          // sphere.setCenter(pickedPoint);
+          // sphere.setRadius(0.01);
+          // const sphereMapper = vtkMapper.newInstance();
+          // sphereMapper.setInputData(sphere.getOutputData());
+          // const sphereActor = vtkActor.newInstance();
+          // sphereActor.setMapper(sphereMapper);
+          // sphereActor.getProperty().setColor(1.0, 0.0, 0.0);
+          // this.renderer.addActor(sphereActor);
         } else {
-          if (state.p1[0]) {
-            state.p2 = displayPosition;
-            state.p2_world = pickedPoint;
-          } else {
+          const pickedPoints = picker.getPickedPositions();
+          const pickedPoint = pickedPoints[0]; // always a single point on a plane
+          if (this.VERBOSE) console.log(`Picked: ${pickedPoint}`);
+          // const sphere = vtkSphereSource.newInstance();
+          // sphere.setCenter(pickedPoint);
+          // sphere.setRadius(10);
+          // const sphereMapper = vtkMapper.newInstance();
+          // sphereMapper.setInputData(sphere.getOutputData());
+          // const sphereActor = vtkActor.newInstance();
+          // sphereActor.setMapper(sphereMapper);
+          // sphereActor.getProperty().setColor(0.0, 1.0, 0.0);
+          // this.renderer.addActor(sphereActor);
+
+          // canvas coord
+          const wPos = vtkCoordinate.newInstance();
+          wPos.setCoordinateSystemToWorld();
+          wPos.setValue(...pickedPoint);
+          const displayPosition = wPos.getComputedDisplayValue(this.renderer);
+
+          if (state.p1[0] && state.p2[0]) {
             state.p1 = displayPosition;
             state.p1_world = pickedPoint;
+            state.p2 = [undefined, undefined];
+            state.p2_world = [undefined, undefined];
+            state.label = undefined;
+          } else {
+            if (state.p1[0]) {
+              state.p2 = displayPosition;
+              state.p2_world = pickedPoint;
+            } else {
+              state.p1 = displayPosition;
+              state.p1_world = pickedPoint;
+            }
           }
+
+          //compute distance
+          if (state.p1[0] && state.p2[0]) {
+            let dist2 = vtkMath.distance2BetweenPoints(
+              state.p1_world,
+              state.p2_world
+            );
+            let d = Math.sqrt(dist2).toFixed(1);
+            state.label = `${d} mm`;
+          } else {
+            state.label = "";
+          }
+
+          if (this.VERBOSE) console.log(state);
         }
 
-        //compute distance
-        if (state.p1[0] && state.p2[0]) {
-          let dist2 = vtkMath.distance2BetweenPoints(
-            state.p1_world,
-            state.p2_world
-          );
-          let d = Math.sqrt(dist2).toFixed(1);
-          state.label = `${d} mm`;
-        } else {
-          state.label = "";
-        }
-
-        if (this.VERBOSE) console.log(state);
-      }
-
-      this.renderWindow.render();
-    });
+        this.renderWindow.render();
+      });
   }
 
   /**
