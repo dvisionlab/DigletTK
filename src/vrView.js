@@ -241,7 +241,7 @@ export class VRView {
     // TODO implement a strategy to set rays distance
     // TODO interactors switching (ex. blurring or wwwl or crop)
 
-    this.setupWwwlInteractor();
+    this.setupInteractor();
 
     this.blurOnInteraction = true;
 
@@ -548,27 +548,26 @@ export class VRView {
   }
 
   /**
-   * Init wwwl interactor
+   * Init interactor
    * @private
-   * LEFT DRAG : rotate
-   * CTRL: pan
-   * SCROLL: zoom
-   * SHIFT + LEFT DRAG : wwwl
    */
-  setupWwwlInteractor() {
+  setupInteractor() {
     // TODO setup from user
     const rotateManipulator = vtkMouseCameraTrackballRotateManipulator.newInstance(
       { button: 1 }
     );
-    const panManipulator = vtkMouseCameraTrackballPanManipulator.newInstance(
-      { button: 1, control: true } // on ctrl press
-    );
-    const zoomManipulator = vtkMouseCameraTrackballZoomManipulator.newInstance(
-      { scrollEnabled: true } // on scroll
-    );
-    const rangeManipulator = vtkMouseRangeManipulator.newInstance(
-      { button: 1, shift: true } // on shift press
-    );
+    const panManipulator = vtkMouseCameraTrackballPanManipulator.newInstance({
+      button: 3,
+      control: true
+    });
+    const zoomManipulator = vtkMouseCameraTrackballZoomManipulator.newInstance({
+      button: 3,
+      scrollEnabled: true
+    });
+    const rangeManipulator = vtkMouseRangeManipulator.newInstance({
+      button: 1,
+      shift: true
+    });
 
     let self = this;
 
@@ -615,6 +614,21 @@ export class VRView {
    */
 
   initPicker(state) {
+    // de-activate rotation
+    let rotateManipulator = this.renderWindow
+      .getInteractor()
+      .getInteractorStyle()
+      .getMouseManipulators()
+      .filter(i => {
+        return i.getClassName() == "vtkMouseCameraTrackballRotateManipulator";
+      })
+      .pop();
+    console.log(rotateManipulator);
+    this.renderWindow
+      .getInteractor()
+      .getInteractorStyle()
+      .removeMouseManipulator(rotateManipulator);
+
     // ----------------------------------------------------------------------------
     // Setup picking interaction
     // ----------------------------------------------------------------------------
@@ -647,7 +661,7 @@ export class VRView {
 
     // Pick on mouse right click
     // TODO change button
-    this.renderWindow.getInteractor().onRightButtonPress(callData => {
+    this.renderWindow.getInteractor().onLeftButtonPress(callData => {
       if (this.renderer !== callData.pokedRenderer) {
         return;
       }
