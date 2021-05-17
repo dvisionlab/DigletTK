@@ -640,7 +640,7 @@ export class VRView {
     mapper.setInputConnection(plane.getOutputPort());
     const planeActor = vtkActor.newInstance();
     planeActor.setMapper(mapper);
-    planeActor.getProperty().setOpacity(0.5); // with opacity = 0 it is ignored by picking
+    planeActor.getProperty().setOpacity(0.01); // with opacity = 0 it is ignored by picking
     this.renderer.addActor(planeActor);
     // add picking plane to pick list
     picker.addPickList(planeActor);
@@ -715,6 +715,8 @@ export class VRView {
         } else {
           state.label = "";
         }
+
+        if (this.VERBOSE) console.log(state);
       }
 
       this.renderWindow.render();
