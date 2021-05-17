@@ -711,7 +711,8 @@ export class VRView {
             state.p1_world,
             state.p2_world
           );
-          state.label = `${Math.sqrt(dist2)} mm`;
+          let d = Math.sqrt(dist2).toFixed(1);
+          state.label = `${d} mm`;
         } else {
           state.label = "";
         }
