@@ -186,6 +186,36 @@ export class VRView {
     const genericRenderWindow = vtkGenericRenderWindow.newInstance();
     genericRenderWindow.setContainer(this.element);
     genericRenderWindow.setBackground([0, 0, 0]);
+
+    //add custom resize cb
+    genericRenderWindow.onResize(() => {
+      console.log("resize");
+      console.log(this.element.clientHeight, this.element.clientWidth);
+      console.log(
+        genericRenderWindow.getContainer().clientHeight,
+        genericRenderWindow.getContainer().clientWidth,
+        genericRenderWindow.getContainer().getBoundingClientRect()
+      );
+
+      // bypass genericRenderWindow resize method (do not consider devicePixelRatio)
+      // https://kitware.github.io/vtk-js/api/Rendering_Misc_GenericRenderWindow.html
+
+      let size = [
+        genericRenderWindow.getContainer().getBoundingClientRect().width,
+        genericRenderWindow.getContainer().getBoundingClientRect().height
+      ];
+
+      genericRenderWindow
+        .getRenderWindow()
+        .getViews()[0]
+        .setSize(size);
+    });
+
+    // resize callback
+    window.addEventListener("resize", evt => {
+      genericRenderWindow.resize();
+    });
+
     genericRenderWindow.resize();
 
     this.renderer = genericRenderWindow.getRenderer();
@@ -225,6 +255,7 @@ export class VRView {
 
     this.blurOnInteraction = true;
 
+    this._genericRenderWindow.resize();
     this.renderer.resetCamera();
     this.renderWindow.render();
   }
@@ -400,8 +431,8 @@ export class VRView {
     // resize callback
     window.addEventListener("resize", evt => {
       PGwidget.setSize(
-        widgetContainer.offsetWidth - 5,
-        widgetContainer.offsetHeight - 5
+        this.PGwidgetElement.offsetWidth - 5,
+        this.PGwidgetElement.offsetHeight - 5
       );
       PGwidget.render();
     });
