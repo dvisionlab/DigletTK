@@ -17,8 +17,9 @@ import vtkPointPicker from "vtk.js/Sources/Rendering/Core/PointPicker";
 import vtkPlaneSource from "vtk.js/Sources/Filters/Sources/PlaneSource";
 import vtkMapper from "vtk.js/Sources/Rendering/Core/Mapper";
 import vtkActor from "vtk.js/Sources/Rendering/Core/Actor";
-import vtkSphereSource from "vtk.js/Sources/Filters/Sources/SphereSource";
+// import vtkSphereSource from "vtk.js/Sources/Filters/Sources/SphereSource";
 import vtkCoordinate from "vtk.js/Sources/Rendering/Core/Coordinate";
+import * as vtkMath from "vtk.js/Sources/Common/Core/Math";
 
 import { getVolumeCenter, createVolumeActor } from "./utils";
 
@@ -42,6 +43,8 @@ export class VRView {
    * @param {HTMLElement} element - the target html element to render the scene
    */
   constructor(element) {
+    this.VERBOSE = false;
+
     this.element = element;
     this.renderer = null;
     this.renderWindow = null;
@@ -189,26 +192,18 @@ export class VRView {
 
     //add custom resize cb
     genericRenderWindow.onResize(() => {
-      console.log("resize");
-      console.log(this.element.clientHeight, this.element.clientWidth);
-      console.log(
-        genericRenderWindow.getContainer().clientHeight,
-        genericRenderWindow.getContainer().clientWidth,
-        genericRenderWindow.getContainer().getBoundingClientRect()
-      );
-
       // bypass genericRenderWindow resize method (do not consider devicePixelRatio)
       // https://kitware.github.io/vtk-js/api/Rendering_Misc_GenericRenderWindow.html
-
       let size = [
         genericRenderWindow.getContainer().getBoundingClientRect().width,
         genericRenderWindow.getContainer().getBoundingClientRect().height
       ];
-
       genericRenderWindow
         .getRenderWindow()
         .getViews()[0]
         .setSize(size);
+
+      if (this.VERBOSE) console.log("resize", size);
     });
 
     // resize callback
@@ -232,15 +227,10 @@ export class VRView {
   setImage(image) {
     // clean scene
     this.renderer.removeAllVolumes();
-
     let actor = createVolumeActor(image);
-
     this.actor = actor;
-
     this.lut = "Grayscale";
-
     this.renderer.addVolume(actor);
-
     this.setCamera(actor.getCenter());
 
     if (this.PGwidget) {
@@ -339,7 +329,7 @@ export class VRView {
     this.actor.getProperty().setGradientOpacityMinimumValue(0, 2);
     this.actor.getProperty().setGradientOpacityMinimumOpacity(0, 0.0);
     this.actor.getProperty().setGradientOpacityMaximumValue(0, 20);
-    this.actor.getProperty().setGradientOpacityMaximumOpacity(0, 2.0); // mod
+    this.actor.getProperty().setGradientOpacityMaximumOpacity(0, 2.0);
     this.actor.getProperty().setShade(true);
     this.actor.getProperty().setAmbient(state.ambient);
     this.actor.getProperty().setDiffuse(state.diffuse);
@@ -537,6 +527,9 @@ export class VRView {
 
       interactor.onLeftButtonRelease(() => {
         mapper.setSampleDistance(this._raysDistance);
+        // update picking plane
+        let camera = this.renderer.getActiveCamera();
+        this._pickingPlane.setNormal(camera.getDirectionOfProjection());
         this.renderWindow.render();
       });
     } else {
@@ -546,6 +539,10 @@ export class VRView {
 
       interactor.onLeftButtonRelease(() => {
         mapper.setSampleDistance(this._raysDistance);
+        // update picking plane
+        let camera = this.renderer.getActiveCamera();
+        this._pickingPlane.setNormal(camera.getDirectionOfProjection());
+        this.renderWindow.render();
       });
     }
   }
@@ -636,17 +633,20 @@ export class VRView {
     plane.setPoint2(1000, 0, 0);
     plane.setCenter(this.actor.getCenter());
     plane.setNormal(camera.getDirectionOfProjection());
+
+    this._pickingPlane = plane;
+
     const mapper = vtkMapper.newInstance();
     mapper.setInputConnection(plane.getOutputPort());
     const planeActor = vtkActor.newInstance();
     planeActor.setMapper(mapper);
-    planeActor.getProperty().setOpacity(0.01); // with opacity = 0 it is ignored by picking
-    this._planeActor = planeActor;
+    planeActor.getProperty().setOpacity(0.5); // with opacity = 0 it is ignored by picking
     this.renderer.addActor(planeActor);
     // add picking plane to pick list
     picker.addPickList(planeActor);
 
-    // Pick on mouse right click TODO change button
+    // Pick on mouse right click
+    // TODO change button
     this.renderWindow.getInteractor().onRightButtonPress(callData => {
       if (this.renderer !== callData.pokedRenderer) {
         return;
@@ -654,70 +654,69 @@ export class VRView {
 
       const pos = callData.position;
       const point = [pos.x, pos.y, 0.0];
-      console.log(point);
-      console.log(`Pick at: ${point}`);
       picker.pick(point, this.renderer);
 
       if (picker.getActors().length === 0) {
-        console.log("1");
         const pickedPoint = picker.getPickPosition();
-        console.log(`No point picked, default: ${pickedPoint}`);
-        const sphere = vtkSphereSource.newInstance();
-        sphere.setCenter(pickedPoint);
-        sphere.setRadius(0.01);
-        const sphereMapper = vtkMapper.newInstance();
-        sphereMapper.setInputData(sphere.getOutputData());
-        const sphereActor = vtkActor.newInstance();
-        sphereActor.setMapper(sphereMapper);
-        sphereActor.getProperty().setColor(1.0, 0.0, 0.0);
-        this.renderer.addActor(sphereActor);
+        if (this.VERBOSE)
+          console.log(`No point picked, default: ${pickedPoint}`);
+        // const sphere = vtkSphereSource.newInstance();
+        // sphere.setCenter(pickedPoint);
+        // sphere.setRadius(0.01);
+        // const sphereMapper = vtkMapper.newInstance();
+        // sphereMapper.setInputData(sphere.getOutputData());
+        // const sphereActor = vtkActor.newInstance();
+        // sphereActor.setMapper(sphereMapper);
+        // sphereActor.getProperty().setColor(1.0, 0.0, 0.0);
+        // this.renderer.addActor(sphereActor);
       } else {
-        console.log("2");
-
-        const pickedPointId = picker.getPointId();
-        console.log("Picked point: ", pickedPointId);
-
         const pickedPoints = picker.getPickedPositions();
-        // for (let i = 0; i < pickedPoints.length; i++) {
-        //   console.log("3");
-        // const pickedPoint = pickedPoints[i];
-        const pickedPoint = pickedPoints[0];
-        console.log(pickedPoint);
-        console.log(`Picked: ${pickedPoint}`);
-        const sphere = vtkSphereSource.newInstance();
-        sphere.setCenter(pickedPoint);
-        sphere.setRadius(10);
-        const sphereMapper = vtkMapper.newInstance();
-        sphereMapper.setInputData(sphere.getOutputData());
-        const sphereActor = vtkActor.newInstance();
-        sphereActor.setMapper(sphereMapper);
-        sphereActor.getProperty().setColor(0.0, 1.0, 0.0);
-        this.renderer.addActor(sphereActor);
-        // }
+        const pickedPoint = pickedPoints[0]; // always a single point on a plane
+        if (this.VERBOSE) console.log(`Picked: ${pickedPoint}`);
+        // const sphere = vtkSphereSource.newInstance();
+        // sphere.setCenter(pickedPoint);
+        // sphere.setRadius(10);
+        // const sphereMapper = vtkMapper.newInstance();
+        // sphereMapper.setInputData(sphere.getOutputData());
+        // const sphereActor = vtkActor.newInstance();
+        // sphereActor.setMapper(sphereMapper);
+        // sphereActor.getProperty().setColor(0.0, 1.0, 0.0);
+        // this.renderer.addActor(sphereActor);
 
         // canvas coord
         const wPos = vtkCoordinate.newInstance();
         wPos.setCoordinateSystemToWorld();
         wPos.setValue(...pickedPoint);
         const displayPosition = wPos.getComputedDisplayValue(this.renderer);
-        console.log(displayPosition);
 
         if (state.p1[0] && state.p2[0]) {
-          // TODO a better check
           state.p1 = displayPosition;
+          state.p1_world = pickedPoint;
           state.p2 = [undefined, undefined];
+          state.p2_world = [undefined, undefined];
           state.label = undefined;
         } else {
-          state.p1[0]
-            ? (state.p2 = displayPosition)
-            : (state.p1 = displayPosition);
+          if (state.p1[0]) {
+            state.p2 = displayPosition;
+            state.p2_world = pickedPoint;
+          } else {
+            state.p1 = displayPosition;
+            state.p1_world = pickedPoint;
+          }
         }
 
-        console.log(state);
-
-        //TODO compute distance
-        state.label = "--- TODO ---";
+        //compute distance
+        if (state.p1[0] && state.p2[0]) {
+          let dist2 = vtkMath.distance2BetweenPoints(
+            state.p1_world,
+            state.p2_world
+          );
+          state.label = `${Math.sqrt(dist2)} mm`;
+        } else {
+          state.label = "";
+        }
       }
+
       this.renderWindow.render();
     });
   }
