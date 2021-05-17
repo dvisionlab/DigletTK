@@ -70,6 +70,9 @@ export class VRView {
     // absolute ww wl
     this.wwwl = [0, 0];
 
+    // measurement state
+    this._measurementState = null;
+
     this.initVR();
   }
 
@@ -607,11 +610,46 @@ export class VRView {
     interactorStyle.addMouseManipulator(zoomManipulator);
     interactorStyle.setCenterOfRotation(this.actor.getCenter());
     this.renderWindow.getInteractor().setInteractorStyle(interactorStyle);
+
+    // clear measurements on interactions
+    this.renderWindow
+      .getInteractor()
+      .onMouseWheel(() => this.resetMeasurementState());
+    this.renderWindow
+      .getInteractor()
+      .onRightButtonPress(() => this.resetMeasurementState());
+  }
+
+  /**
+   * Reset measurement state to default
+   * @param {*} measurementState
+   */
+  resetMeasurementState(state) {
+    if (this._measurementState) {
+      this._measurementState.p1 = new Array(2);
+      this._measurementState.p2 = new Array(2);
+      this._measurementState.p3 = new Array(2);
+      this._measurementState.p1_world = new Array(2);
+      this._measurementState.p2_world = new Array(2);
+      this._measurementState.p3_world = new Array(2);
+      this._measurementState.label = null;
+    } else if (state) {
+      state.p1 = new Array(2);
+      state.p2 = new Array(2);
+      state.p3 = new Array(2);
+      state.p1_world = new Array(2);
+      state.p2_world = new Array(2);
+      state.p3_world = new Array(2);
+      state.label = null;
+    }
   }
 
   /**
    * Set active tool
    * ("Length/Angle", {mouseButtonMask:1}, measurementState)
+   * * @param {*} toolName
+   * @param {*} options
+   * @param {*} measurementState
    */
 
   setTool(toolName, options, measurementState) {
@@ -624,9 +662,11 @@ export class VRView {
         this.initPicker(measurementState);
         break;
       case "Angle":
+        // TODO
         console.warn("Angle tool is not implemented yet");
         break;
       case "Rotation":
+        this.resetMeasurementState(measurementState);
         this.setupInteractor();
         break;
       default:
@@ -650,7 +690,6 @@ export class VRView {
         return i.getClassName() == "vtkMouseCameraTrackballRotateManipulator";
       })
       .pop();
-    console.log(rotateManipulator);
     this.renderWindow
       .getInteractor()
       .getInteractorStyle()
@@ -760,6 +799,7 @@ export class VRView {
           }
 
           if (this.VERBOSE) console.log(state);
+          this._measurementState = state;
         }
 
         this.renderWindow.render();
