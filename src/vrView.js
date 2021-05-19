@@ -185,6 +185,45 @@ export class VRView {
   }
 
   /**
+   * Set colormap and opacity function
+   * lutName - as in presets list
+   * @type {String}
+   */
+  set lut(lutName) {
+    // set up color transfer function
+    const lookupTable = vtkColorTransferFunction.newInstance();
+    lookupTable.applyColorMap(vtkColorMaps.getPresetByName(lutName));
+
+    // update lookup table mapping range based on input dataset
+    let range;
+
+    if (this._rescaleLUT && this._PGwidgetLoaded) {
+      range = this.PGwidget.getOpacityRange();
+    } else {
+      range = this.actor
+        .getMapper()
+        .getInputData()
+        .getPointData()
+        .getScalars()
+        .getRange();
+    }
+
+    lookupTable.setMappingRange(...range);
+    lookupTable.updateRange();
+
+    this.actor.getProperty().setRGBTransferFunction(0, lookupTable);
+
+    // set up opacity function (values will be set by PGwidget)
+    const piecewiseFun = vtkPiecewiseFunction.newInstance();
+    this.actor.getProperty().setScalarOpacity(0, piecewiseFun);
+
+    this.ctfun = lookupTable;
+    this.ofun = piecewiseFun;
+
+    this.updateWidget();
+  }
+
+  /**
    * Initialize rendering scene
    * @private
    */
@@ -220,7 +259,7 @@ export class VRView {
     this.renderWindow = genericRenderWindow.getRenderWindow();
     this._genericRenderWindow = genericRenderWindow;
 
-    this.addPGwidget();
+    this.setupPGwidget();
   }
 
   /**
@@ -273,45 +312,6 @@ export class VRView {
   }
 
   /**
-   * Set colormap and opacity function
-   * lutName - as in presets list
-   * @type {String}
-   */
-  set lut(lutName) {
-    // set up color transfer function
-    const lookupTable = vtkColorTransferFunction.newInstance();
-    lookupTable.applyColorMap(vtkColorMaps.getPresetByName(lutName));
-
-    // update lookup table mapping range based on input dataset
-    let range;
-
-    if (this._rescaleLUT && this._PGwidgetLoaded) {
-      range = this.PGwidget.getOpacityRange();
-    } else {
-      range = this.actor
-        .getMapper()
-        .getInputData()
-        .getPointData()
-        .getScalars()
-        .getRange();
-    }
-
-    lookupTable.setMappingRange(...range);
-    lookupTable.updateRange();
-
-    this.actor.getProperty().setRGBTransferFunction(0, lookupTable);
-
-    // set up opacity function (values will be set by PGwidget)
-    const piecewiseFun = vtkPiecewiseFunction.newInstance();
-    this.actor.getProperty().setScalarOpacity(0, piecewiseFun);
-
-    this.ctfun = lookupTable;
-    this.ofun = piecewiseFun;
-
-    this.updateWidget();
-  }
-
-  /**
    * Get vtk LUTs list
    * @returns {Array} - Lut list as array of strings
    */
@@ -340,6 +340,9 @@ export class VRView {
     this.actor.getProperty().setSpecularPower(state.specularPower);
   }
 
+  /**
+   * Setup crop widget
+   */
   setupCropWidget() {
     // setup widget manager and widget
     const widgetManager = vtkWidgetManager.newInstance();
@@ -387,7 +390,7 @@ export class VRView {
    * @private
    * @param {HTMLElement} widgetContainer - The target element to place the widget
    */
-  addPGwidget() {
+  setupPGwidget() {
     let containerWidth = this.PGwidgetElement
       ? this.PGwidgetElement.offsetWidth - 5
       : 300;
@@ -510,6 +513,10 @@ export class VRView {
     });
   }
 
+  /**
+   * Set distance between rays
+   * @param {*} distance
+   */
   setSampleDistance(distance) {
     this.actor.getMapper().setSampleDistance(distance);
   }
@@ -651,7 +658,6 @@ export class VRView {
    * @param {*} options
    * @param {*} measurementState
    */
-
   setTool(toolName, options, measurementState) {
     if (this._leftButtonCb) {
       this._leftButtonCb.unsubscribe();
@@ -659,7 +665,7 @@ export class VRView {
 
     switch (toolName) {
       case "Length":
-        this.initPicker(measurementState);
+        this._initPicker(measurementState);
         break;
       case "Angle":
         // TODO
@@ -677,7 +683,7 @@ export class VRView {
   /**
    * initPicker
    */
-  initPicker(state) {
+  _initPicker(state) {
     // no blur when measure
     this.blurOnInteraction = false;
 
@@ -804,6 +810,16 @@ export class VRView {
 
         this.renderWindow.render();
       });
+  }
+
+  /**
+   * Reset view
+   */
+  resetView() {
+    let center = this.actor.getCenter();
+    console.log(center);
+    this.setCamera(center);
+    this.renderWindow.render();
   }
 
   /**
