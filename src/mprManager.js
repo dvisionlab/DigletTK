@@ -4,6 +4,10 @@ import vtkInteractorStyleMPRCrosshairs from "./vtk/vtkInteractorStyleMPRCrosshai
 import vtkCoordinate from "vtk.js/Sources/Rendering/Core/Coordinate";
 import vtkMatrixBuilder from "vtk.js/Sources/Common/Core/MatrixBuilder";
 
+import vtkMouseCameraTrackballPanManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
+import vtkMouseCameraTrackballZoomManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseCameraTrackballZoomManipulator";
+import vtkInteractorStyleManipulator from "vtk.js/Sources/Interaction/Style/InteractorStyleManipulator";
+
 import {
   getPlaneIntersection,
   getVolumeCenter,
@@ -11,6 +15,8 @@ import {
 } from "./utils";
 
 import { MPRView } from "./mprView";
+
+window.istyle = {};
 
 /**
  * Internal state of a single view
@@ -160,7 +166,55 @@ export class MPRManager {
       case "crosshair":
         this.setCrosshairTool(state);
         break;
+      case "zoom":
+        this.setZoomTool(state);
+        break;
+      case "pan":
+        this.setPanTool(state);
+        break;
     }
+  }
+
+  /**
+   * Set "pan" as active tool
+   * @private
+   * @param {State} state - The current manager state
+   */
+  setPanTool(state) {
+    Object.entries(state.views).forEach(([key]) => {
+      const istyle = vtkInteractorStyleManipulator.newInstance();
+      const panManipulator = vtkMouseCameraTrackballPanManipulator.newInstance({
+        button: 1
+        // control: true
+      });
+      istyle.addMouseManipulator(panManipulator);
+      this.mprViews[key]._renderWindow
+        .getInteractor()
+        .setInteractorStyle(istyle);
+    });
+    this._activeTool = "pan";
+  }
+
+  /**
+   * Set "zoom" as active tool
+   * @private
+   * @param {State} state - The current manager state
+   */
+  setZoomTool(state) {
+    Object.entries(state.views).forEach(([key]) => {
+      const istyle = vtkInteractorStyleManipulator.newInstance();
+      const zoomManipulator = vtkMouseCameraTrackballZoomManipulator.newInstance(
+        {
+          button: 1
+          // scrollEnabled: true
+        }
+      );
+      istyle.addMouseManipulator(zoomManipulator);
+      this.mprViews[key]._renderWindow
+        .getInteractor()
+        .setInteractorStyle(istyle);
+    });
+    this._activeTool = "zoom";
   }
 
   /**
@@ -178,6 +232,7 @@ export class MPRManager {
         this.updateLevels({ ...levels, srcKey: key }, state);
       });
       this.mprViews[key].setInteractor(istyle);
+      window.istyle[key] = istyle;
     });
     this._activeTool = "level";
   }
