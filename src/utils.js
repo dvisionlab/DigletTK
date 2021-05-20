@@ -127,7 +127,7 @@ export function loadDemoSerieWithLarvitar(name, lrv, cb) {
         // hack to avoid load and cache (render + timeout)
         lrv.renderImage(serie, "viewer");
         if (cb) {
-          setTimeout(cb, 3000, serie);
+          setTimeout(cb, 3000, serie); // increase timeout if "getPixelData" error
         }
       });
     });

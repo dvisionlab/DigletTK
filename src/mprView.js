@@ -104,11 +104,6 @@ export class MPRView {
     this.window.center = wl;
     this.window.width = ww;
 
-    this._genericRenderWindow
-      .getInteractor()
-      .getInteractorStyle()
-      .setWindowLevel(ww, wl);
-
     this._genericRenderWindow.getRenderWindow().render();
   }
 
