@@ -72,7 +72,7 @@ dtk.loadSerieWithLarvitar(larvitar, serie => {
 ### RoadMap
 
 - [x] Volume Rendering
-- [ ] Measuring tools
+- [x] Measuring tools
 - [ ] Segmentations (Cornerstone.js >>> data >>> vtk.js)
 - [x] Colormaps
 - [ ] Multi Slice Image Mapper (a different MPR implementation)

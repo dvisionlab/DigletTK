@@ -12061,10 +12061,10 @@ vm-browserify@^1.0.1:
   resolved "https://registry.yarnpkg.com/vm-browserify/-/vm-browserify-1.1.2.tgz#78641c488b8e6ca91a75f511e7a3b32a86e5dda0"
   integrity sha512-2ham8XPWTONajOR0ohOKOHXkm3+gaBmGut3SRuu75xLd/RRaY6vqgh8NBYYk7+RW3u5AtzPQZG8F10LHkl0lAQ==
 
-vtk.js@^18.0.1:
-  version "18.0.1"
-  resolved "https://registry.yarnpkg.com/vtk.js/-/vtk.js-18.0.1.tgz#31da7760fd70b62c76558f4ed1e764f54029adfe"
-  integrity sha512-UeiV/0lKn+hE9fN0NsOiAnXzqosdjcOV7hlik3GejIzsgOiQ731FXS1YU2XpLKgFPpsIEuLqeJKGayRxQVH7RA==
+vtk.js@^18.1.1:
+  version "18.1.1"
+  resolved "https://registry.yarnpkg.com/vtk.js/-/vtk.js-18.1.1.tgz#386a18483a1004f78b2b0dac3f241e10d0395e08"
+  integrity sha512-zejS3E6ZnKmvnADnISvch4H17PakijYRuk93/C96lpG1YYkATV3GXLdF32uVO/w4cZO4kM3UPq6t3wLBjEwvwQ==
   dependencies:
     "@babel/runtime" "7.13.10"
     blueimp-md5 "2.18.0"
