@@ -1,13 +1,9 @@
 // Use modified MPRSlice interactor
 import vtkInteractorStyleMPRWindowLevel from "./vtk/vtkInteractorStyleMPRWindowLevel";
 import vtkInteractorStyleMPRCrosshairs from "./vtk/vtkInteractorStyleMPRCrosshairs";
-import vtkInteractorStyleMPRPan from "./vtk/vtkInteractorStyleMPRPan";
+import vtkInteractorStyleMPRPanZoom from "./vtk/vtkInteractorStyleMPRPanZoom";
 import vtkCoordinate from "vtk.js/Sources/Rendering/Core/Coordinate";
 import vtkMatrixBuilder from "vtk.js/Sources/Common/Core/MatrixBuilder";
-
-import vtkMouseCameraTrackballPanManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
-import vtkMouseCameraTrackballZoomManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseCameraTrackballZoomManipulator";
-import vtkInteractorStyleManipulator from "vtk.js/Sources/Interaction/Style/InteractorStyleManipulator";
 
 import {
   getPlaneIntersection,
@@ -16,7 +12,6 @@ import {
 } from "./utils";
 
 import { MPRView } from "./mprView";
-import vtkInteractorStyleMPRPanZoom from "./vtk/vtkInteractorStyleMPRPanZoom";
 
 window.istyle = {};
 
@@ -179,12 +174,11 @@ export class MPRManager {
         this.setCrosshairTool(state);
         break;
       case "zoom":
-        // this.setZoomTool(state);
+        this.setZoomTool(state);
         console.warn("TODO zoom tool on left click");
         break;
       case "pan":
         this.setPanTool(state);
-        console.warn("TODO pan tool on left click");
         break;
     }
   }
@@ -210,6 +204,29 @@ export class MPRManager {
       window.istyle[key] = istyle;
     });
     this._activeTool = "pan";
+  }
+
+  /**
+   * Set "zoom" as active tool
+   * @private
+   * @param {State} state - The current manager state
+   */
+  setZoomTool(state) {
+    Object.entries(state.views).forEach(([key]) => {
+      const istyle = vtkInteractorStyleMPRPanZoom.newInstance({
+        leftButtonTool: "zoom"
+      });
+      istyle.setOnScroll(() => {
+        this.onScrolled(state);
+      });
+      // TODO update something if needed
+      // istyle.setOnZoomChanged(levels => {
+      // this.updateLevels({ ...levels, srcKey: key }, state);
+      // });
+      this.mprViews[key].setInteractor(istyle);
+      window.istyle[key] = istyle;
+    });
+    this._activeTool = "zoom";
   }
 
   /**
