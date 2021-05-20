@@ -81,8 +81,6 @@ export function fitToWindow(genericRenderWindow, dir) {
 let larvitarInitialized = false;
 
 export function loadDemoSerieWithLarvitar(name, lrv, cb) {
-  window.lrv = lrv;
-
   let demoFiles = [];
   let counter = 0;
   let demoFileList = getDemoFileNames();
@@ -129,7 +127,7 @@ export function loadDemoSerieWithLarvitar(name, lrv, cb) {
         // hack to avoid load and cache (render + timeout)
         lrv.renderImage(serie, "viewer");
         if (cb) {
-          setTimeout(cb, 3000, serie);
+          setTimeout(cb, 3000, serie); // increase timeout if "getPixelData" error
         }
       });
     });
