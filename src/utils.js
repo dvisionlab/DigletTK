@@ -81,6 +81,8 @@ export function fitToWindow(genericRenderWindow, dir) {
 let larvitarInitialized = false;
 
 export function loadDemoSerieWithLarvitar(name, lrv, cb) {
+  window.lrv = lrv;
+
   let demoFiles = [];
   let counter = 0;
   let demoFileList = getDemoFileNames();

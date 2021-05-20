@@ -64,6 +64,18 @@ export class MPRManager {
    * @type {Array}
    */
   set wwwl([ww, wl]) {
+    // Object.keys(this.elements).forEach((key, i) => {
+    //   this.mprViews[key].wwwl = [ww, wl];
+    // });
+
+    const lower = wl - ww / 2.0;
+    const upper = wl + ww / 2.0;
+
+    this.volume
+      .getProperty()
+      .getRGBTransferFunction(0)
+      .setMappingRange(lower, upper);
+
     Object.keys(this.elements).forEach((key, i) => {
       this.mprViews[key].wwwl = [ww, wl];
     });
