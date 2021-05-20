@@ -25,14 +25,21 @@ function vtkInteractorStyleMPRCrosshairs(publicAPI, model) {
   // Set our className
   model.classHierarchy.push("vtkInteractorStyleMPRCrosshairs");
 
+  // set fixed manipulators
   model.trackballManipulator = vtkMouseCameraTrackballRotateManipulator.newInstance(
     {
       button: 1
     }
   );
-  model.panManipulator = vtkMouseCameraTrackballPanManipulator.newInstance({
-    button: 1,
-    shift: true
+  model.panManipulatorShift = vtkMouseCameraTrackballPanManipulator.newInstance(
+    {
+      button: 3,
+      shift: true
+    }
+  );
+  model.panManipulatorCtrl = vtkMouseCameraTrackballPanManipulator.newInstance({
+    button: 3,
+    control: true
   });
   model.zoomManipulator = vtkMouseCameraTrackballZoomManipulator.newInstance({
     button: 3
@@ -57,7 +64,8 @@ function vtkInteractorStyleMPRCrosshairs(publicAPI, model) {
   function setManipulators() {
     publicAPI.removeAllMouseManipulators();
     publicAPI.addMouseManipulator(model.trackballManipulator);
-    publicAPI.addMouseManipulator(model.panManipulator);
+    publicAPI.addMouseManipulator(model.panManipulatorShift);
+    publicAPI.addMouseManipulator(model.panManipulatorCtrl);
     publicAPI.addMouseManipulator(model.zoomManipulator);
     publicAPI.addMouseManipulator(model.scrollManipulator);
     updateScrollManipulator();

@@ -65,7 +65,6 @@ function vtkInteractorStyleMPRPanZoom(publicAPI, model) {
   }
 
   publicAPI.setLeftButton = tool => {
-    console.log("set left button", tool);
     if (tool == "zoom") {
       model.leftManipulator = vtkMouseCameraTrackballZoomManipulator.newInstance(
         {
@@ -85,15 +84,12 @@ function vtkInteractorStyleMPRPanZoom(publicAPI, model) {
   };
 
   // set default left button manipulator
-  console.log(model);
   if (!model.leftButtonTool) {
     model.leftButtonTool = "pan";
   }
   publicAPI.setLeftButton(model.leftButtonTool);
 
   setManipulators();
-
-  console.log(States);
 }
 
 // ----------------------------------------------------------------------------

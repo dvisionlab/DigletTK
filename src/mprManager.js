@@ -175,7 +175,6 @@ export class MPRManager {
         break;
       case "zoom":
         this.setZoomTool(state);
-        console.warn("TODO zoom tool on left click");
         break;
       case "pan":
         this.setPanTool(state);
