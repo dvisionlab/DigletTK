@@ -45,11 +45,16 @@ function vtkInteractorStyleMPRWindowLevel(publicAPI, model) {
       button: 1
     }
   );
-  model.panManipulator = vtkMouseCameraTrackballPanManipulator.newInstance({
-    button: 1,
-    shift: true
+  model.panManipulatorShift = vtkMouseCameraTrackballPanManipulator.newInstance(
+    {
+      button: 3,
+      shift: true
+    }
+  );
+  model.panManipulatorCtrl = vtkMouseCameraTrackballPanManipulator.newInstance({
+    button: 3,
+    control: true
   });
-
   // TODO: The inherited zoom manipulator does not appear to be working?
   model.zoomManipulator = vtkMouseCameraTrackballZoomManipulator.newInstance({
     button: 3
@@ -74,7 +79,8 @@ function vtkInteractorStyleMPRWindowLevel(publicAPI, model) {
   function setManipulators() {
     publicAPI.removeAllMouseManipulators();
     publicAPI.addMouseManipulator(model.trackballManipulator);
-    publicAPI.addMouseManipulator(model.panManipulator);
+    publicAPI.addMouseManipulator(model.panManipulatorShift);
+    publicAPI.addMouseManipulator(model.panManipulatorCtrl);
     publicAPI.addMouseManipulator(model.zoomManipulator);
     publicAPI.addMouseManipulator(model.scrollManipulator);
     updateScrollManipulator();

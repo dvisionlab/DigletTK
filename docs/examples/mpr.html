@@ -66,10 +66,16 @@
 
   <div class="btn-group" role="group" aria-label="Basic radio toggle button group">
     <input type="radio" class="btn-check" name="btnradio" id="btn-level" autocomplete="off" checked onclick="updateTool('level')">
-    <label class="btn btn-outline-danger" for="btn-level">Level Tool</label>
+    <label class="btn btn-outline-danger" for="btn-level">Level</label>
   
     <input type="radio" class="btn-check" name="btnradio" id="btn-cross" autocomplete="off" onclick="updateTool('crosshair')">
-    <label class="btn btn-outline-danger" for="btn-cross">Crosshair Tool</label>
+    <label class="btn btn-outline-danger" for="btn-cross">Crosshair</label>
+
+    <input type="radio" class="btn-check" name="btnradio" id="btn-pan" autocomplete="off" onclick="updateTool('pan')">
+    <label class="btn btn-outline-danger" for="btn-pan">Pan</label>
+
+    <input type="radio" class="btn-check" name="btnradio" id="btn-zoom" autocomplete="off" onclick="updateTool('zoom')">
+    <label class="btn btn-outline-danger" for="btn-zoom">Zoom</label>
   </div>
           <code class="javascript">
   // =====================
@@ -79,9 +85,7 @@
   const targetElements = {
     top: {
       element: document.getElementById("viewer-1"),
-      key: "top",
-      height: 300, // TODO: use this 
-      width: 300 
+      key: "top"
     },
     left: {
       element: document.getElementById("viewer-2"),
@@ -138,8 +142,6 @@
         top: {
           element: document.getElementById("viewer-1"),
           key: "top",
-          height: 300, // TODO: use this 
-          width: 300 
         },
         left: {
           element: document.getElementById("viewer-2"),
