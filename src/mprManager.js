@@ -63,6 +63,16 @@ export class MPRManager {
   }
 
   /**
+   * wwwl
+   * @type {Array}
+   */
+  set wwwl([ww, wl]) {
+    Object.keys(this.elements).forEach((key, i) => {
+      this.mprViews[key].wwwl = [ww, wl];
+    });
+  }
+
+  /**
    * Initialize the three MPR views
    * @private
    */
@@ -167,10 +177,12 @@ export class MPRManager {
         this.setCrosshairTool(state);
         break;
       case "zoom":
-        this.setZoomTool(state);
+        // this.setZoomTool(state);
+        console.warn("TODO zoom tool on left click");
         break;
       case "pan":
-        this.setPanTool(state);
+        // this.setPanTool(state);
+        console.warn("TODO pan tool on left click");
         break;
     }
   }
@@ -180,42 +192,42 @@ export class MPRManager {
    * @private
    * @param {State} state - The current manager state
    */
-  setPanTool(state) {
-    Object.entries(state.views).forEach(([key]) => {
-      const istyle = vtkInteractorStyleManipulator.newInstance();
-      const panManipulator = vtkMouseCameraTrackballPanManipulator.newInstance({
-        button: 1
-        // control: true
-      });
-      istyle.addMouseManipulator(panManipulator);
-      this.mprViews[key]._renderWindow
-        .getInteractor()
-        .setInteractorStyle(istyle);
-    });
-    this._activeTool = "pan";
-  }
+  // setPanTool(state) {
+  //   Object.entries(state.views).forEach(([key]) => {
+  //     const istyle = vtkInteractorStyleManipulator.newInstance();
+  //     const panManipulator = vtkMouseCameraTrackballPanManipulator.newInstance({
+  //       button: 1
+  //       // control: true
+  //     });
+  //     istyle.addMouseManipulator(panManipulator);
+  //     this.mprViews[key]._renderWindow
+  //       .getInteractor()
+  //       .setInteractorStyle(istyle);
+  //   });
+  //   this._activeTool = "pan";
+  // }
 
   /**
    * Set "zoom" as active tool
    * @private
    * @param {State} state - The current manager state
    */
-  setZoomTool(state) {
-    Object.entries(state.views).forEach(([key]) => {
-      const istyle = vtkInteractorStyleManipulator.newInstance();
-      const zoomManipulator = vtkMouseCameraTrackballZoomManipulator.newInstance(
-        {
-          button: 1
-          // scrollEnabled: true
-        }
-      );
-      istyle.addMouseManipulator(zoomManipulator);
-      this.mprViews[key]._renderWindow
-        .getInteractor()
-        .setInteractorStyle(istyle);
-    });
-    this._activeTool = "zoom";
-  }
+  // setZoomTool(state) {
+  //   Object.entries(state.views).forEach(([key]) => {
+  //     const istyle = vtkInteractorStyleManipulator.newInstance();
+  //     const zoomManipulator = vtkMouseCameraTrackballZoomManipulator.newInstance(
+  //       {
+  //         button: 1
+  //         // scrollEnabled: true
+  //       }
+  //     );
+  //     istyle.addMouseManipulator(zoomManipulator);
+  //     this.mprViews[key]._renderWindow
+  //       .getInteractor()
+  //       .setInteractorStyle(istyle);
+  //   });
+  //   this._activeTool = "zoom";
+  // }
 
   /**
    * Set "level" as active tool
@@ -312,7 +324,7 @@ export class MPRManager {
       Object.keys(this.elements)
         .filter(key => key !== srcKey)
         .forEach(k => {
-          this.mprViews[k].wwwl = [windowCenter, windowWidth];
+          this.mprViews[k].wwwl = [windowWidth, windowCenter];
         });
     }
   }
