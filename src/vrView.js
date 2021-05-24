@@ -539,7 +539,8 @@ export class VRView {
         mapper.setSampleDistance(this._raysDistance);
         // update picking plane
         let camera = this.renderer.getActiveCamera();
-        this._pickingPlane.setNormal(camera.getDirectionOfProjection());
+        if (this._pickingPlane)
+          this._pickingPlane.setNormal(camera.getDirectionOfProjection());
         this.renderWindow.render();
       });
     } else {
@@ -551,7 +552,8 @@ export class VRView {
         mapper.setSampleDistance(this._raysDistance);
         // update picking plane
         let camera = this.renderer.getActiveCamera();
-        this._pickingPlane.setNormal(camera.getDirectionOfProjection());
+        if (this._pickingPlane)
+          this._pickingPlane.setNormal(camera.getDirectionOfProjection());
         this.renderWindow.render();
       });
     }
