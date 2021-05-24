@@ -370,7 +370,7 @@ export class VRView {
 
     widget.set({
       faceHandlesEnabled: true,
-      edgeHandlesEnabled: false, // set to true when solved: https://github.com/Kitware/vtk-js/issues/1905
+      edgeHandlesEnabled: true,
       cornerHandlesEnabled: true
     });
 
@@ -858,12 +858,16 @@ export class VRView {
     this.actor.delete();
     this.actor = null;
 
-    this.PGwidgetElement = null;
-    this.PGwidget.delete();
-    this.PGwidget = null;
-    this.gaussians = null;
+    if (this.PGwidgetElement) {
+      this.PGwidgetElement = null;
+      this.PGwidget.delete();
+      this.PGwidget = null;
+      this.gaussians = null;
+    }
 
-    this._cropWidget.delete();
-    this._cropWidget = null;
+    if (this._cropWidget) {
+      this._cropWidget.delete();
+      this._cropWidget = null;
+    }
   }
 }
