@@ -504,7 +504,7 @@ export class MPRManager {
    * Force views resize
    * @param {String} key - If provided, resize just its view, otherwise all views
    */
-  resize(key) {
+  resize(state, key) {
     if (key) {
       this.mprViews[key].onResize();
     } else {
@@ -512,6 +512,7 @@ export class MPRManager {
         view.onResize();
       });
     }
+    this.updateInteractorCenters(state);
   }
 
   /**
