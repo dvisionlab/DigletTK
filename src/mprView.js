@@ -326,7 +326,6 @@ export class MPRView {
     const oldStyle = renderWindow.getInteractor().getInteractorStyle();
 
     renderWindow.getInteractor().setInteractorStyle(istyle);
-    // NOTE: react-vtk-viewport's code put this here, so we're copying it. Seems redundant?
     istyle.setInteractor(renderWindow.getInteractor());
 
     // Make sure to set the style to the interactor itself, because reasons...?!
