@@ -90,6 +90,23 @@ function vtkInteractorStyleMPRPanZoom(publicAPI, model) {
   publicAPI.setLeftButton(model.leftButtonTool);
 
   setManipulators();
+
+  // chain a callback to super interactor
+  const superSetInteractor = publicAPI.setInteractor;
+  publicAPI.setInteractor = interactor => {
+    superSetInteractor(interactor);
+
+    if (interactor === null) {
+      // NOTE: check null AFTER calling super setInteractor
+      return;
+    }
+
+    let interactionCb =
+      model.leftButtonTool == "pan"
+        ? publicAPI.getOnPanChanged()
+        : publicAPI.getOnZoomChanged();
+    interactor.onAnimation(interactionCb);
+  };
 }
 
 // ----------------------------------------------------------------------------
@@ -111,7 +128,8 @@ export function extend(publicAPI, model, initialValues = {}) {
 
   macro.setGet(publicAPI, model, [
     "volumeMapper",
-    "onLevelsChanged",
+    "onPanChanged",
+    "onZoomChanged",
     "levelScale"
   ]);
 

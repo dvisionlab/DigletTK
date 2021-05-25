@@ -13,8 +13,6 @@ import {
 
 import { MPRView } from "./mprView";
 
-window.istyle = {};
-
 /**
  * Internal state of a single view
  * @typedef {Object} State
@@ -54,9 +52,6 @@ export class MPRManager {
     this.mprViews = {};
 
     this.initMPR();
-
-    // FOR DEV
-    window.mpr = this;
   }
 
   /**
@@ -203,12 +198,11 @@ export class MPRManager {
       istyle.setOnScroll(() => {
         this.onScrolled(state);
       });
-      // TODO update something if needed
-      // istyle.setOnPanChanged(levels => {
-      // this.updateLevels({ ...levels, srcKey: key }, state);
-      // });
+      // update interactor center
+      istyle.setOnPanChanged(() => {
+        this.updateInteractorCenters(state);
+      });
       this.mprViews[key].setInteractor(istyle);
-      window.istyle[key] = istyle;
     });
     this._activeTool = "pan";
   }
@@ -226,57 +220,14 @@ export class MPRManager {
       istyle.setOnScroll(() => {
         this.onScrolled(state);
       });
-      // TODO update something if needed
-      // istyle.setOnZoomChanged(levels => {
-      // this.updateLevels({ ...levels, srcKey: key }, state);
-      // });
+      // update interactor center
+      istyle.setOnZoomChanged(() => {
+        this.updateInteractorCenters(state);
+      });
       this.mprViews[key].setInteractor(istyle);
-      window.istyle[key] = istyle;
     });
     this._activeTool = "zoom";
   }
-
-  /**
-   * Set "pan" as active tool
-   * @private
-   * @param {State} state - The current manager state
-   */
-  // setPanTool(state) {
-  //   Object.entries(state.views).forEach(([key]) => {
-  //     const istyle = vtkInteractorStyleManipulator.newInstance();
-  //     const panManipulator = vtkMouseCameraTrackballPanManipulator.newInstance({
-  //       button: 1
-  //       // control: true
-  //     });
-  //     istyle.addMouseManipulator(panManipulator);
-  //     this.mprViews[key]._renderWindow
-  //       .getInteractor()
-  //       .setInteractorStyle(istyle);
-  //   });
-  //   this._activeTool = "pan";
-  // }
-
-  /**
-   * Set "zoom" as active tool
-   * @private
-   * @param {State} state - The current manager state
-   */
-  // setZoomTool(state) {
-  //   Object.entries(state.views).forEach(([key]) => {
-  //     const istyle = vtkInteractorStyleManipulator.newInstance();
-  //     const zoomManipulator = vtkMouseCameraTrackballZoomManipulator.newInstance(
-  //       {
-  //         button: 1
-  //         // scrollEnabled: true
-  //       }
-  //     );
-  //     istyle.addMouseManipulator(zoomManipulator);
-  //     this.mprViews[key]._renderWindow
-  //       .getInteractor()
-  //       .setInteractorStyle(istyle);
-  //   });
-  //   this._activeTool = "zoom";
-  // }
 
   /**
    * Set "level" as active tool
@@ -293,7 +244,6 @@ export class MPRManager {
         this.updateLevels({ ...levels, srcKey: key }, state);
       });
       this.mprViews[key].setInteractor(istyle);
-      window.istyle[key] = istyle;
     });
     this._activeTool = "level";
   }
