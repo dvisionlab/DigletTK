@@ -60,7 +60,7 @@ Right click to delete a curve.
             <label class="sr-only" for="select-lut">LUT</label>
             <select style="max-width: 150px;" id="select-lut" onchange="updateLut(this.options[this.selectedIndex].text)">
             </select>
-            <input checked type="checkbox" class="custom-control-input" id="customControlAutosizing" onchange="updateRescale(this.checked)">
+            <input type="checkbox" class="custom-control-input" id="customControlAutosizing" onchange="updateRescale(this.checked)">
             <label class="custom-control-label" for="customControlAutosizing">rescale LUT</label>
           </div>
         </form>
@@ -129,6 +129,8 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
 
         const element = document.getElementById('viewer-2')
         const widgetContainer = document.getElementById("widget");
+
+        let state = {p1:new Array(2), p2: new Array(2), label:''}
         
         diglettk.loadDemoSerieWithLarvitar('knee', larvitar, serie => {
           // build vtk volume with larvitar
@@ -146,6 +148,12 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
             let lutList = vr.getLutList();
             fillSelect(lutList)
             vr.lut = lutList[0];
+
+            vr.setTool("Length", {}, state)
+          })
+
+          document.addEventListener('mouseup', ()=>{
+            console.log(state)
           })
     </script>
   </body>

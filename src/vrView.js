@@ -19,9 +19,9 @@ import vtkMapper from "vtk.js/Sources/Rendering/Core/Mapper";
 import vtkActor from "vtk.js/Sources/Rendering/Core/Actor";
 // import vtkSphereSource from "vtk.js/Sources/Filters/Sources/SphereSource";
 import vtkCoordinate from "vtk.js/Sources/Rendering/Core/Coordinate";
-import * as vtkMath from "vtk.js/Sources/Common/Core/Math";
 
-import { getVolumeCenter, createVolumeActor } from "./utils";
+import { createVolumeActor } from "./utils";
+import { applyStrategy } from "./strategies";
 
 //TODO interactions:
 
@@ -667,7 +667,7 @@ export class VRView {
 
     switch (toolName) {
       case "Length":
-        this._initPicker(measurementState);
+        this._initPicker(measurementState, toolName);
         break;
       case "Angle":
         // TODO
@@ -678,14 +678,14 @@ export class VRView {
         this.setupInteractor();
         break;
       default:
-        console.warn("No tool with found for", toolName);
+        console.warn("No tool found for", toolName);
     }
   }
 
   /**
    * initPicker
    */
-  _initPicker(state) {
+  _initPicker(state, mode) {
     // no blur when measure
     this.blurOnInteraction = false;
 
@@ -711,27 +711,30 @@ export class VRView {
     picker.setPickFromList(1);
     picker.initializePickList();
 
-    // --- ADD a 1000x1000 plane
-    const plane = vtkPlaneSource.newInstance({
-      xResolution: 1000,
-      yResolution: 1000
-    });
-    let camera = this.renderer.getActiveCamera();
-    plane.setPoint1(0, 0, 1000);
-    plane.setPoint2(1000, 0, 0);
-    plane.setCenter(this.actor.getCenter());
-    plane.setNormal(camera.getDirectionOfProjection());
+    if (!this._pickingPlane) {
+      // --- ADD a 1000x1000 plane
+      const plane = vtkPlaneSource.newInstance({
+        xResolution: 1000,
+        yResolution: 1000
+      });
+      let camera = this.renderer.getActiveCamera();
+      plane.setPoint1(0, 0, 1000);
+      plane.setPoint2(1000, 0, 0);
+      plane.setCenter(this.actor.getCenter());
+      plane.setNormal(camera.getDirectionOfProjection());
 
-    this._pickingPlane = plane;
+      this._pickingPlane = plane;
 
-    const mapper = vtkMapper.newInstance();
-    mapper.setInputConnection(plane.getOutputPort());
-    const planeActor = vtkActor.newInstance();
-    planeActor.setMapper(mapper);
-    planeActor.getProperty().setOpacity(0.01); // with opacity = 0 it is ignored by picking
-    this.renderer.addActor(planeActor);
-    // add picking plane to pick list
-    picker.addPickList(planeActor);
+      const mapper = vtkMapper.newInstance();
+      mapper.setInputConnection(plane.getOutputPort());
+      const planeActor = vtkActor.newInstance();
+      planeActor.setMapper(mapper);
+      planeActor.getProperty().setOpacity(0.01); // with opacity = 0 it is ignored by picking
+      this.renderer.addActor(planeActor);
+
+      // add picking plane to pick list
+      picker.addPickList(planeActor);
+    }
 
     // Pick on mouse left click
     this._leftButtonCb = this.renderWindow
@@ -778,33 +781,7 @@ export class VRView {
           wPos.setValue(...pickedPoint);
           const displayPosition = wPos.getComputedDisplayValue(this.renderer);
 
-          if (state.p1[0] && state.p2[0]) {
-            state.p1 = displayPosition;
-            state.p1_world = pickedPoint;
-            state.p2 = [undefined, undefined];
-            state.p2_world = [undefined, undefined];
-            state.label = undefined;
-          } else {
-            if (state.p1[0]) {
-              state.p2 = displayPosition;
-              state.p2_world = pickedPoint;
-            } else {
-              state.p1 = displayPosition;
-              state.p1_world = pickedPoint;
-            }
-          }
-
-          //compute distance
-          if (state.p1[0] && state.p2[0]) {
-            let dist2 = vtkMath.distance2BetweenPoints(
-              state.p1_world,
-              state.p2_world
-            );
-            let d = Math.sqrt(dist2).toFixed(1);
-            state.label = `${d} mm`;
-          } else {
-            state.label = "";
-          }
+          applyStrategy(state, displayPosition, pickedPoint, mode);
 
           if (this.VERBOSE) console.log(state);
           this._measurementState = state;
