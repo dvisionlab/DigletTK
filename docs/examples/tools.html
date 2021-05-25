@@ -48,23 +48,28 @@
         <!-- widget target element -->
         <h3 style="margin-bottom: 20px;">Opacity Widget</h3>
         <pre>
-Drag outside the gaussian to move it along the histogram.
-Drag inside the gaussian to modify its shape.
-Double click to add a curve.
-Right click to delete a curve.
+Rotation: drag to rotate
+Length and angle: click 2x or 3x  
         </pre>
 
         <!-- inputs -->
         <form class="form-inline">
           <div style="margin-bottom: 4px;"> 
-            <label class="sr-only" for="select-lut">LUT</label>
-            <select style="max-width: 150px;" id="select-lut" onchange="updateLut(this.options[this.selectedIndex].text)">
-            </select>
-            <input type="checkbox" class="custom-control-input" id="customControlAutosizing" onchange="updateRescale(this.checked)">
-            <label class="custom-control-label" for="customControlAutosizing">rescale LUT</label>
+            <div class="btn-group" role="group" aria-label="Basic radio toggle button group">
+                <input type="radio" class="btn-check" name="btnradio" id="btn-level" autocomplete="off" checked onclick="updateTool('Rotation')">
+                <label class="btn btn-outline-danger" for="btn-level">Rotation</label>
+              
+                <input type="radio" class="btn-check" name="btnradio" id="btn-cross" autocomplete="off" onclick="updateTool('Length')">
+                <label class="btn btn-outline-danger" for="btn-cross">Length</label>
+            
+                <input type="radio" class="btn-check" name="btnradio" id="btn-pan" autocomplete="off" onclick="updateTool('Angle')">
+                <label class="btn btn-outline-danger" for="btn-pan">Angle</label>
+              </div>
           </div>
         </form>
         <!-- end inputs -->
+
+        <label style="margin-right: 4px;">Measure:</label><label id="result"></label>
 
         <div id="widget" style="height: 120px; margin:auto; border: 3px solid green"></div>
         <h3 style="margin-top: 20px; margin-bottom: 10px;">Code Example</h3>
@@ -72,6 +77,9 @@ Right click to delete a curve.
           <code class="javascript">
 const element = document.getElementById('viewer-2')
 const widgetContainer = document.getElementById("widget");
+
+// init state
+let state = {p1:new Array(2), p2: new Array(2), p3: new Array(2), label:''}
 
 diglettk.loadSerieWithLarvitar(larvitar, serie => {
   let header = larvitar.buildHeader(serie);
@@ -87,7 +95,14 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
   vr.widgetElement = widgetContainer;
   // set a LUT 
   vr.lut = "2hot";
+  // set a tool
+  vr.setTool("Rotation", {}, state)
 })
+
+function updateTool(toolName){
+    vr.resetMeasurementState(state);
+    vr.setTool(toolName, {}, state)
+}
           </code>
         </pre>
           
@@ -101,39 +116,27 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
     <script src="./larvitar.js"></script>
 
     <script>
+        const overlaySize = 15;
+        const overlayBorder = 2;
+        const overlay = document.createElement('div');
+        overlay.style.position = 'absolute';
+        overlay.style.width = `${overlaySize}px`;
+        overlay.style.height = `${overlaySize}px`;
+        overlay.style.border = `solid ${overlayBorder}px red`;
+        overlay.style.borderRadius = '50%';
+        overlay.style.left = '-100px';
+        overlay.style.pointerEvents = 'none';
+        overlay.id = "overlay";
 
         let vr = null;
 
-        function fillSelect(list) {
-          let select = document.getElementById('select-lut');
-          let index = 0;
-          for(let element of list)
-            {
-              var opt = document.createElement("option");
-              opt.value= index;
-              opt.innerHTML = element;
-              select.appendChild(opt);
-              index++;
-            }
-        }
-
-        function updateLut(v) {
-          console.log('update LUT', v)
-          vr.lut = v;
-        }
-
-        function updateRescale(v) {
-          console.log('rescale', v)
-          vr.rescaleLUT = v;
-        }
-
         const element = document.getElementById('viewer-2')
+        element.appendChild(overlay);
         const widgetContainer = document.getElementById("widget");
-
         let state = {p1:new Array(2), p2: new Array(2), p3: new Array(2), label:''}
-        
+
         diglettk.loadDemoSerieWithLarvitar('knee', larvitar, serie => {
-          // build vtk volume with larvitar
+            // build vtk volume with larvitar
             let header = larvitar.buildHeader(serie);
             let data = larvitar.buildData(serie, false);
             console.log(serie)
@@ -146,9 +149,30 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
             vr.widgetElement = widgetContainer;
             // set a LUT 
             let lutList = vr.getLutList();
-            fillSelect(lutList)
-            vr.lut = lutList[0];
-          })
+            vr.lut = lutList[13];
+            vr.rescaleLUT = true;
+            // set a tool
+            vr.setTool("Rotation", {}, state)
+        })
+
+        element.addEventListener('mouseup', ()=>{
+            console.log(state)
+            document.getElementById('result').innerHTML = state.label
+
+            let pt = state.p3[0] ? state.p3 : (state.p2[0] ? state.p2 : state.p1);
+            let px = pt[0] - overlaySize - overlayBorder
+            let py = window.innerHeight - pt[1] - (overlaySize * 0.5 - overlayBorder)
+            document.getElementById('overlay').style.left = `${px}px`
+            document.getElementById('overlay').style.top = `${py}px`
+        })
+
+        function updateTool(toolName){
+            vr.resetMeasurementState(state);
+            vr.setTool(toolName, {}, state)
+            document.getElementById('result').innerHTML = state.label
+            document.getElementById('overlay').style.left = `-10px`
+            document.getElementById('overlay').style.top = `-10px`
+        }
     </script>
   </body>
 </html>
