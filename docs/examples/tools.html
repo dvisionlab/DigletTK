@@ -98,6 +98,11 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
   // set a tool
   vr.setTool("Rotation", {}, state)
 })
+
+function updateTool(toolName){
+    vr.resetMeasurementState(state);
+    vr.setTool(toolName, {}, state)
+}
           </code>
         </pre>
           
@@ -135,7 +140,7 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
             vr.lut = lutList[13];
             vr.rescaleLUT = true;
             // set a tool
-            vr.setTool("Angle", {}, state)
+            vr.setTool("Rotation", {}, state)
         })
 
         element.addEventListener('mouseup', ()=>{
@@ -144,9 +149,9 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
         })
 
         function updateTool(toolName){
-            console.log('set tool', toolName)
             vr.resetMeasurementState(state);
             vr.setTool(toolName, {}, state)
+            document.getElementById('result').innerHTML = state.label
         }
     </script>
   </body>

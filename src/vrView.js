@@ -17,7 +17,7 @@ import vtkPointPicker from "vtk.js/Sources/Rendering/Core/PointPicker";
 import vtkPlaneSource from "vtk.js/Sources/Filters/Sources/PlaneSource";
 import vtkMapper from "vtk.js/Sources/Rendering/Core/Mapper";
 import vtkActor from "vtk.js/Sources/Rendering/Core/Actor";
-// import vtkSphereSource from "vtk.js/Sources/Filters/Sources/SphereSource";
+import vtkSphereSource from "vtk.js/Sources/Filters/Sources/SphereSource";
 import vtkCoordinate from "vtk.js/Sources/Rendering/Core/Coordinate";
 
 import { createVolumeActor } from "./utils";
@@ -711,7 +711,8 @@ export class VRView {
     picker.initializePickList();
 
     if (!this._pickingPlane) {
-      // --- ADD a 1000x1000 plane
+      // add a 1000x1000 plane
+      // TODO this is slow the first time we pick, maybe we could use cellPicker and decrease resolution
       const plane = vtkPlaneSource.newInstance({
         xResolution: 1000,
         yResolution: 1000
@@ -722,18 +723,19 @@ export class VRView {
       plane.setCenter(this.actor.getCenter());
       plane.setNormal(camera.getDirectionOfProjection());
 
-      this._pickingPlane = plane;
-
       const mapper = vtkMapper.newInstance();
       mapper.setInputConnection(plane.getOutputPort());
       const planeActor = vtkActor.newInstance();
       planeActor.setMapper(mapper);
-      planeActor.getProperty().setOpacity(0.01); // with opacity = 0 it is ignored by picking
+      planeActor.getProperty().setOpacity(0.7); // with opacity = 0 it is ignored by picking
       this.renderer.addActor(planeActor);
 
-      // add picking plane to pick list
-      picker.addPickList(planeActor);
+      this._pickingPlane = plane;
+      this._planeActor = planeActor;
     }
+
+    // add picking plane to pick list
+    picker.addPickList(this._planeActor);
 
     // Pick on mouse left click
     this._leftButtonCb = this.renderWindow
@@ -834,6 +836,12 @@ export class VRView {
     this.actor.getMapper().delete();
     this.actor.delete();
     this.actor = null;
+
+    if (this._planeActor) {
+      this._planeActor.getMapper().delete();
+      this._planeActor.delete();
+      this._planeActor = null;
+    }
 
     if (this.PGwidgetElement) {
       this.PGwidgetElement = null;
