@@ -727,7 +727,7 @@ export class VRView {
       mapper.setInputConnection(plane.getOutputPort());
       const planeActor = vtkActor.newInstance();
       planeActor.setMapper(mapper);
-      planeActor.getProperty().setOpacity(0.7); // with opacity = 0 it is ignored by picking
+      planeActor.getProperty().setOpacity(0.01); // with opacity = 0 it is ignored by picking
       this.renderer.addActor(planeActor);
 
       this._pickingPlane = plane;

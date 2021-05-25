@@ -116,10 +116,22 @@ function updateTool(toolName){
     <script src="./larvitar.js"></script>
 
     <script>
+        const overlaySize = 15;
+        const overlayBorder = 2;
+        const overlay = document.createElement('div');
+        overlay.style.position = 'absolute';
+        overlay.style.width = `${overlaySize}px`;
+        overlay.style.height = `${overlaySize}px`;
+        overlay.style.border = `solid ${overlayBorder}px red`;
+        overlay.style.borderRadius = '50%';
+        overlay.style.left = '-100px';
+        overlay.style.pointerEvents = 'none';
+        overlay.id = "overlay";
 
         let vr = null;
 
         const element = document.getElementById('viewer-2')
+        element.appendChild(overlay);
         const widgetContainer = document.getElementById("widget");
         let state = {p1:new Array(2), p2: new Array(2), p3: new Array(2), label:''}
 
@@ -146,12 +158,20 @@ function updateTool(toolName){
         element.addEventListener('mouseup', ()=>{
             console.log(state)
             document.getElementById('result').innerHTML = state.label
+
+            let pt = state.p3[0] ? state.p3 : (state.p2[0] ? state.p2 : state.p1);
+            let px = pt[0] - overlaySize - overlayBorder
+            let py = window.innerHeight - pt[1] - (overlaySize * 0.5 - overlayBorder)
+            document.getElementById('overlay').style.left = `${px}px`
+            document.getElementById('overlay').style.top = `${py}px`
         })
 
         function updateTool(toolName){
             vr.resetMeasurementState(state);
             vr.setTool(toolName, {}, state)
             document.getElementById('result').innerHTML = state.label
+            document.getElementById('overlay').style.left = `-10px`
+            document.getElementById('overlay').style.top = `-10px`
         }
     </script>
   </body>
