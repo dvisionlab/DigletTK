@@ -35,7 +35,7 @@
     
     <input type="text" id="nav-search" placeholder="Search" />
     
-    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="MPRManager.html">MPRManager</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MPRManager.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#getInitialState">getInitialState</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onRotate">onRotate</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onThickness">onThickness</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#resize">resize</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setTool">setTool</a></li></ul></li><li><a href="VRView.html">VRView</a><ul class='methods'><li data-type='method' style='display: none;'><a href="VRView.html#_initPicker">_initPicker</a></li><li data-type='method' style='display: none;'><a href="VRView.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="VRView.html#getLutList">getLutList</a></li><li data-type='method' style='display: none;'><a href="VRView.html#resetMeasurementState">resetMeasurementState</a></li><li data-type='method' style='display: none;'><a href="VRView.html#resetView">resetView</a></li><li data-type='method' style='display: none;'><a href="VRView.html#resize">resize</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setActorProperties">setActorProperties</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setCamera">setCamera</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setSampleDistance">setSampleDistance</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setTool">setTool</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setupCropWidget">setupCropWidget</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#State">State</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="MPRManager.html">MPRManager</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MPRManager.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#getInitialState">getInitialState</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onRotate">onRotate</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onThickness">onThickness</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#resize">resize</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setTool">setTool</a></li></ul></li><li><a href="VRView.html">VRView</a><ul class='methods'><li data-type='method' style='display: none;'><a href="VRView.html#_initPicker">_initPicker</a></li><li data-type='method' style='display: none;'><a href="VRView.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="VRView.html#getLutList">getLutList</a></li><li data-type='method' style='display: none;'><a href="VRView.html#resetMeasurementState">resetMeasurementState</a></li><li data-type='method' style='display: none;'><a href="VRView.html#resetView">resetView</a></li><li data-type='method' style='display: none;'><a href="VRView.html#resize">resize</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setActorProperties">setActorProperties</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setCamera">setCamera</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setSampleDistance">setSampleDistance</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setTool">setTool</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setupCropWidget">setupCropWidget</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#applyAngleStrategy">applyAngleStrategy</a></li><li><a href="global.html#applyLengthStrategy">applyLengthStrategy</a></li><li><a href="global.html#State">State</a></li></ul>
 </nav>
 
 <div id="main">
@@ -69,11 +69,11 @@ import vtkPointPicker from "vtk.js/Sources/Rendering/Core/PointPicker";
 import vtkPlaneSource from "vtk.js/Sources/Filters/Sources/PlaneSource";
 import vtkMapper from "vtk.js/Sources/Rendering/Core/Mapper";
 import vtkActor from "vtk.js/Sources/Rendering/Core/Actor";
-// import vtkSphereSource from "vtk.js/Sources/Filters/Sources/SphereSource";
+import vtkSphereSource from "vtk.js/Sources/Filters/Sources/SphereSource";
 import vtkCoordinate from "vtk.js/Sources/Rendering/Core/Coordinate";
-import * as vtkMath from "vtk.js/Sources/Common/Core/Math";
 
-import { getVolumeCenter, createVolumeActor } from "./utils";
+import { createVolumeActor } from "./utils";
+import { applyStrategy } from "./strategies";
 
 //TODO interactions:
 
@@ -719,25 +719,24 @@ export class VRView {
 
     switch (toolName) {
       case "Length":
-        this._initPicker(measurementState);
+        this._initPicker(measurementState, toolName);
         break;
       case "Angle":
-        // TODO
-        console.warn("Angle tool is not implemented yet");
+        this._initPicker(measurementState, toolName);
         break;
       case "Rotation":
         this.resetMeasurementState(measurementState);
         this.setupInteractor();
         break;
       default:
-        console.warn("No tool with found for", toolName);
+        console.warn("No tool found for", toolName);
     }
   }
 
   /**
    * initPicker
    */
-  _initPicker(state) {
+  _initPicker(state, mode) {
     // no blur when measure
     this.blurOnInteraction = false;
 
@@ -763,27 +762,32 @@ export class VRView {
     picker.setPickFromList(1);
     picker.initializePickList();
 
-    // --- ADD a 1000x1000 plane
-    const plane = vtkPlaneSource.newInstance({
-      xResolution: 1000,
-      yResolution: 1000
-    });
-    let camera = this.renderer.getActiveCamera();
-    plane.setPoint1(0, 0, 1000);
-    plane.setPoint2(1000, 0, 0);
-    plane.setCenter(this.actor.getCenter());
-    plane.setNormal(camera.getDirectionOfProjection());
+    if (!this._pickingPlane) {
+      // add a 1000x1000 plane
+      // TODO this is slow the first time we pick, maybe we could use cellPicker and decrease resolution
+      const plane = vtkPlaneSource.newInstance({
+        xResolution: 1000,
+        yResolution: 1000
+      });
+      let camera = this.renderer.getActiveCamera();
+      plane.setPoint1(0, 0, 1000);
+      plane.setPoint2(1000, 0, 0);
+      plane.setCenter(this.actor.getCenter());
+      plane.setNormal(camera.getDirectionOfProjection());
 
-    this._pickingPlane = plane;
+      const mapper = vtkMapper.newInstance();
+      mapper.setInputConnection(plane.getOutputPort());
+      const planeActor = vtkActor.newInstance();
+      planeActor.setMapper(mapper);
+      planeActor.getProperty().setOpacity(0.01); // with opacity = 0 it is ignored by picking
+      this.renderer.addActor(planeActor);
 
-    const mapper = vtkMapper.newInstance();
-    mapper.setInputConnection(plane.getOutputPort());
-    const planeActor = vtkActor.newInstance();
-    planeActor.setMapper(mapper);
-    planeActor.getProperty().setOpacity(0.01); // with opacity = 0 it is ignored by picking
-    this.renderer.addActor(planeActor);
+      this._pickingPlane = plane;
+      this._planeActor = planeActor;
+    }
+
     // add picking plane to pick list
-    picker.addPickList(planeActor);
+    picker.addPickList(this._planeActor);
 
     // Pick on mouse left click
     this._leftButtonCb = this.renderWindow
@@ -830,33 +834,8 @@ export class VRView {
           wPos.setValue(...pickedPoint);
           const displayPosition = wPos.getComputedDisplayValue(this.renderer);
 
-          if (state.p1[0] &amp;&amp; state.p2[0]) {
-            state.p1 = displayPosition;
-            state.p1_world = pickedPoint;
-            state.p2 = [undefined, undefined];
-            state.p2_world = [undefined, undefined];
-            state.label = undefined;
-          } else {
-            if (state.p1[0]) {
-              state.p2 = displayPosition;
-              state.p2_world = pickedPoint;
-            } else {
-              state.p1 = displayPosition;
-              state.p1_world = pickedPoint;
-            }
-          }
-
-          //compute distance
-          if (state.p1[0] &amp;&amp; state.p2[0]) {
-            let dist2 = vtkMath.distance2BetweenPoints(
-              state.p1_world,
-              state.p2_world
-            );
-            let d = Math.sqrt(dist2).toFixed(1);
-            state.label = `${d} mm`;
-          } else {
-            state.label = "";
-          }
+          // apply changes on state based on active tool
+          applyStrategy(state, displayPosition, pickedPoint, mode);
 
           if (this.VERBOSE) console.log(state);
           this._measurementState = state;
@@ -909,6 +888,12 @@ export class VRView {
     this.actor.getMapper().delete();
     this.actor.delete();
     this.actor = null;
+
+    if (this._planeActor) {
+      this._planeActor.getMapper().delete();
+      this._planeActor.delete();
+      this._planeActor = null;
+    }
 
     if (this.PGwidgetElement) {
       this.PGwidgetElement = null;
