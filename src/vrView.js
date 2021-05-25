@@ -670,8 +670,7 @@ export class VRView {
         this._initPicker(measurementState, toolName);
         break;
       case "Angle":
-        // TODO
-        console.warn("Angle tool is not implemented yet");
+        this._initPicker(measurementState, toolName);
         break;
       case "Rotation":
         this.resetMeasurementState(measurementState);
@@ -781,6 +780,7 @@ export class VRView {
           wPos.setValue(...pickedPoint);
           const displayPosition = wPos.getComputedDisplayValue(this.renderer);
 
+          // apply changes on state based on active tool
           applyStrategy(state, displayPosition, pickedPoint, mode);
 
           if (this.VERBOSE) console.log(state);

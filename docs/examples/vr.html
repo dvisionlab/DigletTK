@@ -130,7 +130,7 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
         const element = document.getElementById('viewer-2')
         const widgetContainer = document.getElementById("widget");
 
-        let state = {p1:new Array(2), p2: new Array(2), label:''}
+        let state = {p1:new Array(2), p2: new Array(2), p3: new Array(2), label:''}
         
         diglettk.loadDemoSerieWithLarvitar('knee', larvitar, serie => {
           // build vtk volume with larvitar
@@ -149,7 +149,7 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
             fillSelect(lutList)
             vr.lut = lutList[0];
 
-            vr.setTool("Length", {}, state)
+            vr.setTool("Angle", {}, state)
           })
 
           document.addEventListener('mouseup', ()=>{
