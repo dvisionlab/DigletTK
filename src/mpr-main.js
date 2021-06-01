@@ -10,7 +10,7 @@
 // ======================================
 
 import { MPRManager } from "./mprManager";
-import { buildVtkVolume, loadSerieWithLarvitar } from "./utils";
+import { buildVtkVolume, loadSerieWithLarvitar } from "./utils/utils";
 
 // =====================
 // Define viewports ====

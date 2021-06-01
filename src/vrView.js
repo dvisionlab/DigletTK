@@ -20,8 +20,13 @@ import vtkActor from "vtk.js/Sources/Rendering/Core/Actor";
 import vtkSphereSource from "vtk.js/Sources/Filters/Sources/SphereSource";
 import vtkCoordinate from "vtk.js/Sources/Rendering/Core/Coordinate";
 
-import { createVolumeActor } from "./utils";
-import { applyStrategy } from "./strategies";
+import { createVolumeActor } from "./utils/utils";
+import { applyStrategy } from "./utils/strategies";
+
+import { createPreset } from "./utils/colormaps";
+
+// Add custom presets
+vtkColorMaps.addPreset(createPreset());
 
 //TODO interactions:
 
@@ -50,9 +55,8 @@ export class VRView {
     this.renderWindow = null;
     this._genericRenderWindow = null;
     this.actor = null;
-    this._raysDistance = 2.5;
+    this._raysDistance = null;
     this._blurOnInteraction = null;
-    this._rescaleLUT = false; // cannot initialize true (must set lut before)
 
     // piecewise gaussian widget stuff
     this.PGwidgetElement = null;
@@ -64,11 +68,15 @@ export class VRView {
     this._cropWidget = null;
 
     // normalized ww wl
-    this.ww = 0.25;
-    this.wl = 0.3;
+    this.ww = 0.1;
+    this.wl = 0.4;
 
     // absolute ww wl
     this.wwwl = [0, 0];
+
+    // LUT options
+    this._rangeLUT = null;
+    this._rescaleLUT = false; // cannot initialize true (must set lut before)
 
     // measurement state
     this._measurementState = null;
@@ -122,13 +130,15 @@ export class VRView {
    * @type {Number}
    */
   set resolution(value) {
-    this._raysDistance = 5 / value;
+    this._raysDistance = 1 / value;
     this.actor.getMapper().setSampleDistance(this._raysDistance);
+    let maxSamples = value > 1 ? value * 1000 : 1000;
+    this.actor.getMapper().setMaximumSamplesPerRay(maxSamples);
     this.renderWindow.render();
   }
 
   get resolution() {
-    return Math.round(this._raysDistance * 5);
+    return Math.round(1 / this._raysDistance);
   }
 
   /**
@@ -172,6 +182,17 @@ export class VRView {
     this.ctfun.setMappingRange(...range);
     this.ctfun.updateRange();
   }
+  /**
+   * Set range to apply lut  !!! WIP
+   * @type {Array}
+   */
+  set rangeLUT([min, max]) {
+    this._rangeLUT = [min, max];
+    this.actor
+      .getProperty()
+      .getRGBTransferFunction(0)
+      .setMappingRange(min, max);
+  }
 
   /**
    * Crop widget on / off
@@ -208,6 +229,7 @@ export class VRView {
         .getRange();
     }
 
+    // TODO a function to set custom mapping range (unbind from opacity)
     lookupTable.setMappingRange(...range);
     lookupTable.updateRange();
 
@@ -221,6 +243,44 @@ export class VRView {
     this.ofun = piecewiseFun;
 
     this.updateWidget();
+  }
+
+  /**
+   * Toggle blurring on interaction (Increase performance)
+   * @type {bool} toggle - if true, blur on interaction
+   */
+  set blurOnInteraction(toggle) {
+    this._blurOnInteraction = toggle;
+    let interactor = this.renderWindow.getInteractor();
+    let mapper = this.actor.getMapper();
+
+    if (toggle) {
+      interactor.onLeftButtonPress(() => {
+        mapper.setSampleDistance(this._raysDistance * 5);
+      });
+
+      interactor.onLeftButtonRelease(() => {
+        mapper.setSampleDistance(this._raysDistance);
+        // update picking plane
+        let camera = this.renderer.getActiveCamera();
+        if (this._pickingPlane)
+          this._pickingPlane.setNormal(camera.getDirectionOfProjection());
+        this.renderWindow.render();
+      });
+    } else {
+      interactor.onLeftButtonPress(() => {
+        mapper.setSampleDistance(this._raysDistance);
+      });
+
+      interactor.onLeftButtonRelease(() => {
+        mapper.setSampleDistance(this._raysDistance);
+        // update picking plane
+        let camera = this.renderer.getActiveCamera();
+        if (this._pickingPlane)
+          this._pickingPlane.setNormal(camera.getDirectionOfProjection());
+        this.renderWindow.render();
+      });
+    }
   }
 
   /**
@@ -272,6 +332,7 @@ export class VRView {
     let actor = createVolumeActor(image);
     this.actor = actor;
     this.lut = "Grayscale";
+    this.resolution = 2;
     this.renderer.addVolume(actor);
     this.setCamera(actor.getCenter());
 
@@ -282,6 +343,7 @@ export class VRView {
 
     // TODO implement a strategy to set rays distance
     // TODO interactors switching (ex. blurring or wwwl or crop)
+    this.setActorProperties();
 
     this.setupInteractor();
 
@@ -324,8 +386,6 @@ export class VRView {
    * TODO
    */
   setActorProperties() {
-    // this.actor.getProperty().setRGBTransferFunction(0, lutFuncs.ctfun);
-    // this.actor.getProperty().setScalarOpacity(0, lutFuncs.ofun);
     this.actor.getProperty().setScalarOpacityUnitDistance(0, 30.0);
     this.actor.getProperty().setInterpolationTypeToLinear();
     this.actor.getProperty().setUseGradientOpacity(0, true);
@@ -334,10 +394,10 @@ export class VRView {
     this.actor.getProperty().setGradientOpacityMaximumValue(0, 20);
     this.actor.getProperty().setGradientOpacityMaximumOpacity(0, 2.0);
     this.actor.getProperty().setShade(true);
-    this.actor.getProperty().setAmbient(state.ambient);
-    this.actor.getProperty().setDiffuse(state.diffuse);
-    this.actor.getProperty().setSpecular(state.specular);
-    this.actor.getProperty().setSpecularPower(state.specularPower);
+    this.actor.getProperty().setAmbient(0.3);
+    this.actor.getProperty().setDiffuse(0.7);
+    this.actor.getProperty().setSpecular(0.3);
+    this.actor.getProperty().setSpecularPower(0.8);
   }
 
   /**
@@ -461,8 +521,8 @@ export class VRView {
     } else {
       // TODO initilize in a smarter way
       const default_opacity = 1.0;
-      const default_skew = 0.0;
-      const default_bias = 0.0;
+      const default_bias = 0.0; // xBias
+      const default_skew = 1.8; // yBias
       this.PGwidget.addGaussian(
         this.wl,
         default_opacity,
@@ -511,52 +571,6 @@ export class VRView {
         this.ctfun.updateRange();
       }
     });
-  }
-
-  /**
-   * Set distance between rays
-   * @param {*} distance
-   */
-  setSampleDistance(distance) {
-    this.actor.getMapper().setSampleDistance(distance);
-  }
-
-  /**
-   * Toggle blurring on interaction (Increase performance)
-   * @type {bool} toggle - if true, blur on interaction
-   */
-  set blurOnInteraction(toggle) {
-    this._blurOnInteraction = toggle;
-    let interactor = this.renderWindow.getInteractor();
-    let mapper = this.actor.getMapper();
-
-    if (toggle) {
-      interactor.onLeftButtonPress(() => {
-        mapper.setSampleDistance(this._raysDistance * 5);
-      });
-
-      interactor.onLeftButtonRelease(() => {
-        mapper.setSampleDistance(this._raysDistance);
-        // update picking plane
-        let camera = this.renderer.getActiveCamera();
-        if (this._pickingPlane)
-          this._pickingPlane.setNormal(camera.getDirectionOfProjection());
-        this.renderWindow.render();
-      });
-    } else {
-      interactor.onLeftButtonPress(() => {
-        mapper.setSampleDistance(this._raysDistance);
-      });
-
-      interactor.onLeftButtonRelease(() => {
-        mapper.setSampleDistance(this._raysDistance);
-        // update picking plane
-        let camera = this.renderer.getActiveCamera();
-        if (this._pickingPlane)
-          this._pickingPlane.setNormal(camera.getDirectionOfProjection());
-        this.renderWindow.render();
-      });
-    }
   }
 
   /**

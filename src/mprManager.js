@@ -9,7 +9,7 @@ import {
   getPlaneIntersection,
   getVolumeCenter,
   createVolumeActor
-} from "./utils";
+} from "./utils/utils";
 
 import { MPRView } from "./mprView";
 

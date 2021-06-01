@@ -86,10 +86,16 @@ export function loadDemoSerieWithLarvitar(name, lrv, cb) {
   let demoFileList = getDemoFileNames();
 
   function getDemoFileNames() {
-    let numberOfFiles = name == "knee" ? 24 : 364;
+    let NOF = {
+      knee: 24,
+      thorax: 364,
+      abdomen: 147
+    };
+    let numberOfFiles = NOF[name];
     let demoFileList = [];
     for (let i = 1; i < numberOfFiles; i++) {
       let filename = `${name} (${i})`;
+      if (name == "abdomen") filename += ".dcm";
       demoFileList.push(filename);
     }
     return demoFileList;
@@ -279,4 +285,22 @@ export function createVolumeActor(contentData) {
   // TODO: Refactor the MPR slice to set the focal point instead of defaulting to volume center
 
   return volumeActor;
+}
+
+export function getVideoCardInfo() {
+  const gl = document.createElement("canvas").getContext("webgl");
+  if (!gl) {
+    return {
+      error: "no webgl"
+    };
+  }
+  const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
+  return debugInfo
+    ? {
+        vendor: gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
+        renderer: gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
+      }
+    : {
+        error: "no WEBGL_debug_renderer_info"
+      };
 }
