@@ -24,8 +24,8 @@ import { createVolumeActor } from "./utils/utils";
 import { applyStrategy } from "./utils/strategies";
 
 import { createPreset } from "./utils/colormaps";
-window.vtkColorMaps = vtkColorMaps;
 
+// Add custom presets
 vtkColorMaps.addPreset(createPreset());
 
 //TODO interactions:
