@@ -859,6 +859,7 @@ export class VRView {
 
     if (this.PGwidgetElement) {
       this.PGwidgetElement = null;
+      this.PGwidget.getCanvas().remove();
       this.PGwidget.delete();
       this.PGwidget = null;
       this.gaussians = null;
