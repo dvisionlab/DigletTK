@@ -3,7 +3,7 @@ import vtkInteractorStyleMPRSlice from "./vtk/vtkInteractorMPRSlice";
 
 import { quat, vec3, mat4 } from "gl-matrix";
 
-import { degrees2radians, fill2DView } from "./utils";
+import { degrees2radians, fill2DView } from "./utils/utils";
 
 /**
  * MPRView class

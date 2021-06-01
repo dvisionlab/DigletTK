@@ -60,7 +60,7 @@ Right click to delete a curve.
             <label class="sr-only" for="select-lut">LUT</label>
             <select style="max-width: 150px;" id="select-lut" onchange="updateLut(this.options[this.selectedIndex].text)">
             </select>
-            <input type="checkbox" class="custom-control-input" id="customControlAutosizing" onchange="updateRescale(this.checked)">
+            <input checked type="checkbox" class="custom-control-input" id="customControlAutosizing" onchange="updateRescale(this.checked)">
             <label class="custom-control-label" for="customControlAutosizing">rescale LUT</label>
           </div>
         </form>
@@ -86,7 +86,8 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
   // set widget element to control opacity 
   vr.widgetElement = widgetContainer;
   // set a LUT 
-  vr.lut = "2hot";
+  vr.lut = "MuscleBone";
+  vr.rescaleLUT = true;
 })
           </code>
         </pre>
@@ -104,7 +105,7 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
 
         let vr = null;
 
-        function fillSelect(list) {
+        function fillSelect(list, initialLUT) {
           let select = document.getElementById('select-lut');
           let index = 0;
           for(let element of list)
@@ -115,6 +116,7 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
               select.appendChild(opt);
               index++;
             }
+          select.selectedIndex = list.indexOf(initialLUT)
         }
 
         function updateLut(v) {
@@ -146,8 +148,10 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
             vr.widgetElement = widgetContainer;
             // set a LUT 
             let lutList = vr.getLutList();
-            fillSelect(lutList)
-            vr.lut = lutList[0];
+            fillSelect(lutList, "MuscleBone")
+            // vr.lut = lutList[0];
+            vr.lut = "MuscleBone";
+            vr.rescaleLUT = true;
           })
     </script>
   </body>
