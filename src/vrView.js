@@ -847,9 +847,12 @@ export class VRView {
     this.element = null;
     this._genericRenderWindow.delete();
     this._genericRenderWindow = null;
-    this.actor.getMapper().delete();
-    this.actor.delete();
-    this.actor = null;
+
+    if (this.actor) {
+      this.actor.getMapper().delete();
+      this.actor.delete();
+      this.actor = null;
+    }
 
     if (this._planeActor) {
       this._planeActor.getMapper().delete();
