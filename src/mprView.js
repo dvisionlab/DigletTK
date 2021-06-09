@@ -4,6 +4,7 @@ import vtkInteractorStyleMPRSlice from "./vtk/vtkInteractorMPRSlice";
 import { quat, vec3, mat4 } from "gl-matrix";
 
 import { degrees2radians, fill2DView } from "./utils/utils";
+import { baseView } from "./baseView";
 
 /**
  * MPRView class
@@ -16,16 +17,16 @@ import { degrees2radians, fill2DView } from "./utils/utils";
 // TODO move to constants (calculate from image directions?)
 const PLANE_NORMALS = [[0, 0, 1], [-1, 0, 0], [0, 1, 0]];
 const VIEW_UPS = [[0, -1, 0], [0, 0, 1], [0, 0, 1]];
-export class MPRView {
+export class MPRView extends baseView {
   constructor(key, i, element) {
+    super();
+
     this.VERBOSE = false;
     this._key = key;
     this._element = element;
     this._volume = null;
     this._renderer = null;
     this._parallel = true; // TODO setter
-    // this.onCreated = null; // TODO
-    // this.onDestroyed = null; // TODO
 
     // init global data
     this.slicePlaneNormal = PLANE_NORMALS[i];
