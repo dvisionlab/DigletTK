@@ -7,6 +7,9 @@ import vtkPiecewiseGaussianWidget from "vtk.js/Sources/Interaction/Widgets/Piece
 import vtkImageCroppingWidget from "vtk.js/Sources/Widgets/Widgets3D/ImageCroppingWidget";
 import vtkImageCropFilter from "vtk.js/Sources/Filters/General/ImageCropFilter";
 import vtkWidgetManager from "vtk.js/Sources/Widgets/Core/WidgetManager";
+import vtkPlaneSource from "vtk.js/Sources/Filters/Sources/PlaneSource";
+import vtkMapper from "vtk.js/Sources/Rendering/Core/Mapper";
+import vtkActor from "vtk.js/Sources/Rendering/Core/Actor";
 
 export function buildVtkVolume(header, data) {
   const dims = [
@@ -467,4 +470,43 @@ export function setupCropWidget(renderer, volumeMapper) {
   widgetManager.enablePicking();
 
   return { widget, widgetManager }; // or viewWidget ?
+}
+
+/**
+ * Create a plane to perform picking
+ * @param {*} camera
+ * @param {*} actor
+ */
+export function setupPickingPlane(camera, actor) {
+  const plane = vtkPlaneSource.newInstance({
+    xResolution: 1000,
+    yResolution: 1000
+  });
+  plane.setPoint1(0, 0, 1000);
+  plane.setPoint2(1000, 0, 0);
+  plane.setCenter(actor.getCenter());
+  plane.setNormal(camera.getDirectionOfProjection());
+
+  const mapper = vtkMapper.newInstance();
+  mapper.setInputConnection(plane.getOutputPort());
+  const planeActor = vtkActor.newInstance();
+  planeActor.setMapper(mapper);
+  planeActor.getProperty().setOpacity(0.01); // with opacity = 0 it is ignored by picking
+
+  return { plane, planeActor };
+}
+
+/**
+ * Add a sphere in a specific point (useful for debugging)
+ */
+export function addSphereInPoint(point, renderer) {
+  const sphere = vtkSphereSource.newInstance();
+  sphere.setCenter(point);
+  sphere.setRadius(0.01);
+  const sphereMapper = vtkMapper.newInstance();
+  sphereMapper.setInputData(sphere.getOutputData());
+  const sphereActor = vtkActor.newInstance();
+  sphereActor.setMapper(sphereMapper);
+  sphereActor.getProperty().setColor(1.0, 0.0, 0.0);
+  renderer.addActor(sphereActor);
 }
