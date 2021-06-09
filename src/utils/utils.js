@@ -304,3 +304,40 @@ export function getVideoCardInfo() {
         error: "no WEBGL_debug_renderer_info"
       };
 }
+
+/**
+ * Rescale abs range to relative range values (eg 0-1)
+ * @param {*} actor
+ * @param {*} value
+ * @returns
+ */
+export function getRelativeRange(actor, absoluteRange) {
+  const dataArray = actor
+    .getMapper()
+    .getInputData()
+    .getPointData()
+    .getScalars();
+  const range = dataArray.getRange();
+  let rel_ww = absoluteRange[0] / (range[1] - range[0]);
+  let rel_wl = (absoluteRange[1] - range[0]) / range[1];
+
+  return { ww: rel_ww, wl: rel_wl };
+}
+
+/**
+ * Rescale relative range to abs range values (eg hist min-max)
+ * @param {*} actor
+ * @param {*} relativeRange
+ * @returns
+ */
+export function getAbsoluteRange(actor, relativeRange) {
+  const dataArray = actor
+    .getMapper()
+    .getInputData()
+    .getPointData()
+    .getScalars();
+  const range = dataArray.getRange();
+  let abs_ww = relativeRange[0] * (range[1] - range[0]);
+  let abs_wl = relativeRange[1] * range[1] + range[0];
+  return { ww: abs_ww, wl: abs_wl };
+}
