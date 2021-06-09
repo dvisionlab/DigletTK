@@ -25,6 +25,7 @@ import { applyStrategy } from "./utils/strategies";
 
 import { createPreset } from "./utils/colormaps";
 import { getRenderPass } from "./renderPasses";
+import { baseView } from "./baseView";
 
 // Add custom presets
 vtkColorMaps.addPreset(createPreset());
@@ -43,12 +44,14 @@ vtkColorMaps.addPreset(createPreset());
  */
 
 /** A class representing a Volume Rendering scene */
-export class VRView {
+export class VRView extends baseView {
   /**
    * Create a volume rendering scene
    * @param {HTMLElement} element - the target html element to render the scene
    */
   constructor(element) {
+    super();
+
     this.VERBOSE = false;
 
     this.element = element;
