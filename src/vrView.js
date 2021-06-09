@@ -187,7 +187,7 @@ export class VRView {
    * @type {bool}
    */
   set cropWidget(visible) {
-    if (!this._cropWidget) this.setupCropWidget();
+    if (!this._cropWidget) this._initCropWidget();
     this._cropWidget.setVisibility(visible);
     this._widgetManager.renderWidgets();
     this.renderWindow.render();
@@ -314,7 +314,8 @@ export class VRView {
     this.renderWindow = genericRenderWindow.getRenderWindow();
     this._genericRenderWindow = genericRenderWindow;
 
-    this.setupPGwidget();
+    // initalize piecewise gaussian widget
+    this.PGwidget = setupPGwidget(this.PGwidgetElement);
   }
 
   /**
@@ -339,8 +340,10 @@ export class VRView {
       this.setWidgetCallbacks();
     }
 
+    // TODO if crop widget, update to new image (or set to null so that it will be initialized again)
+
     // TODO implement a strategy to set rays distance
-    this.setActorProperties();
+    setActorProperties(this.actor);
 
     this.setupInteractor();
 
@@ -359,27 +362,9 @@ export class VRView {
   }
 
   /**
-   * Set actor appearance properties
-   * TODO
-   */
-  setActorProperties() {
-    this.actor.getProperty().setScalarOpacityUnitDistance(0, 30.0);
-    this.actor.getProperty().setInterpolationTypeToLinear();
-    this.actor.getProperty().setUseGradientOpacity(0, true);
-    this.actor.getProperty().setGradientOpacityMinimumValue(0, 2);
-    this.actor.getProperty().setGradientOpacityMinimumOpacity(0, 0.0);
-    this.actor.getProperty().setGradientOpacityMaximumValue(0, 20);
-    this.actor.getProperty().setGradientOpacityMaximumOpacity(0, 2.0);
-    this.actor.getProperty().setShade(true);
-    this.actor.getProperty().setAmbient(0.3);
-    this.actor.getProperty().setDiffuse(0.7);
-    this.actor.getProperty().setSpecular(0.3);
-    this.actor.getProperty().setSpecularPower(0.8);
-  }
-
-  /**
    * Setup crop widget
    */
+<<<<<<< HEAD
   setupCropWidget() {
     const widgetManager = vtkWidgetManager.newInstance();
     widgetManager.setRenderer(this.renderer);
@@ -413,59 +398,15 @@ export class VRView {
 
     this._widgetManager = widgetManager;
     this._cropWidget = widget; // or viewWidget ?
+=======
+  _initCropWidget() {
+    let cropWidget = setupCropWidget(this.renderer, this.actor.getMapper());
+
+    this._widgetManager = cropWidget.widgetManager;
+    this._cropWidget = cropWidget.widget;
+>>>>>>> move widgets initialization to utils
 
     this.renderWindow.render();
-  }
-
-  /**
-   * Append a vtkPiecewiseGaussianWidget into the target element
-   * @private
-   * @param {HTMLElement} widgetContainer - The target element to place the widget
-   */
-  setupPGwidget() {
-    let containerWidth = this.PGwidgetElement
-      ? this.PGwidgetElement.offsetWidth - 5
-      : 300;
-    let containerHeight = this.PGwidgetElement
-      ? this.PGwidgetElement.offsetHeight - 5
-      : 100;
-
-    const PGwidget = vtkPiecewiseGaussianWidget.newInstance({
-      numberOfBins: 256,
-      size: [containerWidth, containerHeight]
-    });
-    // TODO expose style
-    PGwidget.updateStyle({
-      backgroundColor: "rgba(255, 255, 255, 0.6)",
-      histogramColor: "rgba(50, 50, 50, 0.8)",
-      strokeColor: "rgb(0, 0, 0)",
-      activeColor: "rgb(255, 255, 255)",
-      handleColor: "rgb(50, 150, 50)",
-      buttonDisableFillColor: "rgba(255, 255, 255, 0.5)",
-      buttonDisableStrokeColor: "rgba(0, 0, 0, 0.5)",
-      buttonStrokeColor: "rgba(0, 0, 0, 1)",
-      buttonFillColor: "rgba(255, 255, 255, 1)",
-      strokeWidth: 1,
-      activeStrokeWidth: 1.5,
-      buttonStrokeWidth: 1,
-      handleWidth: 1,
-      iconSize: 0, // Can be 0 if you want to remove buttons (dblClick for (+) / rightClick for (-))
-      padding: 1
-    });
-
-    // to hide widget
-    PGwidget.setContainer(this.PGwidgetElement); // Set to null to hide
-
-    // resize callback
-    window.addEventListener("resize", evt => {
-      PGwidget.setSize(
-        this.PGwidgetElement.offsetWidth - 5,
-        this.PGwidgetElement.offsetHeight - 5
-      );
-      PGwidget.render();
-    });
-
-    this.PGwidget = PGwidget;
   }
 
   /**
