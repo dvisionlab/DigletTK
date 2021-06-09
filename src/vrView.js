@@ -169,6 +169,7 @@ export class VRView {
     this.ctfun.setMappingRange(...range);
     this.ctfun.updateRange();
   }
+
   /**
    * Set range to apply lut  !!! WIP
    * @type {Array}
@@ -222,7 +223,7 @@ export class VRView {
 
     this.actor.getProperty().setRGBTransferFunction(0, lookupTable);
 
-    // set up opacity function (values will be set by PGwidget)
+    // setup opacity function (values will be set by PGwidget)
     const piecewiseFun = vtkPiecewiseFunction.newInstance();
     this.actor.getProperty().setScalarOpacity(0, piecewiseFun);
 
@@ -328,7 +329,10 @@ export class VRView {
     this.lut = "Grayscale";
     this.resolution = 2;
     this.renderer.addVolume(actor);
-    this.setCamera(actor.getCenter());
+
+    // center camera on new volume
+    this.renderer.resetCamera();
+    setCamera(this.renderer.getActiveCamera(), actor.getCenter());
 
     if (this.PGwidget) {
       this.updateWidget();
@@ -336,7 +340,6 @@ export class VRView {
     }
 
     // TODO implement a strategy to set rays distance
-    // TODO interactors switching (ex. blurring or wwwl or crop)
     this.setActorProperties();
 
     this.setupInteractor();
@@ -344,27 +347,7 @@ export class VRView {
     this.blurOnInteraction = true;
 
     this._genericRenderWindow.resize();
-    this.renderer.resetCamera();
     this.renderWindow.render();
-  }
-
-  /**
-   * Set camera lookat point
-   * @param {Array} center - As [x,y,z]
-   */
-  setCamera(center) {
-    this.renderer.resetCamera();
-    this.renderer.getActiveCamera().zoom(1.5);
-    this.renderer.getActiveCamera().elevation(70);
-    this.renderer.getActiveCamera().setViewUp(0, 0, 1);
-    this.renderer
-      .getActiveCamera()
-      .setFocalPoint(center[0], center[1], center[2]);
-    this.renderer
-      .getActiveCamera()
-      .setPosition(center[0], center[1] - 2000, center[2]);
-    this.renderer.getActiveCamera().setThickness(10000);
-    this.renderer.getActiveCamera().setParallelProjection(true);
   }
 
   /**
@@ -800,8 +783,8 @@ export class VRView {
    */
   resetView() {
     let center = this.actor.getCenter();
-    console.log(center);
-    this.setCamera(center);
+    let camera = this.renderer.getActiveCamera();
+    setCamera(camera, center);
     this.renderWindow.render();
   }
 
