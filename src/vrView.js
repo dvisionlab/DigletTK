@@ -631,31 +631,16 @@ export class VRView {
     // ----------------------------------------------------------------------------
     // Setup picking interaction
     // ----------------------------------------------------------------------------
-    // Only try to pick points
+    // TODO this is slow the first time we pick, maybe we could use cellPicker and decrease resolution
     const picker = vtkPointPicker.newInstance();
     picker.setPickFromList(1);
     picker.initializePickList();
 
     if (!this._pickingPlane) {
       // add a 1000x1000 plane
-      // TODO this is slow the first time we pick, maybe we could use cellPicker and decrease resolution
-      const plane = vtkPlaneSource.newInstance({
-        xResolution: 1000,
-        yResolution: 1000
-      });
       let camera = this.renderer.getActiveCamera();
-      plane.setPoint1(0, 0, 1000);
-      plane.setPoint2(1000, 0, 0);
-      plane.setCenter(this.actor.getCenter());
-      plane.setNormal(camera.getDirectionOfProjection());
-
-      const mapper = vtkMapper.newInstance();
-      mapper.setInputConnection(plane.getOutputPort());
-      const planeActor = vtkActor.newInstance();
-      planeActor.setMapper(mapper);
-      planeActor.getProperty().setOpacity(0.01); // with opacity = 0 it is ignored by picking
+      let { plane, planeActor } = setupPickingPlane(camera, this.actor);
       this.renderer.addActor(planeActor);
-
       this._pickingPlane = plane;
       this._planeActor = planeActor;
     }
@@ -679,28 +664,12 @@ export class VRView {
           const pickedPoint = picker.getPickPosition();
           if (this.VERBOSE)
             console.log(`No point picked, default: ${pickedPoint}`);
-          // const sphere = vtkSphereSource.newInstance();
-          // sphere.setCenter(pickedPoint);
-          // sphere.setRadius(0.01);
-          // const sphereMapper = vtkMapper.newInstance();
-          // sphereMapper.setInputData(sphere.getOutputData());
-          // const sphereActor = vtkActor.newInstance();
-          // sphereActor.setMapper(sphereMapper);
-          // sphereActor.getProperty().setColor(1.0, 0.0, 0.0);
-          // this.renderer.addActor(sphereActor);
+          // addSphereInPoint(pickedPoint, this.renderer);
         } else {
           const pickedPoints = picker.getPickedPositions();
           const pickedPoint = pickedPoints[0]; // always a single point on a plane
           if (this.VERBOSE) console.log(`Picked: ${pickedPoint}`);
-          // const sphere = vtkSphereSource.newInstance();
-          // sphere.setCenter(pickedPoint);
-          // sphere.setRadius(10);
-          // const sphereMapper = vtkMapper.newInstance();
-          // sphereMapper.setInputData(sphere.getOutputData());
-          // const sphereActor = vtkActor.newInstance();
-          // sphereActor.setMapper(sphereMapper);
-          // sphereActor.getProperty().setColor(0.0, 1.0, 0.0);
-          // this.renderer.addActor(sphereActor);
+          // addSphereInPoint(pickedPoint, this.renderer);
 
           // canvas coord
           const wPos = vtkCoordinate.newInstance();
@@ -741,21 +710,6 @@ export class VRView {
    * Destroy webgl content and release listeners
    */
   destroy() {
-    // leave these comments for now
-
-    // this.PGwidget.delete();
-    // this.actor.getMapper().delete();
-    // this.actor.delete();
-    // this.renderWindow.getInteractor().delete();
-    // this.renderWindow.delete();
-    // this.renderer.delete();
-
-    // this.renderer.delete();
-    // this.renderer = null;
-    // this.renderWindow.getInteractor().delete();
-    // this.renderWindow.delete();
-    // this.renderWindow = null;
-
     this.element = null;
     this._genericRenderWindow.delete();
     this._genericRenderWindow = null;
