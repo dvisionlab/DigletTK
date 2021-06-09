@@ -341,3 +341,17 @@ export function getAbsoluteRange(actor, relativeRange) {
   let abs_wl = relativeRange[1] * range[1] + range[0];
   return { ww: abs_ww, wl: abs_wl };
 }
+
+/**
+ * Set camera lookat point
+ * @param {Array} center - As [x,y,z]
+ */
+export function setCamera(camera, center) {
+  camera.zoom(1.5);
+  camera.elevation(70);
+  camera.setViewUp(0, 0, 1);
+  camera.setFocalPoint(center[0], center[1], center[2]);
+  camera.setPosition(center[0], center[1] - 2000, center[2]);
+  camera.setThickness(10000);
+  camera.setParallelProjection(true);
+}
