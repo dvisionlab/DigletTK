@@ -97,18 +97,10 @@ export class VRView {
       return;
     }
 
-    const dataArray = this.actor
-      .getMapper()
-      .getInputData()
-      .getPointData()
-      .getScalars();
+    let relativeWwwl = getRelativeRange(this.actor, value);
 
-    const range = dataArray.getRange();
-    let rel_ww = value[0] / (range[1] - range[0]);
-    let rel_wl = (value[1] - range[0]) / range[1];
-
-    this.wl = rel_wl;
-    this.ww = rel_ww;
+    this.wl = relativeWwwl.wl;
+    this.ww = relativeWwwl.ww;
 
     if (this.PGwidget) {
       this.updateWidget();
@@ -116,17 +108,8 @@ export class VRView {
   }
 
   get wwwl() {
-    const dataArray = this.actor
-      .getMapper()
-      .getInputData()
-      .getPointData()
-      .getScalars();
-
-    const range = dataArray.getRange();
-
-    let abs_ww = rel_ww * (range[1] - range[0]);
-    let abs_wl = rel_wl * range[1] + range[0];
-    return [abs_ww, abs_wl];
+    let absoluteWwwl = getAbsoluteRange(this.actor, [this.ww, this.wl]);
+    return [absoluteWwwl.ww, absoluteWwwl.wl];
   }
 
   /**

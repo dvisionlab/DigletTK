@@ -124,10 +124,10 @@ export function loadDemoSerieWithLarvitar(name, lrv, cb) {
   }
 
   // load dicom and render
-  demoFileList.forEach(function(demoFile) {
+  demoFileList.forEach(function (demoFile) {
     createFile(demoFile, () => {
       lrv.resetImageParsing();
-      lrv.readFiles(demoFiles, function(seriesStack, err) {
+      lrv.readFiles(demoFiles, function (seriesStack, err) {
         // return the first series of the study
         let seriesId = _.keys(seriesStack)[0];
         let serie = seriesStack[seriesId];
@@ -252,10 +252,7 @@ export function createVolumeActor(contentData) {
   volumeMapper.setInputData(contentData);
 
   // set a default wwwl
-  const dataRange = contentData
-    .getPointData()
-    .getScalars()
-    .getRange();
+  const dataRange = contentData.getPointData().getScalars().getRange();
 
   // FIXME: custom range mapping
   const rgbTransferFunction = volumeActor
@@ -332,4 +329,41 @@ export function getCroppingPlanes(imageData, ijkPlanes) {
     vtkPlane.newInstance({ normal: rotateVec([0, 0, 1]), origin }),
     vtkPlane.newInstance({ normal: rotateVec([0, 0, -1]), origin: corner })
   ];
+}
+
+/**
+ * Rescale abs range to relative range values (eg 0-1)
+ * @param {*} actor
+ * @param {*} value
+ * @returns
+ */
+export function getRelativeRange(actor, absoluteRange) {
+  const dataArray = actor
+    .getMapper()
+    .getInputData()
+    .getPointData()
+    .getScalars();
+  const range = dataArray.getRange();
+  let rel_ww = absoluteRange[0] / (range[1] - range[0]);
+  let rel_wl = (absoluteRange[1] - range[0]) / range[1];
+
+  return { ww: rel_ww, wl: rel_wl };
+}
+
+/**
+ * Rescale relative range to abs range values (eg hist min-max)
+ * @param {*} actor
+ * @param {*} relativeRange
+ * @returns
+ */
+export function getAbsoluteRange(actor, relativeRange) {
+  const dataArray = actor
+    .getMapper()
+    .getInputData()
+    .getPointData()
+    .getScalars();
+  const range = dataArray.getRange();
+  let abs_ww = relativeRange[0] * (range[1] - range[0]);
+  let abs_wl = relativeRange[1] * range[1] + range[0];
+  return { ww: abs_ww, wl: abs_wl };
 }
