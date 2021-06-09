@@ -3,6 +3,10 @@ import vtkImageData from "vtk.js/Sources/Common/DataModel/ImageData";
 import vtkPlane from "vtk.js/Sources/Common/DataModel/Plane";
 import vtkVolume from "vtk.js/Sources/Rendering/Core/Volume";
 import vtkVolumeMapper from "vtk.js/Sources/Rendering/Core/VolumeMapper";
+import vtkPiecewiseGaussianWidget from "vtk.js/Sources/Interaction/Widgets/PiecewiseGaussianWidget";
+import vtkImageCroppingWidget from "vtk.js/Sources/Widgets/Widgets3D/ImageCroppingWidget";
+import vtkImageCropFilter from "vtk.js/Sources/Filters/General/ImageCropFilter";
+import vtkWidgetManager from "vtk.js/Sources/Widgets/Core/WidgetManager";
 
 export function buildVtkVolume(header, data) {
   const dims = [
@@ -354,4 +358,113 @@ export function setCamera(camera, center) {
   camera.setPosition(center[0], center[1] - 2000, center[2]);
   camera.setThickness(10000);
   camera.setParallelProjection(true);
+}
+
+/**
+ * Set actor appearance properties
+ * @param {*} actor
+ */
+export function setActorProperties(actor) {
+  actor.getProperty().setScalarOpacityUnitDistance(0, 30.0);
+  actor.getProperty().setInterpolationTypeToLinear();
+  actor.getProperty().setUseGradientOpacity(0, true);
+  actor.getProperty().setGradientOpacityMinimumValue(0, 2);
+  actor.getProperty().setGradientOpacityMinimumOpacity(0, 0.0);
+  actor.getProperty().setGradientOpacityMaximumValue(0, 20);
+  actor.getProperty().setGradientOpacityMaximumOpacity(0, 2.0);
+  actor.getProperty().setShade(true);
+  actor.getProperty().setAmbient(0.3);
+  actor.getProperty().setDiffuse(0.7);
+  actor.getProperty().setSpecular(0.3);
+  actor.getProperty().setSpecularPower(0.8);
+}
+
+/**
+ * Append a vtkPiecewiseGaussianWidget into the target element
+ * @private
+ * @param {HTMLElement} widgetContainer - The target element to place the widget
+ */
+export function setupPGwidget(PGwidgetElement) {
+  let containerWidth = PGwidgetElement ? PGwidgetElement.offsetWidth - 5 : 300;
+  let containerHeight = PGwidgetElement
+    ? PGwidgetElement.offsetHeight - 5
+    : 100;
+
+  const PGwidget = vtkPiecewiseGaussianWidget.newInstance({
+    numberOfBins: 256,
+    size: [containerWidth, containerHeight]
+  });
+  // TODO expose style
+  PGwidget.updateStyle({
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    histogramColor: "rgba(50, 50, 50, 0.8)",
+    strokeColor: "rgb(0, 0, 0)",
+    activeColor: "rgb(255, 255, 255)",
+    handleColor: "rgb(50, 150, 50)",
+    buttonDisableFillColor: "rgba(255, 255, 255, 0.5)",
+    buttonDisableStrokeColor: "rgba(0, 0, 0, 0.5)",
+    buttonStrokeColor: "rgba(0, 0, 0, 1)",
+    buttonFillColor: "rgba(255, 255, 255, 1)",
+    strokeWidth: 1,
+    activeStrokeWidth: 1.5,
+    buttonStrokeWidth: 1,
+    handleWidth: 1,
+    iconSize: 0, // Can be 0 if you want to remove buttons (dblClick for (+) / rightClick for (-))
+    padding: 1
+  });
+
+  // to hide widget
+  PGwidget.setContainer(PGwidgetElement); // Set to null to hide
+
+  // resize callback
+  window.addEventListener("resize", evt => {
+    PGwidget.setSize(
+      PGwidgetElement.offsetWidth - 5,
+      PGwidgetElement.offsetHeight - 5
+    );
+    PGwidget.render();
+  });
+
+  return PGwidget;
+}
+
+/**
+ * Initialize a crop widget
+ */
+export function setupCropWidget(renderer, volumeMapper) {
+  // setup widget manager and widget
+  const widgetManager = vtkWidgetManager.newInstance();
+  // widgetManager.setUseSvgLayer(false);
+  widgetManager.setRenderer(renderer);
+
+  // widget factory
+  const widget = vtkImageCroppingWidget.newInstance();
+  // instance of a widget associated with a renderer
+  const viewWidget = widgetManager.addWidget(widget);
+
+  // setup crop filter
+  const cropFilter = vtkImageCropFilter.newInstance();
+  // listen to cropping widget state to inform the crop filter
+  const cropState = widget.getWidgetState().getCroppingPlanes();
+  cropState.onModified(() => {
+    cropFilter.setCroppingPlanes(cropState.getPlanes());
+  });
+
+  // wire up the reader, crop filter, and mapper
+  let image = volumeMapper.getInputData();
+  cropFilter.setCroppingPlanes(...image.getExtent());
+  widget.copyImageDataDescription(image);
+
+  widget.set({
+    faceHandlesEnabled: true,
+    edgeHandlesEnabled: true,
+    cornerHandlesEnabled: true
+  });
+
+  cropFilter.setInputData(image);
+  volumeMapper.setInputConnection(cropFilter.getOutputPort());
+
+  widgetManager.enablePicking();
+
+  return { widget, widgetManager }; // or viewWidget ?
 }
