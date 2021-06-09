@@ -10,7 +10,6 @@ import vtkMouseRangeManipulator from "vtk.js/Sources/Interaction/Manipulators/Mo
 import vtkInteractorStyleManipulator from "vtk.js/Sources/Interaction/Style/InteractorStyleManipulator";
 
 import vtkPointPicker from "vtk.js/Sources/Rendering/Core/PointPicker";
-import vtkSphereSource from "vtk.js/Sources/Filters/Sources/SphereSource";
 import vtkCoordinate from "vtk.js/Sources/Rendering/Core/Coordinate";
 
 import {

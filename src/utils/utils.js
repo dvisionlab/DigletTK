@@ -10,6 +10,7 @@ import vtkWidgetManager from "vtk.js/Sources/Widgets/Core/WidgetManager";
 import vtkPlaneSource from "vtk.js/Sources/Filters/Sources/PlaneSource";
 import vtkMapper from "vtk.js/Sources/Rendering/Core/Mapper";
 import vtkActor from "vtk.js/Sources/Rendering/Core/Actor";
+import vtkSphereSource from "vtk.js/Sources/Filters/Sources/SphereSource";
 
 export function buildVtkVolume(header, data) {
   const dims = [
