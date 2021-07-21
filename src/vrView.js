@@ -367,47 +367,11 @@ export class VRView extends baseView {
   /**
    * Setup crop widget
    */
-<<<<<<< HEAD
-  setupCropWidget() {
-    const widgetManager = vtkWidgetManager.newInstance();
-    widgetManager.setRenderer(this.renderer);
-
-    const widget = vtkImageCroppingWidget.newInstance();
-    const viewWidget = widgetManager.addWidget(widget);
-
-    const cropState = widget.getWidgetState().getCroppingPlanes();
-    cropState.onModified(() => {
-      const planes = getCroppingPlanes(image, cropState.getPlanes());
-      mapper.removeAllClippingPlanes();
-      planes.forEach(plane => {
-        mapper.addClippingPlane(plane);
-      });
-      mapper.modified();
-    });
-
-    // wire up the reader, crop filter, and mapper
-    let mapper = this.actor.getMapper();
-    let image = mapper.getInputData();
-
-    widget.copyImageDataDescription(image);
-
-    widget.set({
-      faceHandlesEnabled: true,
-      edgeHandlesEnabled: true,
-      cornerHandlesEnabled: true
-    });
-
-    widgetManager.enablePicking();
-
-    this._widgetManager = widgetManager;
-    this._cropWidget = widget; // or viewWidget ?
-=======
   _initCropWidget() {
     let cropWidget = setupCropWidget(this.renderer, this.actor.getMapper());
 
     this._widgetManager = cropWidget.widgetManager;
     this._cropWidget = cropWidget.widget;
->>>>>>> move widgets initialization to utils
 
     this.renderWindow.render();
   }

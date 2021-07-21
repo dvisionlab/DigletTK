@@ -122,57 +122,42 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
           select.appendChild(opt);
           index++;
         }
-        select.selectedIndex = list.indexOf(initialLUT);
       }
 
-      function updateLut(v) {
-        console.log("update LUT", v);
-        vr.lut = v;
-      }
+        function updateLut(v) {
+          console.log('update LUT', v)
+          vr.lut = v;
+        }
 
-      function updateRescale(v) {
-        console.log("rescale", v);
-        vr.rescaleLUT = v;
-      }
+        function updateRescale(v) {
+          console.log('rescale', v)
+          vr.rescaleLUT = v;
+        }
 
-      const element = document.getElementById("viewer-2");
-      const widgetContainer = document.getElementById("widget");
+        const element = document.getElementById('viewer-2')
+        const widgetContainer = document.getElementById("widget");
 
-      let state = {
-        p1: new Array(2),
-        p2: new Array(2),
-        p3: new Array(2),
-        label: ""
-      };
-
-      diglettk.loadDemoSerieWithLarvitar("knee", larvitar, serie => {
-        // build vtk volume with larvitar
-        let header = larvitar.buildHeader(serie);
-        let data = larvitar.buildData(serie, false);
-        console.log(serie);
-        const image = diglettk.buildVtkVolume(header, data);
-        image.setOrigin([0, 0, 0]); // little hack to temporarily fix https://github.com/Kitware/vtk-js/issues/2008
-        // run vr
-        vr = new diglettk.VRView(element);
-        // set an image
-        vr.setImage(image);
-        // set widget element to control opacity
-        vr.widgetElement = widgetContainer;
-        // set a LUT
-        let lutList = vr.getLutList();
-        fillSelect(lutList, "MuscleBone");
-
-        // apply a lut
-        // vr.lut = lutList[0];
-        vr.lut = "MuscleBone";
-        vr.rescaleLUT = true;
-
-        // add crop widget
-        // vr.cropWidget = true;
-
-        // add edge enhancement
-        // vr.edgeEnhancement = [1, 1.0];
-      });
+        let state = {p1:new Array(2), p2: new Array(2), p3: new Array(2), label:''}
+        
+        diglettk.loadDemoSerieWithLarvitar('thorax', larvitar, serie => {
+          // build vtk volume with larvitar
+            let header = larvitar.buildHeader(serie);
+            let data = larvitar.buildData(serie, false);
+            console.log(serie)
+            const image = diglettk.buildVtkVolume(header, data);
+            // run vr
+            vr = new diglettk.VRView(element);
+            // set an image
+            vr.setImage(image);
+            // set widget element to control opacity 
+            vr.widgetElement = widgetContainer;
+            // set a LUT 
+            let lutList = vr.getLutList();
+            fillSelect(lutList, "MuscleBone")
+            // vr.lut = lutList[0];
+            vr.lut = "MuscleBone";
+            vr.rescaleLUT = true;
+          })
     </script>
   </body>
 </html>
