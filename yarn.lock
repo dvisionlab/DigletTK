@@ -5361,7 +5361,7 @@ globals@^11.1.0, globals@^11.7.0:
   resolved "https://registry.yarnpkg.com/globals/-/globals-11.12.0.tgz#ab8795338868a0babd8525758018c2a7eb95c42e"
   integrity sha512-WOBp/EEGUiIsJSp7wcv/y6MO+lV9UoncWqxuFfm8eBwzWNgyfBd6Gz+IeKQ9jCmyhoH99g15M3T+QaVHFjizVA==
 
-globalthis@^1.0.1:
+globalthis@^1.0.1, globalthis@^1.0.2:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/globalthis/-/globalthis-1.0.2.tgz#2a235d34f4d8036219f7e34929b5de9e18166b8b"
   integrity sha512-ZQnSFO1la8P7auIOQECnm0sSuoMeaSq0EEdXMBFF2QJO4uNcwbyhSgG3MruWNbFTqCLmxVwGOl7LZ9kASvHdeQ==
@@ -12080,16 +12080,17 @@ vm-browserify@^1.0.1:
   resolved "https://registry.yarnpkg.com/vm-browserify/-/vm-browserify-1.1.2.tgz#78641c488b8e6ca91a75f511e7a3b32a86e5dda0"
   integrity sha512-2ham8XPWTONajOR0ohOKOHXkm3+gaBmGut3SRuu75xLd/RRaY6vqgh8NBYYk7+RW3u5AtzPQZG8F10LHkl0lAQ==
 
-vtk.js@^18.1.1:
-  version "18.1.2"
-  resolved "https://registry.yarnpkg.com/vtk.js/-/vtk.js-18.1.2.tgz#ff37505588b0fab41f8984917a6fcd4b2b1ed2af"
-  integrity sha512-D4A9PquT5ZvgN4Ixhp3UHtamVHP/F51vS0uzjmnL4EiDDZYK6zV4psWPHhKVg+lQJRyzd7ocoboTc2lhFi404Q==
+vtk.js@18.7.2:
+  version "18.7.2"
+  resolved "https://registry.yarnpkg.com/vtk.js/-/vtk.js-18.7.2.tgz#ab171efe3d4a34bd846b4dc3dc4aef9dca3d92a1"
+  integrity sha512-w9y0bpp5eWR4JO7XHTr0/hS/ueSNLtIllUm4kCvd5lkyS+l1l4PHZvJpAeDNCdug1mIuLMP5gXZ5SOPe/Td/vA==
   dependencies:
     "@babel/runtime" "7.13.10"
     blueimp-md5 "2.18.0"
     commander "6.2.1"
     d3-scale "3.2.4"
     gl-matrix "3.3.0"
+    globalthis "^1.0.2"
     jszip "3.2.0"
     pako "2.0.3"
     seedrandom "3.0.5"

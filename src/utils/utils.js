@@ -5,12 +5,14 @@ import vtkVolume from "vtk.js/Sources/Rendering/Core/Volume";
 import vtkVolumeMapper from "vtk.js/Sources/Rendering/Core/VolumeMapper";
 import vtkPiecewiseGaussianWidget from "vtk.js/Sources/Interaction/Widgets/PiecewiseGaussianWidget";
 import vtkImageCroppingWidget from "vtk.js/Sources/Widgets/Widgets3D/ImageCroppingWidget";
-import vtkImageCropFilter from "vtk.js/Sources/Filters/General/ImageCropFilter";
+// import vtkImageCropFilter from "vtk.js/Sources/Filters/General/ImageCropFilter";
 import vtkWidgetManager from "vtk.js/Sources/Widgets/Core/WidgetManager";
 import vtkPlaneSource from "vtk.js/Sources/Filters/Sources/PlaneSource";
 import vtkMapper from "vtk.js/Sources/Rendering/Core/Mapper";
 import vtkActor from "vtk.js/Sources/Rendering/Core/Actor";
 import vtkSphereSource from "vtk.js/Sources/Filters/Sources/SphereSource";
+
+import { vec3, quat, mat4 } from "gl-matrix";
 
 export function buildVtkVolume(header, data) {
   const dims = [
@@ -432,10 +434,39 @@ export function setupPGwidget(PGwidgetElement) {
   return PGwidget;
 }
 
+function getCroppingPlanes(imageData, ijkPlanes) {
+  const rotation = quat.create();
+  mat4.getRotation(rotation, imageData.getIndexToWorld());
+
+  const rotateVec = vec => {
+    const out = [0, 0, 0];
+    vec3.transformQuat(out, vec, rotation);
+    return out;
+  };
+
+  const [iMin, iMax, jMin, jMax, kMin, kMax] = ijkPlanes;
+  const origin = imageData.indexToWorld([iMin, jMin, kMin]);
+  // opposite corner from origin
+  const corner = imageData.indexToWorld([iMax, jMax, kMax]);
+  return [
+    // X min/max
+    vtkPlane.newInstance({ normal: rotateVec([1, 0, 0]), origin }),
+    vtkPlane.newInstance({ normal: rotateVec([-1, 0, 0]), origin: corner }),
+    // Y min/max
+    vtkPlane.newInstance({ normal: rotateVec([0, 1, 0]), origin }),
+    vtkPlane.newInstance({ normal: rotateVec([0, -1, 0]), origin: corner }),
+    // X min/max
+    vtkPlane.newInstance({ normal: rotateVec([0, 0, 1]), origin }),
+    vtkPlane.newInstance({ normal: rotateVec([0, 0, -1]), origin: corner })
+  ];
+}
+
 /**
  * Initialize a crop widget
  */
 export function setupCropWidget(renderer, volumeMapper) {
+  let image = volumeMapper.getInputData();
+
   // setup widget manager and widget
   const widgetManager = vtkWidgetManager.newInstance();
   // widgetManager.setUseSvgLayer(false);
@@ -447,16 +478,21 @@ export function setupCropWidget(renderer, volumeMapper) {
   const viewWidget = widgetManager.addWidget(widget);
 
   // setup crop filter
-  const cropFilter = vtkImageCropFilter.newInstance();
+  // const cropFilter = vtkImageCropFilter.newInstance();
   // listen to cropping widget state to inform the crop filter
   const cropState = widget.getWidgetState().getCroppingPlanes();
   cropState.onModified(() => {
-    cropFilter.setCroppingPlanes(cropState.getPlanes());
+    // cropFilter.setCroppingPlanes(cropState.getPlanes());
+    const planes = getCroppingPlanes(image, cropState.getPlanes());
+    volumeMapper.removeAllClippingPlanes();
+    planes.forEach(plane => {
+      volumeMapper.addClippingPlane(plane);
+    });
+    volumeMapper.modified();
   });
 
   // wire up the reader, crop filter, and mapper
-  let image = volumeMapper.getInputData();
-  cropFilter.setCroppingPlanes(...image.getExtent());
+  // cropFilter.setCroppingPlanes(...image.getExtent());
   widget.copyImageDataDescription(image);
 
   widget.set({
@@ -465,8 +501,8 @@ export function setupCropWidget(renderer, volumeMapper) {
     cornerHandlesEnabled: true
   });
 
-  cropFilter.setInputData(image);
-  volumeMapper.setInputConnection(cropFilter.getOutputPort());
+  // cropFilter.setInputData(image);
+  // volumeMapper.setInputConnection(cropFilter.getOutputPort());
 
   widgetManager.enablePicking();
 

@@ -1,6 +1,6 @@
 {
   "name": "diglettk",
-  "version": "0.9.2",
+  "version": "1.0.0",
   "description": "A medical imaging toolkit, build on top of vtk.js",
   "main": "index.js",
   "scripts": {
@@ -28,7 +28,7 @@
   "homepage": "https://github.com/dvisionlab/DigletTK#readme",
   "dependencies": {
     "regenerator-runtime": "^0.13.7",
-    "vtk.js": "^18.1.1",
+    "vtk.js": "18.7.2",
     "worker-loader": "^3.0.8"
   },
   "devDependencies": {
