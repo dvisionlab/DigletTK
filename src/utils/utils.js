@@ -484,23 +484,20 @@ function getCroppingPlanes(imageData, ijkPlanes) {
  */
 export function setupCropWidget(renderer, volumeMapper) {
   let image = volumeMapper.getInputData();
+  console.log(image.getBounds());
 
   // setup widget manager and widget
   const widgetManager = vtkWidgetManager.newInstance();
-  // widgetManager.setUseSvgLayer(false);
   widgetManager.setRenderer(renderer);
 
-  // widget factory
   const widget = vtkImageCroppingWidget.newInstance();
-  // instance of a widget associated with a renderer
-  const viewWidget = widgetManager.addWidget(widget);
+  widget.copyImageDataDescription(image);
 
-  // setup crop filter
-  // const cropFilter = vtkImageCropFilter.newInstance();
-  // listen to cropping widget state to inform the crop filter
+  const viewWidget = widgetManager.addWidget(widget);
+  widgetManager.enablePicking();
+
   const cropState = widget.getWidgetState().getCroppingPlanes();
-  cropState.onModified(() => {
-    // cropFilter.setCroppingPlanes(cropState.getPlanes());
+  cropState.onModified(e => {
     const planes = getCroppingPlanes(image, cropState.getPlanes());
     volumeMapper.removeAllClippingPlanes();
     planes.forEach(plane => {
@@ -509,20 +506,11 @@ export function setupCropWidget(renderer, volumeMapper) {
     volumeMapper.modified();
   });
 
-  // wire up the reader, crop filter, and mapper
-  // cropFilter.setCroppingPlanes(...image.getExtent());
-  widget.copyImageDataDescription(image);
-
   widget.set({
     faceHandlesEnabled: true,
     edgeHandlesEnabled: true,
     cornerHandlesEnabled: true
   });
-
-  // cropFilter.setInputData(image);
-  // volumeMapper.setInputConnection(cropFilter.getOutputPort());
-
-  widgetManager.enablePicking();
 
   return { widget, widgetManager }; // or viewWidget ?
 }
