@@ -140,6 +140,7 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
             let data = larvitar.buildData(serie, false);
             console.log(serie)
             const image = diglettk.buildVtkVolume(header, data);
+            image.setOrigin([0,0,0])
             // run vr
             vr = new diglettk.VRView(element);
             // set an image
