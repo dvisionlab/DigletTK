@@ -4,6 +4,8 @@ import vtkPlane from "vtk.js/Sources/Common/DataModel/Plane";
 import vtkVolume from "vtk.js/Sources/Rendering/Core/Volume";
 import vtkVolumeMapper from "vtk.js/Sources/Rendering/Core/VolumeMapper";
 
+import { vec3, quat, mat4 } from "gl-matrix";
+
 export function buildVtkVolume(header, data) {
   const dims = [
     header.volume.cols,
@@ -303,4 +305,31 @@ export function getVideoCardInfo() {
     : {
         error: "no WEBGL_debug_renderer_info"
       };
+}
+
+export function getCroppingPlanes(imageData, ijkPlanes) {
+  const rotation = quat.create();
+  mat4.getRotation(rotation, imageData.getIndexToWorld());
+
+  const rotateVec = vec => {
+    const out = [0, 0, 0];
+    vec3.transformQuat(out, vec, rotation);
+    return out;
+  };
+
+  const [iMin, iMax, jMin, jMax, kMin, kMax] = ijkPlanes;
+  const origin = imageData.indexToWorld([iMin, jMin, kMin]);
+  // opposite corner from origin
+  const corner = imageData.indexToWorld([iMax, jMax, kMax]);
+  return [
+    // X min/max
+    vtkPlane.newInstance({ normal: rotateVec([1, 0, 0]), origin }),
+    vtkPlane.newInstance({ normal: rotateVec([-1, 0, 0]), origin: corner }),
+    // Y min/max
+    vtkPlane.newInstance({ normal: rotateVec([0, 1, 0]), origin }),
+    vtkPlane.newInstance({ normal: rotateVec([0, -1, 0]), origin: corner }),
+    // X min/max
+    vtkPlane.newInstance({ normal: rotateVec([0, 0, 1]), origin }),
+    vtkPlane.newInstance({ normal: rotateVec([0, 0, -1]), origin: corner })
+  ];
 }
