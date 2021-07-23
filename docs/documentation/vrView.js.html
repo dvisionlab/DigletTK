@@ -72,7 +72,7 @@ import vtkActor from "vtk.js/Sources/Rendering/Core/Actor";
 import vtkSphereSource from "vtk.js/Sources/Filters/Sources/SphereSource";
 import vtkCoordinate from "vtk.js/Sources/Rendering/Core/Coordinate";
 
-import { createVolumeActor } from "./utils/utils";
+import { createVolumeActor, getCroppingPlanes } from "./utils/utils";
 import { applyStrategy } from "./utils/strategies";
 
 import { createPreset } from "./utils/colormaps";
@@ -456,28 +456,26 @@ export class VRView {
    * Setup crop widget
    */
   setupCropWidget() {
-    // setup widget manager and widget
     const widgetManager = vtkWidgetManager.newInstance();
-    // widgetManager.setUseSvgLayer(false);
     widgetManager.setRenderer(this.renderer);
 
-    // widget factory
     const widget = vtkImageCroppingWidget.newInstance();
-    // instance of a widget associated with a renderer
     const viewWidget = widgetManager.addWidget(widget);
 
-    // setup crop filter
-    const cropFilter = vtkImageCropFilter.newInstance();
-    // listen to cropping widget state to inform the crop filter
     const cropState = widget.getWidgetState().getCroppingPlanes();
     cropState.onModified(() => {
-      cropFilter.setCroppingPlanes(cropState.getPlanes());
+      const planes = getCroppingPlanes(image, cropState.getPlanes());
+      mapper.removeAllClippingPlanes();
+      planes.forEach(plane => {
+        mapper.addClippingPlane(plane);
+      });
+      mapper.modified();
     });
 
     // wire up the reader, crop filter, and mapper
     let mapper = this.actor.getMapper();
     let image = mapper.getInputData();
-    cropFilter.setCroppingPlanes(...image.getExtent());
+
     widget.copyImageDataDescription(image);
 
     widget.set({
@@ -485,9 +483,6 @@ export class VRView {
       edgeHandlesEnabled: true,
       cornerHandlesEnabled: true
     });
-
-    cropFilter.setInputData(image);
-    mapper.setInputConnection(cropFilter.getOutputPort());
 
     widgetManager.enablePicking();
 
