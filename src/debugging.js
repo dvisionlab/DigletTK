@@ -56,6 +56,10 @@ function getCroppingPlanes(imageData, ijkPlanes) {
 }
 
 export function debuggingScene(inputVolume, element) {
+  console.log(inputVolume);
+
+  inputVolume.setOrigin([0, 0, 0]);
+
   //   console.log("input", inputVolume);
 
   //   const genericRenderWindow = vtkGenericRenderWindow.newInstance();
@@ -153,7 +157,7 @@ export function debuggingScene(inputVolume, element) {
   // Initial widget register
   widgetRegistration();
 
-  const reader = vtkHttpDataSetReader.newInstance({ fetchGzip: true });
+  // const reader = vtkHttpDataSetReader.newInstance({ fetchGzip: true });
 
   const actor = vtkVolume.newInstance();
   const mapper = vtkVolumeMapper.newInstance();
@@ -184,29 +188,30 @@ export function debuggingScene(inputVolume, element) {
   actor.getProperty().setSpecular(0.3);
   actor.getProperty().setSpecularPower(8.0);
 
-  mapper.setInputConnection(reader.getOutputPort());
+  // mapper.setInputConnection(reader.getOutputPort());
+  mapper.setInputData(inputVolume);
 
-  reader.setUrl(`${__BASE_PATH__}/data/volume/LIDC2.vti`).then(() => {
-    reader.loadData().then(() => {
-      const image = reader.getOutputData();
-
-      // update crop widget
-      widget.copyImageDataDescription(image);
-      const cropState = widget.getWidgetState().getCroppingPlanes();
-      cropState.onModified(() => {
-        const planes = getCroppingPlanes(image, cropState.getPlanes());
-        mapper.removeAllClippingPlanes();
-        planes.forEach(plane => {
-          mapper.addClippingPlane(plane);
-        });
-        mapper.modified();
-      });
-
-      // add volume to renderer
-      renderer.addVolume(actor);
-      renderer.resetCamera();
-      renderer.resetCameraClippingRange();
-      renderWindow.render();
+  // reader.setUrl(`${__BASE_PATH__}/data/volume/LIDC2.vti`).then(() => {
+  //   reader.loadData().then(() => {
+  //     const image = reader.getOutputData();
+  let image = inputVolume;
+  // update crop widget
+  widget.copyImageDataDescription(image);
+  const cropState = widget.getWidgetState().getCroppingPlanes();
+  cropState.onModified(() => {
+    const planes = getCroppingPlanes(image, cropState.getPlanes());
+    mapper.removeAllClippingPlanes();
+    planes.forEach(plane => {
+      mapper.addClippingPlane(plane);
     });
+    mapper.modified();
   });
+
+  // add volume to renderer
+  renderer.addVolume(actor);
+  renderer.resetCamera();
+  renderer.resetCameraClippingRange();
+  renderWindow.render();
+  //   });
+  // });
 }

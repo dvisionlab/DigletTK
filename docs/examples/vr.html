@@ -139,7 +139,7 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
 
         let state = {p1:new Array(2), p2: new Array(2), p3: new Array(2), label:''}
         
-        diglettk.loadDemoSerieWithLarvitar('knee', larvitar, serie => {
+        diglettk.loadDemoSerieWithLarvitar('thorax', larvitar, serie => {
           // build vtk volume with larvitar
             let header = larvitar.buildHeader(serie);
             let data = larvitar.buildData(serie, false);
