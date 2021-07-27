@@ -2,10 +2,11 @@ import vtkGenericRenderWindow from "vtk.js/Sources/Rendering/Misc/GenericRenderW
 import vtkColorTransferFunction from "vtk.js/Sources/Rendering/Core/ColorTransferFunction";
 import vtkPiecewiseFunction from "vtk.js/Sources/Common/DataModel/PiecewiseFunction";
 import vtkImageCroppingWidget from "vtk.js/Sources/Widgets/Widgets3D/ImageCroppingWidget";
-import vtkImageCropFilter from "vtk.js/Sources/Filters/General/ImageCropFilter";
 import vtkWidgetManager from "vtk.js/Sources/Widgets/Core/WidgetManager";
 import vtkColorMaps from "vtk.js/Sources/Rendering/Core/ColorTransferFunction/ColorMaps";
 import vtkPiecewiseGaussianWidget from "vtk.js/Sources/Interaction/Widgets/PiecewiseGaussianWidget";
+import vtkForwardPass from "vtk.js/Sources/Rendering/OpenGL/ForwardPass";
+import vtkConvolution2DPass from "vtk.js/Sources/Rendering/OpenGL/Convolution2DPass";
 
 import vtkMouseCameraTrackballRotateManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseCameraTrackballRotateManipulator";
 import vtkMouseCameraTrackballPanManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
@@ -77,6 +78,9 @@ export class VRView {
     // LUT options
     this._rangeLUT = null;
     this._rescaleLUT = false; // cannot initialize true (must set lut before)
+
+    // rendering passes
+    this._edgeEnhancement = false;
 
     // measurement state
     this._measurementState = null;
@@ -281,6 +285,74 @@ export class VRView {
         this.renderWindow.render();
       });
     }
+  }
+
+  /**
+   * Toggle edge enhancement
+   */
+  set edgeEnhancement([type, value]) {
+    console.log(value);
+
+    function getConvolutionPass(kernel, kernelDimension, delegates = null) {
+      const convolutionPass = vtkConvolution2DPass.newInstance();
+      if (delegates !== null) {
+        convolutionPass.setDelegates(delegates);
+      }
+      convolutionPass.setKernelDimension(kernelDimension);
+      convolutionPass.setKernel(kernel);
+      return convolutionPass;
+    }
+
+    function getEdgeEnhancement1Pass(k, delegates = null) {
+      return getConvolutionPass(
+        [0, -k, 0, -k, 1 + 4 * k, -k, 0, -k, 0],
+        3,
+        delegates
+      );
+    }
+
+    function getEdgeEnhancement2Pass(k, delegates = null) {
+      return getConvolutionPass(
+        [-k, -k, -k, -k, 1 + 8 * k, -k, -k, -k, -k],
+        3,
+        delegates
+      );
+    }
+
+    function getEdgeEnhancement3Pass(k, delegates = null) {
+      return getConvolutionPass(
+        [-k, -2 * k, -k, -2 * k, 1 + 12 * k, -2 * k, -k, -2 * k, -k],
+        3,
+        delegates
+      );
+    }
+
+    function getGaussianBlurPass(delegates = null) {
+      return getConvolutionPass([1, 2, 1, 2, 4, 2, 1, 2, 1], 3, delegates);
+    }
+
+    let renderPass = vtkForwardPass.newInstance();
+    let gaussianRenderPass = vtkForwardPass.newInstance();
+    let gaussianPass = getGaussianBlurPass([gaussianRenderPass]);
+
+    switch (type) {
+      case 1:
+        renderPass = getEdgeEnhancement1Pass(value, [gaussianPass, renderPass]);
+        break;
+      case 2:
+        renderPass = getEdgeEnhancement2Pass(value, [gaussianPass, renderPass]);
+        break;
+      case 3:
+        renderPass = getEdgeEnhancement3Pass(value, [gaussianPass, renderPass]);
+        break;
+      default:
+        console.warn("no edge enhancement of type ", type);
+        return;
+    }
+
+    let view = this.renderWindow.getViews()[0];
+    view.setRenderPasses([renderPass]);
+    this.renderWindow.render();
   }
 
   /**
