@@ -78,6 +78,9 @@ export class VRView {
     this._rangeLUT = null;
     this._rescaleLUT = false; // cannot initialize true (must set lut before)
 
+    // rendering passes
+    this._edgeEnhancement = false;
+
     // measurement state
     this._measurementState = null;
 
@@ -284,6 +287,74 @@ export class VRView {
   }
 
   /**
+   * Toggle edge enhancement
+   */
+  set edgeEnhancement([type, value]) {
+    console.log(value);
+
+    function getConvolutionPass(kernel, kernelDimension, delegates = null) {
+      const convolutionPass = vtkConvolution2DPass.newInstance();
+      if (delegates !== null) {
+        convolutionPass.setDelegates(delegates);
+      }
+      convolutionPass.setKernelDimension(kernelDimension);
+      convolutionPass.setKernel(kernel);
+      return convolutionPass;
+    }
+
+    function getEdgeEnhancement1Pass(k, delegates = null) {
+      return getConvolutionPass(
+        [0, -k, 0, -k, 1 + 4 * k, -k, 0, -k, 0],
+        3,
+        delegates
+      );
+    }
+
+    function getEdgeEnhancement2Pass(k, delegates = null) {
+      return getConvolutionPass(
+        [-k, -k, -k, -k, 1 + 8 * k, -k, -k, -k, -k],
+        3,
+        delegates
+      );
+    }
+
+    function getEdgeEnhancement3Pass(k, delegates = null) {
+      return getConvolutionPass(
+        [-k, -2 * k, -k, -2 * k, 1 + 12 * k, -2 * k, -k, -2 * k, -k],
+        3,
+        delegates
+      );
+    }
+
+    function getGaussianBlurPass(delegates = null) {
+      return getConvolutionPass([1, 2, 1, 2, 4, 2, 1, 2, 1], 3, delegates);
+    }
+
+    let renderPass = vtkForwardPass.newInstance();
+    let gaussianRenderPass = vtkForwardPass.newInstance();
+    let gaussianPass = getGaussianBlurPass([gaussianRenderPass]);
+
+    switch (type) {
+      case 1:
+        renderPass = getEdgeEnhancement1Pass(value, [gaussianPass, renderPass]);
+        break;
+      case 2:
+        renderPass = getEdgeEnhancement2Pass(value, [gaussianPass, renderPass]);
+        break;
+      case 3:
+        renderPass = getEdgeEnhancement3Pass(value, [gaussianPass, renderPass]);
+        break;
+      default:
+        console.warn("no edge enhancement of type ", type);
+        return;
+    }
+
+    let view = this.renderWindow.getViews()[0];
+    view.setRenderPasses([renderPass]);
+    this.renderWindow.render();
+  }
+
+  /**
    * Initialize rendering scene
    * @private
    */
@@ -300,10 +371,7 @@ export class VRView {
         genericRenderWindow.getContainer().getBoundingClientRect().width,
         genericRenderWindow.getContainer().getBoundingClientRect().height
       ];
-      genericRenderWindow
-        .getRenderWindow()
-        .getViews()[0]
-        .setSize(size);
+      genericRenderWindow.getRenderWindow().getViews()[0].setSize(size);
 
       if (this.VERBOSE) console.log("resize", size);
     });
@@ -574,9 +642,8 @@ export class VRView {
    */
   setupInteractor() {
     // TODO setup from user
-    const rotateManipulator = vtkMouseCameraTrackballRotateManipulator.newInstance(
-      { button: 1 }
-    );
+    const rotateManipulator =
+      vtkMouseCameraTrackballRotateManipulator.newInstance({ button: 1 });
     const panManipulator = vtkMouseCameraTrackballPanManipulator.newInstance({
       button: 3,
       control: true
