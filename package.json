@@ -1,6 +1,6 @@
 {
   "name": "diglettk",
-  "version": "0.9.2",
+  "version": "0.10.1",
   "description": "A medical imaging toolkit, build on top of vtk.js",
   "main": "index.js",
   "scripts": {
