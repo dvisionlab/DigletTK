@@ -20,6 +20,8 @@ import vtkActor from "vtk.js/Sources/Rendering/Core/Actor";
 import vtkSphereSource from "vtk.js/Sources/Filters/Sources/SphereSource";
 import vtkCoordinate from "vtk.js/Sources/Rendering/Core/Coordinate";
 
+import vtkFPSMonitor from "vtk.js/Sources/Interaction/UI/FPSMonitor";
+
 import { createVolumeActor, getCroppingPlanes } from "./utils/utils";
 import { applyStrategy } from "./utils/strategies";
 
@@ -130,6 +132,7 @@ export class VRView {
    * @type {Number}
    */
   set resolution(value) {
+    console.log("set resolution", value);
     this._raysDistance = 1 / value;
     this.actor.getMapper().setSampleDistance(this._raysDistance);
     let maxSamples = value > 1 ? value * 1000 : 1000;
@@ -138,7 +141,7 @@ export class VRView {
   }
 
   get resolution() {
-    return Math.round(1 / this._raysDistance);
+    return Math.round(10 / this._raysDistance) / 10;
   }
 
   /**
@@ -320,6 +323,19 @@ export class VRView {
     this._genericRenderWindow = genericRenderWindow;
 
     this.setupPGwidget();
+
+    const fpsMonitor = vtkFPSMonitor.newInstance();
+    const fpsElm = fpsMonitor.getFpsMonitorContainer();
+    fpsElm.style.position = "absolute";
+    fpsElm.style.left = "10px";
+    fpsElm.style.bottom = "10px";
+    fpsElm.style.background = "rgba(255,255,255,0.5)";
+    fpsElm.style.borderRadius = "5px";
+
+    fpsMonitor.setContainer(document.querySelector("body"));
+    fpsMonitor.setRenderWindow(this.renderWindow);
+
+    this.fpsMonitor = fpsMonitor;
   }
 
   /**
@@ -332,7 +348,7 @@ export class VRView {
     let actor = createVolumeActor(image);
     this.actor = actor;
     this.lut = "Grayscale";
-    this.resolution = 2;
+    this.resolution = 10;
     this.renderer.addVolume(actor);
     this.setCamera(actor.getCenter());
 
@@ -352,6 +368,34 @@ export class VRView {
     this._genericRenderWindow.resize();
     this.renderer.resetCamera();
     this.renderWindow.render();
+
+    this.fps = [];
+    this.renderWindow.getInteractor().startRotateEvent();
+    this.tuneFPS();
+  }
+
+  tuneFPS() {
+    let lastFPS = 1 / this.renderWindow.getInteractor().getLastFrameTime();
+    console.log("last fps", lastFPS);
+    if (lastFPS == 10 || lastFPS == 100) {
+      setTimeout(() => {
+        this.tuneFPS.apply(this);
+      }, 250);
+    } else {
+      this.fps.push(lastFPS);
+      let lastFrames = this.fps.slice(-10);
+      let sum = lastFrames.reduce((a, b) => a + b, 0);
+      let avg = sum / lastFrames.length;
+      console.log("avg fps", avg);
+      if (avg < 70) {
+        this.resolution = this.resolution - 0.1;
+        setTimeout(() => {
+          this.tuneFPS.apply(this);
+        }, 250);
+      } else {
+        this.renderWindow.getInteractor().endRotateEvent();
+      }
+    }
   }
 
   /**
