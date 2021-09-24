@@ -363,37 +363,43 @@ export class VRView {
 
     this.setupInteractor();
 
-    this.blurOnInteraction = true;
+    this.blurOnInteraction = false;
 
     this._genericRenderWindow.resize();
     this.renderer.resetCamera();
     this.renderWindow.render();
 
+    // start fps tuning strategy
     this.fps = [];
     this.renderWindow.getInteractor().startRotateEvent();
     this.tuneFPS();
   }
 
   tuneFPS() {
+    // get last rendered frame time
     let lastFPS = 1 / this.renderWindow.getInteractor().getLastFrameTime();
     console.log("last fps", lastFPS);
+    // if fake values, wait and recall
     if (lastFPS == 10 || lastFPS == 100) {
       setTimeout(() => {
         this.tuneFPS.apply(this);
       }, 250);
     } else {
+      // store fps to compute moving average
       this.fps.push(lastFPS);
-      let lastFrames = this.fps.slice(-10);
+      let lastFrames = this.fps.slice(-10); // TODO collect at least 10 samples
       let sum = lastFrames.reduce((a, b) => a + b, 0);
       let avg = sum / lastFrames.length;
       console.log("avg fps", avg);
-      if (avg < 70) {
-        this.resolution = this.resolution - 0.1;
+      if (avg < 60) {
+        this.resolution =
+          this.resolution <= 1 ? this.resolution : this.resolution - 0.1;
         setTimeout(() => {
           this.tuneFPS.apply(this);
         }, 250);
       } else {
         this.renderWindow.getInteractor().endRotateEvent();
+        console.log(this.fps.length);
       }
     }
   }
