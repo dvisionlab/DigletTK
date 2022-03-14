@@ -1,8 +1,8 @@
-import macro from "vtk.js/Sources/macro";
-import vtkMouseCameraTrackballPanManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
-import vtkMouseCameraTrackballZoomManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseCameraTrackballZoomManipulator";
-import vtkMouseRangeManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseRangeManipulator";
-import Constants from "vtk.js/Sources/Rendering/Core/InteractorStyle/Constants";
+import macro from "@kitware/vtk.js/macro";
+import vtkMouseCameraTrackballPanManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
+import vtkMouseCameraTrackballZoomManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator";
+import vtkMouseRangeManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator";
+import Constants from "@kitware/vtk.js/Rendering/Core/InteractorStyle/Constants";
 
 import vtkInteractorStyleMPRSlice from "./vtkInteractorMPRSlice.js";
 

@@ -1,4 +1,5 @@
-import vtkGenericRenderWindow from "vtk.js/Sources/Rendering/Misc/GenericRenderWindow";
+import vtkGenericRenderWindow from "@kitware/vtk.js/Rendering/Misc/GenericRenderWindow";
+
 import vtkInteractorStyleMPRSlice from "./vtk/vtkInteractorMPRSlice";
 
 import { quat, vec3, mat4 } from "gl-matrix";

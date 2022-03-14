@@ -2,8 +2,9 @@
 import vtkInteractorStyleMPRWindowLevel from "./vtk/vtkInteractorStyleMPRWindowLevel";
 import vtkInteractorStyleMPRCrosshairs from "./vtk/vtkInteractorStyleMPRCrosshairs";
 import vtkInteractorStyleMPRPanZoom from "./vtk/vtkInteractorStyleMPRPanZoom";
-import vtkCoordinate from "vtk.js/Sources/Rendering/Core/Coordinate";
-import vtkMatrixBuilder from "vtk.js/Sources/Common/Core/MatrixBuilder";
+
+import vtkCoordinate from "@kitware/vtk.js/Rendering/Core/Coordinate";
+import vtkMatrixBuilder from "@kitware/vtk.js/Common/Core/MatrixBuilder";
 
 import {
   getPlaneIntersection,

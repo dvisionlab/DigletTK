@@ -16,9 +16,9 @@ import "regenerator-runtime/runtime";
 
 // Load the rendering pieces we want to use (for both WebGL and WebGPU)
 // Without these, nothing will appear into the scene
-import "vtk.js/Sources/Rendering/Profiles/Volume";
-import "vtk.js/Sources/Rendering/Profiles/Geometry";
-import "vtk.js/Sources/Rendering/Profiles/Glyph";
+import "@kitware/vtk.js/Rendering/Profiles/Volume";
+import "@kitware/vtk.js/Rendering/Profiles/Geometry";
+import "@kitware/vtk.js/Rendering/Profiles/Glyph";
 
 import { VRView } from "./vrView";
 import { MPRManager } from "./mprManager";

@@ -1,4 +1,4 @@
-import * as vtkMath from "vtk.js/Sources/Common/Core/Math";
+import * as vtkMath from "@kitware/vtk.js/Common/Core/Math";
 
 /**
  * Apply the logic to measure length between two points

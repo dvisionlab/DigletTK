@@ -27,17 +27,15 @@
   },
   "homepage": "https://github.com/dvisionlab/DigletTK#readme",
   "dependencies": {
+    "@kitware/vtk.js": "^23.0.1",
     "regenerator-runtime": "^0.13.7",
-    "vtk.js": "^18.1.1",
     "worker-loader": "^3.0.8"
   },
   "devDependencies": {
     "docdash": "^1.2.0",
     "jsdoc": "^3.6.6",
-    "kw-web-suite": "^8.0.0"
-  },
-  "common": "dist/diglettk.cjs.js",
-  "module": "dist/diglettk.js",
-  "browser": "dist/diglettk.js",
-  "type": "commonjs"
+    "webpack": "^5.70.0",
+    "webpack-cli": "^4.9.2",
+    "webpack-dev-server": "^4.7.4"
+  }
 }
