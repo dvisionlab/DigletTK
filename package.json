@@ -1,7 +1,7 @@
 {
   "name": "diglettk",
   "version": "1.0.0",
-  "description": "A medical imaging toolkit, build on top of vtk.js",
+  "description": "A medical imaging toolkit, built on top of vtk.js",
   "main": "index.js",
   "scripts": {
     "dev": "webpack --progress --color --mode development",
@@ -26,7 +26,7 @@
   "bugs": {
     "url": "https://github.com/dvisionlab/DigletTK/issues"
   },
-  "homepage": "https://github.com/dvisionlab/DigletTK#readme",
+  "homepage": "http://diglettk.dvisionlab.com/",
   "dependencies": {
     "@kitware/vtk.js": "^23.0.1",
     "regenerator-runtime": "^0.13.7",
