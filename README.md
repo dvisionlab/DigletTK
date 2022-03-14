@@ -69,7 +69,19 @@ dtk.loadSerieWithLarvitar(larvitar, serie => {
 });
 ```
 
+## DEV
+
+`yarn dev && cp ./dist/diglettk.js ./docs/examples/diglettk.js` to build the lib and move it from `dist` folder to `examples`.
+
+then load the desired example with a webserver (eg VS code liveserver).
+
+`yarn build` to build the librery for production
+
+`yarn generate-docs` to build the documentation in the `documentation` folder.
+
 ### RoadMap
+
+--
 
 - [x] Volume Rendering
 - [x] Measuring tools
@@ -83,3 +95,4 @@ dtk.loadSerieWithLarvitar(larvitar, serie => {
 - [x] ~~rollup config~~ webpack config
 - [x] examples
 - [ ] npm package
+- [ ] webpack-dev-server for a better dev experience
