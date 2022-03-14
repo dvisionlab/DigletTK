@@ -1,24 +1,24 @@
-import vtkGenericRenderWindow from "vtk.js/Sources/Rendering/Misc/GenericRenderWindow";
-import vtkColorTransferFunction from "vtk.js/Sources/Rendering/Core/ColorTransferFunction";
-import vtkPiecewiseFunction from "vtk.js/Sources/Common/DataModel/PiecewiseFunction";
-import vtkImageCroppingWidget from "vtk.js/Sources/Widgets/Widgets3D/ImageCroppingWidget";
-import vtkImageCropFilter from "vtk.js/Sources/Filters/General/ImageCropFilter";
-import vtkWidgetManager from "vtk.js/Sources/Widgets/Core/WidgetManager";
-import vtkColorMaps from "vtk.js/Sources/Rendering/Core/ColorTransferFunction/ColorMaps";
-import vtkPiecewiseGaussianWidget from "vtk.js/Sources/Interaction/Widgets/PiecewiseGaussianWidget";
+import vtkGenericRenderWindow from "@kitware/vtk.js/Rendering/Misc/GenericRenderWindow";
+import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction";
+import vtkPiecewiseFunction from "@kitware/vtk.js/Common/DataModel/PiecewiseFunction";
+import vtkImageCroppingWidget from "@kitware/vtk.js/Widgets/Widgets3D/ImageCroppingWidget";
+import vtkImageCropFilter from "@kitware/vtk.js/Filters/General/ImageCropFilter";
+import vtkWidgetManager from "@kitware/vtk.js/Widgets/Core/WidgetManager";
+import vtkColorMaps from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps";
+import vtkPiecewiseGaussianWidget from "@kitware/vtk.js/Interaction/Widgets/PiecewiseGaussianWidget";
 
-import vtkMouseCameraTrackballRotateManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseCameraTrackballRotateManipulator";
-import vtkMouseCameraTrackballPanManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
-import vtkMouseCameraTrackballZoomManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseCameraTrackballZoomManipulator";
-import vtkMouseRangeManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseRangeManipulator";
-import vtkInteractorStyleManipulator from "vtk.js/Sources/Interaction/Style/InteractorStyleManipulator";
+import vtkMouseCameraTrackballRotateManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballRotateManipulator";
+import vtkMouseCameraTrackballPanManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
+import vtkMouseCameraTrackballZoomManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator";
+import vtkMouseRangeManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator";
+import vtkInteractorStyleManipulator from "@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator";
 
-import vtkPointPicker from "vtk.js/Sources/Rendering/Core/PointPicker";
-import vtkPlaneSource from "vtk.js/Sources/Filters/Sources/PlaneSource";
-import vtkMapper from "vtk.js/Sources/Rendering/Core/Mapper";
-import vtkActor from "vtk.js/Sources/Rendering/Core/Actor";
-import vtkSphereSource from "vtk.js/Sources/Filters/Sources/SphereSource";
-import vtkCoordinate from "vtk.js/Sources/Rendering/Core/Coordinate";
+import vtkPointPicker from "@kitware/vtk.js/Rendering/Core/PointPicker";
+import vtkPlaneSource from "@kitware/vtk.js/Filters/Sources/PlaneSource";
+import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
+import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
+import vtkSphereSource from "@kitware/vtk.js/Filters/Sources/SphereSource";
+import vtkCoordinate from "@kitware/vtk.js/Rendering/Core/Coordinate";
 
 import { createVolumeActor, getCroppingPlanes } from "./utils/utils";
 import { applyStrategy } from "./utils/strategies";

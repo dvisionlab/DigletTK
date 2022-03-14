@@ -3,14 +3,14 @@
  */
 
 // Temporarily using a modified version of this interactor to deal with a camera subscription issue
-import macro from "vtk.js/Sources/macro";
-import vtkMath from "vtk.js/Sources/Common/Core/Math";
-import vtkMatrixBuilder from "vtk.js/Sources/Common/Core/MatrixBuilder";
-import vtkInteractorStyleManipulator from "vtk.js/Sources/Interaction/Style/InteractorStyleManipulator";
-import vtkMouseCameraTrackballRotateManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseCameraTrackballRotateManipulator";
-import vtkMouseCameraTrackballPanManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
-import vtkMouseCameraTrackballZoomManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseCameraTrackballZoomManipulator";
-import vtkMouseRangeManipulator from "vtk.js/Sources/Interaction/Manipulators/MouseRangeManipulator";
+import macro from "@kitware/vtk.js/macro";
+import vtkMath from "@kitware/vtk.js/Common/Core/Math";
+import vtkMatrixBuilder from "@kitware/vtk.js/Common/Core/MatrixBuilder";
+import vtkInteractorStyleManipulator from "@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator";
+import vtkMouseCameraTrackballRotateManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballRotateManipulator";
+import vtkMouseCameraTrackballPanManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
+import vtkMouseCameraTrackballZoomManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator";
+import vtkMouseRangeManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator";
 
 // ----------------------------------------------------------------------------
 // Global methods

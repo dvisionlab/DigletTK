@@ -1,7 +1,7 @@
 {
   "name": "diglettk",
-  "version": "0.10.1",
-  "description": "A medical imaging toolkit, build on top of vtk.js",
+  "version": "1.0.0",
+  "description": "A medical imaging toolkit, built on top of vtk.js",
   "main": "index.js",
   "scripts": {
     "dev": "webpack --progress --color --mode development",
@@ -18,26 +18,25 @@
     "dicom",
     "vtk.js",
     "medical",
-    "visualization"
+    "visualization",
+    "webgl"
   ],
   "author": "Mattia Ronzoni <mattia.ronzoni@dvisionlab.com> (https://www.dvisionlab.com)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/dvisionlab/DigletTK/issues"
   },
-  "homepage": "https://github.com/dvisionlab/DigletTK#readme",
+  "homepage": "http://diglettk.dvisionlab.com/",
   "dependencies": {
+    "@kitware/vtk.js": "^23.0.1",
     "regenerator-runtime": "^0.13.7",
-    "vtk.js": "^18.1.1",
     "worker-loader": "^3.0.8"
   },
   "devDependencies": {
     "docdash": "^1.2.0",
     "jsdoc": "^3.6.6",
-    "kw-web-suite": "^8.0.0"
-  },
-  "common": "dist/diglettk.cjs.js",
-  "module": "dist/diglettk.js",
-  "browser": "dist/diglettk.js",
-  "type": "commonjs"
+    "webpack": "^5.70.0",
+    "webpack-cli": "^4.9.2",
+    "webpack-dev-server": "^4.7.4"
+  }
 }

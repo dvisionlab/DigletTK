@@ -1,8 +1,8 @@
-import vtkDataArray from "vtk.js/Sources/Common/Core/DataArray";
-import vtkImageData from "vtk.js/Sources/Common/DataModel/ImageData";
-import vtkPlane from "vtk.js/Sources/Common/DataModel/Plane";
-import vtkVolume from "vtk.js/Sources/Rendering/Core/Volume";
-import vtkVolumeMapper from "vtk.js/Sources/Rendering/Core/VolumeMapper";
+import vtkDataArray from "@kitware/vtk.js/Common/Core/DataArray";
+import vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
+import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
+import vtkVolume from "@kitware/vtk.js/Rendering/Core/Volume";
+import vtkVolumeMapper from "@kitware/vtk.js/Rendering/Core/VolumeMapper";
 
 import { vec3, quat, mat4 } from "gl-matrix";
 
