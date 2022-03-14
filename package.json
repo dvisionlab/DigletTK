@@ -18,7 +18,8 @@
     "dicom",
     "vtk.js",
     "medical",
-    "visualization"
+    "visualization",
+    "webgl"
   ],
   "author": "Mattia Ronzoni <mattia.ronzoni@dvisionlab.com> (https://www.dvisionlab.com)",
   "license": "MIT",
