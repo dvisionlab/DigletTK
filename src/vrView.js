@@ -291,10 +291,7 @@ export class VRView {
    * Toggle edge enhancement
    */
   set edgeEnhancement([type, value]) {
-    console.log(value);
-
-    let renderPass = getRenderPass(type);
-
+    let renderPass = getRenderPass(type, value);
     let view = this.renderWindow.getViews()[0];
     view.setRenderPasses([renderPass]);
     this.renderWindow.render();
