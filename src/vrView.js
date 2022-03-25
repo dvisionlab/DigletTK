@@ -24,6 +24,7 @@ import { createVolumeActor, getCroppingPlanes } from "./utils/utils";
 import { applyStrategy } from "./utils/strategies";
 
 import { createPreset } from "./utils/colormaps";
+import { getRenderPass } from "./renderPasses";
 
 // Add custom presets
 vtkColorMaps.addPreset(createPreset());
@@ -77,6 +78,9 @@ export class VRView {
     // LUT options
     this._rangeLUT = null;
     this._rescaleLUT = false; // cannot initialize true (must set lut before)
+
+    // rendering passes
+    this._edgeEnhancement = false;
 
     // measurement state
     this._measurementState = null;
@@ -284,6 +288,16 @@ export class VRView {
   }
 
   /**
+   * Toggle edge enhancement
+   */
+  set edgeEnhancement([type, value]) {
+    let renderPass = getRenderPass(type, value);
+    let view = this.renderWindow.getViews()[0];
+    view.setRenderPasses([renderPass]);
+    this.renderWindow.render();
+  }
+
+  /**
    * Initialize rendering scene
    * @private
    */
@@ -300,10 +314,7 @@ export class VRView {
         genericRenderWindow.getContainer().getBoundingClientRect().width,
         genericRenderWindow.getContainer().getBoundingClientRect().height
       ];
-      genericRenderWindow
-        .getRenderWindow()
-        .getViews()[0]
-        .setSize(size);
+      genericRenderWindow.getRenderWindow().getViews()[0].setSize(size);
 
       if (this.VERBOSE) console.log("resize", size);
     });
@@ -574,9 +585,8 @@ export class VRView {
    */
   setupInteractor() {
     // TODO setup from user
-    const rotateManipulator = vtkMouseCameraTrackballRotateManipulator.newInstance(
-      { button: 1 }
-    );
+    const rotateManipulator =
+      vtkMouseCameraTrackballRotateManipulator.newInstance({ button: 1 });
     const panManipulator = vtkMouseCameraTrackballPanManipulator.newInstance({
       button: 3,
       control: true
