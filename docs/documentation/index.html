@@ -35,7 +35,7 @@
     
     <input type="text" id="nav-search" placeholder="Search" />
     
-    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="MPRManager.html">MPRManager</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MPRManager.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#getInitialState">getInitialState</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onRotate">onRotate</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onThickness">onThickness</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#resize">resize</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setTool">setTool</a></li></ul></li><li><a href="VRView.html">VRView</a><ul class='methods'><li data-type='method' style='display: none;'><a href="VRView.html#_initPicker">_initPicker</a></li><li data-type='method' style='display: none;'><a href="VRView.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="VRView.html#getLutList">getLutList</a></li><li data-type='method' style='display: none;'><a href="VRView.html#resetMeasurementState">resetMeasurementState</a></li><li data-type='method' style='display: none;'><a href="VRView.html#resetView">resetView</a></li><li data-type='method' style='display: none;'><a href="VRView.html#resize">resize</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setActorProperties">setActorProperties</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setCamera">setCamera</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setTool">setTool</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setupCropWidget">setupCropWidget</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#applyAngleStrategy">applyAngleStrategy</a></li><li><a href="global.html#applyLengthStrategy">applyLengthStrategy</a></li><li><a href="global.html#State">State</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h2><a href="https://github.com/dvisionlab/DigletTK" target="_blank" class="menu-item" id="repository" >Github repo</a></h2><h3>Classes</h3><ul><li><a href="baseView.html">baseView</a></li><li><a href="MPRManager.html">MPRManager</a><ul class='methods'><li data-type='method' style='display: none;'><a href="MPRManager.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#getInitialState">getInitialState</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onRotate">onRotate</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#onThickness">onThickness</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#resize">resize</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="MPRManager.html#setTool">setTool</a></li></ul></li><li><a href="VRView.html">VRView</a><ul class='methods'><li data-type='method' style='display: none;'><a href="VRView.html#_initCropWidget">_initCropWidget</a></li><li data-type='method' style='display: none;'><a href="VRView.html#_initPicker">_initPicker</a></li><li data-type='method' style='display: none;'><a href="VRView.html#destroy">destroy</a></li><li data-type='method' style='display: none;'><a href="VRView.html#getLutList">getLutList</a></li><li data-type='method' style='display: none;'><a href="VRView.html#resetMeasurementState">resetMeasurementState</a></li><li data-type='method' style='display: none;'><a href="VRView.html#resetView">resetView</a></li><li data-type='method' style='display: none;'><a href="VRView.html#resize">resize</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setImage">setImage</a></li><li data-type='method' style='display: none;'><a href="VRView.html#setTool">setTool</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#addSphereInPoint">addSphereInPoint</a></li><li><a href="global.html#applyAngleStrategy">applyAngleStrategy</a></li><li><a href="global.html#applyLengthStrategy">applyLengthStrategy</a></li><li><a href="global.html#getAbsoluteRange">getAbsoluteRange</a></li><li><a href="global.html#getRelativeRange">getRelativeRange</a></li><li><a href="global.html#setActorProperties">setActorProperties</a></li><li><a href="global.html#setCamera">setCamera</a></li><li><a href="global.html#setupCropWidget">setupCropWidget</a></li><li><a href="global.html#setupPickingPlane">setupPickingPlane</a></li><li><a href="global.html#State">State</a></li></ul>
 </nav>
 
 <div id="main">
@@ -73,6 +73,10 @@
 It also provides glue-functions to easily integrate with cornerstone.js, via <a href="https://github.com/dvisionlab/Larvitar">Larvitar</a> library.</p>
 <h2 id="install">Install</h2>
 <ul>
+<li>
+<p><code>yarn add diglettk</code></p>
+<p>OR</p>
+</li>
 <li>
 <p>clone the repository and <code>yarn add /path/to/repository</code></p>
 <p>OR</p>
@@ -150,7 +154,7 @@ dtk.loadSerieWithLarvitar(larvitar, serie => {
 <li>[x] documentation</li>
 <li>[x] <s>rollup config</s> webpack config</li>
 <li>[x] examples</li>
-<li>[ ] npm package</li>
+<li>[x] npm package</li>
 <li>[ ] webpack-dev-server for a better dev experience</li>
 </ul></article>
     </section>
@@ -167,7 +171,7 @@ dtk.loadSerieWithLarvitar(larvitar, serie => {
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.10</a> using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.6</a> using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>
