@@ -33,6 +33,6 @@ export {
   MPRManager,
   VRView,
   loadDemoSerieWithLarvitar,
-  buildVtkVolume,
-  debuggingScene
+  buildVtkVolume
+  // debuggingScene
 };

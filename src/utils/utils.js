@@ -3,8 +3,14 @@ import vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
 import vtkVolume from "@kitware/vtk.js/Rendering/Core/Volume";
 import vtkVolumeMapper from "@kitware/vtk.js/Rendering/Core/VolumeMapper";
-
-import { vec3, quat, mat4 } from "gl-matrix";
+import vtkPiecewiseGaussianWidget from "@kitware/vtk.js/Interaction/Widgets/PiecewiseGaussianWidget";
+import vtkImageCroppingWidget from "@kitware/vtk.js/Widgets/Widgets3D/ImageCroppingWidget";
+import vtkImageCropFilter from "@kitware/vtk.js/Filters/General/ImageCropFilter";
+import vtkWidgetManager from "@kitware/vtk.js/Widgets/Core/WidgetManager";
+import vtkPlaneSource from "@kitware/vtk.js/Filters/Sources/PlaneSource";
+import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
+import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
+import vtkSphereSource from "@kitware/vtk.js/Filters/Sources/SphereSource";
 
 import { vec3, quat, mat4 } from "gl-matrix";
 
@@ -450,33 +456,6 @@ export function setupPGwidget(PGwidgetElement) {
   });
 
   return PGwidget;
-}
-
-function getCroppingPlanes(imageData, ijkPlanes) {
-  const rotation = quat.create();
-  mat4.getRotation(rotation, imageData.getIndexToWorld());
-
-  const rotateVec = vec => {
-    const out = [0, 0, 0];
-    vec3.transformQuat(out, vec, rotation);
-    return out;
-  };
-
-  const [iMin, iMax, jMin, jMax, kMin, kMax] = ijkPlanes;
-  const origin = imageData.indexToWorld([iMin, jMin, kMin]);
-  // opposite corner from origin
-  const corner = imageData.indexToWorld([iMax, jMax, kMax]);
-  return [
-    // X min/max
-    vtkPlane.newInstance({ normal: rotateVec([1, 0, 0]), origin }),
-    vtkPlane.newInstance({ normal: rotateVec([-1, 0, 0]), origin: corner }),
-    // Y min/max
-    vtkPlane.newInstance({ normal: rotateVec([0, 1, 0]), origin }),
-    vtkPlane.newInstance({ normal: rotateVec([0, -1, 0]), origin: corner }),
-    // X min/max
-    vtkPlane.newInstance({ normal: rotateVec([0, 0, 1]), origin }),
-    vtkPlane.newInstance({ normal: rotateVec([0, 0, -1]), origin: corner })
-  ];
 }
 
 /**

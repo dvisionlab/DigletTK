@@ -1,11 +1,7 @@
 import vtkGenericRenderWindow from "@kitware/vtk.js/Rendering/Misc/GenericRenderWindow";
 import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction";
 import vtkPiecewiseFunction from "@kitware/vtk.js/Common/DataModel/PiecewiseFunction";
-import vtkImageCroppingWidget from "@kitware/vtk.js/Widgets/Widgets3D/ImageCroppingWidget";
-import vtkImageCropFilter from "@kitware/vtk.js/Filters/General/ImageCropFilter";
-import vtkWidgetManager from "@kitware/vtk.js/Widgets/Core/WidgetManager";
 import vtkColorMaps from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps";
-import vtkPiecewiseGaussianWidget from "@kitware/vtk.js/Interaction/Widgets/PiecewiseGaussianWidget";
 
 import vtkMouseCameraTrackballRotateManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballRotateManipulator";
 import vtkMouseCameraTrackballPanManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
@@ -14,17 +10,20 @@ import vtkMouseRangeManipulator from "@kitware/vtk.js/Interaction/Manipulators/M
 import vtkInteractorStyleManipulator from "@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator";
 
 import vtkPointPicker from "@kitware/vtk.js/Rendering/Core/PointPicker";
-import vtkPlaneSource from "@kitware/vtk.js/Filters/Sources/PlaneSource";
-import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
-import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
-import vtkSphereSource from "@kitware/vtk.js/Filters/Sources/SphereSource";
 import vtkCoordinate from "@kitware/vtk.js/Rendering/Core/Coordinate";
 
-import { createVolumeActor, getCroppingPlanes } from "./utils/utils";
+import {
+  createVolumeActor,
+  setupPGwidget,
+  setCamera,
+  setActorProperties,
+  setupCropWidget,
+  setupPickingPlane
+} from "./utils/utils";
 import { applyStrategy } from "./utils/strategies";
-
 import { createPreset } from "./utils/colormaps";
 import { getRenderPass } from "./renderPasses";
+
 import { baseView } from "./baseView";
 
 // Add custom presets
@@ -33,8 +32,10 @@ vtkColorMaps.addPreset(createPreset());
 //TODO interactions:
 
 /**
- * setTool("Length/Angle", {mouseButtonMask:1}, measurementState); => per cambiare interactors tasto sx
- * setupMouseButtons(config); => inizializzare il tasto dx del mouse
+ * setTool("Length/Angle", {mouseButtonMask:1}, measurementState); => Change interactor on left mouse button
+ * setupMouseButtons(config); => Initialize right mouse button behaviour
+ *
+ * Measurement state structure:
  * measurementState = {
  *  p1: [0, 0],
  *  p2: [0, 0],

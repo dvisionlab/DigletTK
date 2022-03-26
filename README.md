@@ -9,6 +9,10 @@ It also provides glue-functions to easily integrate with cornerstone.js, via [La
 
 ## Install
 
+- `yarn add diglettk`
+
+  OR
+
 - clone the repository and `yarn add /path/to/repository`
 
   OR
@@ -94,5 +98,5 @@ then load the desired example with a webserver (eg VS code liveserver).
 - [x] documentation
 - [x] ~~rollup config~~ webpack config
 - [x] examples
-- [ ] npm package
+- [x] npm package
 - [ ] webpack-dev-server for a better dev experience
