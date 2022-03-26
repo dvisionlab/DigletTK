@@ -75917,8 +75917,8 @@ function getCroppingPlanes(imageData, ijkPlanes) {
 /**
  * Rescale abs range to relative range values (eg 0-1)
  * @param {*} actor
- * @param {*} value
- * @returns
+ * @param {*} absoluteRange
+ * @returns {*} wwwl object
  */
 function getRelativeRange(actor, absoluteRange) {
   const dataArray = actor
@@ -75937,7 +75937,7 @@ function getRelativeRange(actor, absoluteRange) {
  * Rescale relative range to abs range values (eg hist min-max)
  * @param {*} actor
  * @param {*} relativeRange
- * @returns
+ * @returns {*} wwwl object
  */
 function getAbsoluteRange(actor, relativeRange) {
   const dataArray = actor
@@ -80740,7 +80740,7 @@ function tickFormat(start, stop, count, specifier) {
 /***/ ((module) => {
 
 "use strict";
-module.exports = JSON.parse('{"name":"diglettk","version":"1.1.0-beta","description":"A medical imaging toolkit, built on top of vtk.js","main":"src/index.js","scripts":{"dev":"webpack --progress --color --mode development","build":"webpack --progress --color --mode production","serve":"webpack-dev-server --content-base ./dist","generate-docs":"node_modules/.bin/jsdoc -c jsdoc.json"},"repository":{"type":"git","url":"git+https://github.com/dvisionlab/DigletTK.git"},"keywords":["imaging","dicom","vtk.js","medical","visualization","webgl"],"author":"Mattia Ronzoni <mattia.ronzoni@dvisionlab.com> (https://www.dvisionlab.com)","license":"MIT","bugs":{"url":"https://github.com/dvisionlab/DigletTK/issues"},"homepage":"http://diglettk.dvisionlab.com/","dependencies":{"@kitware/vtk.js":"^23.0.1","regenerator-runtime":"^0.13.7","worker-loader":"^3.0.8"},"devDependencies":{"docdash":"^1.2.0","jsdoc":"^3.6.6","webpack":"^5.70.0","webpack-cli":"^4.9.2","webpack-dev-server":"^4.7.4"}}');
+module.exports = JSON.parse('{"name":"diglettk","version":"1.1.0","description":"A medical imaging toolkit, built on top of vtk.js","main":"src/index.js","scripts":{"dev":"webpack --progress --color --mode development","build":"webpack --progress --color --mode production","serve":"webpack-dev-server --content-base ./dist","generate-docs":"node_modules/.bin/jsdoc -c jsdoc.json"},"repository":{"type":"git","url":"git+https://github.com/dvisionlab/DigletTK.git"},"keywords":["imaging","dicom","vtk.js","medical","visualization","webgl"],"author":"Mattia Ronzoni <mattia.ronzoni@dvisionlab.com> (https://www.dvisionlab.com)","license":"MIT","bugs":{"url":"https://github.com/dvisionlab/DigletTK/issues"},"homepage":"http://diglettk.dvisionlab.com/","dependencies":{"@kitware/vtk.js":"^23.0.1","regenerator-runtime":"^0.13.7","worker-loader":"^3.0.8"},"devDependencies":{"docdash":"^1.2.0","jsdoc":"^3.6.6","webpack":"^5.70.0","webpack-cli":"^4.9.2","webpack-dev-server":"^4.7.4"}}');
 
 /***/ })
 

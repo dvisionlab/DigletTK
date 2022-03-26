@@ -342,8 +342,8 @@ export function getCroppingPlanes(imageData, ijkPlanes) {
 /**
  * Rescale abs range to relative range values (eg 0-1)
  * @param {*} actor
- * @param {*} value
- * @returns
+ * @param {*} absoluteRange
+ * @returns {*} wwwl object
  */
 export function getRelativeRange(actor, absoluteRange) {
   const dataArray = actor
@@ -362,7 +362,7 @@ export function getRelativeRange(actor, absoluteRange) {
  * Rescale relative range to abs range values (eg hist min-max)
  * @param {*} actor
  * @param {*} relativeRange
- * @returns
+ * @returns {*} wwwl object
  */
 export function getAbsoluteRange(actor, relativeRange) {
   const dataArray = actor
