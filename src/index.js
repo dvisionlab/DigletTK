@@ -24,10 +24,10 @@ import { VRView } from "./vrView";
 import { MPRManager } from "./mprManager";
 import { loadDemoSerieWithLarvitar, buildVtkVolume } from "./utils/utils";
 
-import "vtk.js";
-window.vtk = vtk;
-
-import { debuggingScene } from "./debugging.js";
+// Uncomment for debugging puposes
+// import "vtk.js";
+// window.vtk = vtk;
+// import { debuggingScene } from "./debugging.js";
 
 export {
   MPRManager,
