@@ -137,11 +137,31 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
       const element = document.getElementById("viewer-2");
       const widgetContainer = document.getElementById("widget");
 
-      diglettk.loadDemoSerieWithLarvitar("knee", larvitar, serie => {
-        // build vtk volume with larvitar
-        let header = larvitar.buildHeader(serie);
-        let data = larvitar.buildData(serie, false);
-        console.log(serie);
+      let header, data;
+
+      // TODO get parsed data from json files instead of using larvitar to directly parse from .dcm file
+      fetch("./demo/header.json")
+        .then(data => data.json())
+        .then(_header => {
+          header = _header;
+          console.log("header", header);
+          fetch("./demo/data.json")
+            .then(data => data.json())
+            .then(objData => {
+              data = new Int16Array(Object.values(objData));
+              console.log("data", data);
+              loadScene();
+            });
+        });
+
+      // diglettk.loadDemoSerieWithLarvitar("knee", larvitar, serie => {
+      //   // build vtk volume with larvitar
+      //   let header = larvitar.buildHeader(serie);
+      //   let data = larvitar.buildData(serie, false);
+      //   console.log(serie);
+      //   console.log(header);
+      //   console.log(data);
+      function loadScene() {
         const image = diglettk.buildVtkVolume(header, data);
         // run vr
         vr = new diglettk.VRView(element);
@@ -159,7 +179,8 @@ diglettk.loadSerieWithLarvitar(larvitar, serie => {
         // vr.cropWidget = true;
         // activate edge enhancement
         // vr.edgeEnhancement = true;
-      });
+      }
+      // });
     </script>
   </body>
 </html>
