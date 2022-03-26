@@ -3,6 +3,14 @@ import vtkImageData from "@kitware/vtk.js/Common/DataModel/ImageData";
 import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
 import vtkVolume from "@kitware/vtk.js/Rendering/Core/Volume";
 import vtkVolumeMapper from "@kitware/vtk.js/Rendering/Core/VolumeMapper";
+import vtkPiecewiseGaussianWidget from "@kitware/vtk.js/Interaction/Widgets/PiecewiseGaussianWidget";
+import vtkImageCroppingWidget from "@kitware/vtk.js/Widgets/Widgets3D/ImageCroppingWidget";
+import vtkImageCropFilter from "@kitware/vtk.js/Filters/General/ImageCropFilter";
+import vtkWidgetManager from "@kitware/vtk.js/Widgets/Core/WidgetManager";
+import vtkPlaneSource from "@kitware/vtk.js/Filters/Sources/PlaneSource";
+import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
+import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
+import vtkSphereSource from "@kitware/vtk.js/Filters/Sources/SphereSource";
 
 import { vec3, quat, mat4 } from "gl-matrix";
 
@@ -124,10 +132,10 @@ export function loadDemoSerieWithLarvitar(name, lrv, cb) {
   }
 
   // load dicom and render
-  demoFileList.forEach(function(demoFile) {
+  demoFileList.forEach(function (demoFile) {
     createFile(demoFile, () => {
       lrv.resetImageParsing();
-      lrv.readFiles(demoFiles, function(seriesStack, err) {
+      lrv.readFiles(demoFiles, function (seriesStack, err) {
         // return the first series of the study
         let seriesId = _.keys(seriesStack)[0];
         let serie = seriesStack[seriesId];
@@ -252,10 +260,7 @@ export function createVolumeActor(contentData) {
   volumeMapper.setInputData(contentData);
 
   // set a default wwwl
-  const dataRange = contentData
-    .getPointData()
-    .getScalars()
-    .getRange();
+  const dataRange = contentData.getPointData().getScalars().getRange();
 
   // FIXME: custom range mapping
   const rgbTransferFunction = volumeActor
@@ -332,4 +337,198 @@ export function getCroppingPlanes(imageData, ijkPlanes) {
     vtkPlane.newInstance({ normal: rotateVec([0, 0, 1]), origin }),
     vtkPlane.newInstance({ normal: rotateVec([0, 0, -1]), origin: corner })
   ];
+}
+
+/**
+ * Rescale abs range to relative range values (eg 0-1)
+ * @param {*} actor
+ * @param {*} value
+ * @returns
+ */
+export function getRelativeRange(actor, absoluteRange) {
+  const dataArray = actor
+    .getMapper()
+    .getInputData()
+    .getPointData()
+    .getScalars();
+  const range = dataArray.getRange();
+  let rel_ww = absoluteRange[0] / (range[1] - range[0]);
+  let rel_wl = (absoluteRange[1] - range[0]) / range[1];
+
+  return { ww: rel_ww, wl: rel_wl };
+}
+
+/**
+ * Rescale relative range to abs range values (eg hist min-max)
+ * @param {*} actor
+ * @param {*} relativeRange
+ * @returns
+ */
+export function getAbsoluteRange(actor, relativeRange) {
+  const dataArray = actor
+    .getMapper()
+    .getInputData()
+    .getPointData()
+    .getScalars();
+  const range = dataArray.getRange();
+  let abs_ww = relativeRange[0] * (range[1] - range[0]);
+  let abs_wl = relativeRange[1] * range[1] + range[0];
+  return { ww: abs_ww, wl: abs_wl };
+}
+
+/**
+ * Set camera lookat point
+ * @param {Array} center - As [x,y,z]
+ */
+export function setCamera(camera, center) {
+  camera.zoom(1.5);
+  camera.elevation(70);
+  camera.setViewUp(0, 0, 1);
+  camera.setFocalPoint(center[0], center[1], center[2]);
+  camera.setPosition(center[0], center[1] - 2000, center[2]);
+  camera.setThickness(10000);
+  camera.setParallelProjection(true);
+}
+
+/**
+ * Set actor appearance properties
+ * @param {*} actor
+ */
+export function setActorProperties(actor) {
+  actor.getProperty().setScalarOpacityUnitDistance(0, 30.0);
+  actor.getProperty().setInterpolationTypeToLinear();
+  actor.getProperty().setUseGradientOpacity(0, true);
+  actor.getProperty().setGradientOpacityMinimumValue(0, 2);
+  actor.getProperty().setGradientOpacityMinimumOpacity(0, 0.0);
+  actor.getProperty().setGradientOpacityMaximumValue(0, 20);
+  actor.getProperty().setGradientOpacityMaximumOpacity(0, 2.0);
+  actor.getProperty().setShade(true);
+  actor.getProperty().setAmbient(0.3);
+  actor.getProperty().setDiffuse(0.7);
+  actor.getProperty().setSpecular(0.3);
+  actor.getProperty().setSpecularPower(0.8);
+}
+
+/**
+ * Append a vtkPiecewiseGaussianWidget into the target element
+ * @private
+ * @param {HTMLElement} widgetContainer - The target element to place the widget
+ */
+export function setupPGwidget(PGwidgetElement) {
+  let containerWidth = PGwidgetElement ? PGwidgetElement.offsetWidth - 5 : 300;
+  let containerHeight = PGwidgetElement
+    ? PGwidgetElement.offsetHeight - 5
+    : 100;
+
+  const PGwidget = vtkPiecewiseGaussianWidget.newInstance({
+    numberOfBins: 256,
+    size: [containerWidth, containerHeight]
+  });
+  // TODO expose style
+  PGwidget.updateStyle({
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    histogramColor: "rgba(50, 50, 50, 0.8)",
+    strokeColor: "rgb(0, 0, 0)",
+    activeColor: "rgb(255, 255, 255)",
+    handleColor: "rgb(50, 150, 50)",
+    buttonDisableFillColor: "rgba(255, 255, 255, 0.5)",
+    buttonDisableStrokeColor: "rgba(0, 0, 0, 0.5)",
+    buttonStrokeColor: "rgba(0, 0, 0, 1)",
+    buttonFillColor: "rgba(255, 255, 255, 1)",
+    strokeWidth: 1,
+    activeStrokeWidth: 1.5,
+    buttonStrokeWidth: 1,
+    handleWidth: 1,
+    iconSize: 0, // Can be 0 if you want to remove buttons (dblClick for (+) / rightClick for (-))
+    padding: 1
+  });
+
+  // to hide widget
+  PGwidget.setContainer(PGwidgetElement); // Set to null to hide
+
+  // resize callback
+  window.addEventListener("resize", evt => {
+    PGwidget.setSize(
+      PGwidgetElement.offsetWidth - 5,
+      PGwidgetElement.offsetHeight - 5
+    );
+    PGwidget.render();
+  });
+
+  return PGwidget;
+}
+
+/**
+ * Initialize a crop widget
+ */
+export function setupCropWidget(renderer, volumeMapper) {
+  let image = volumeMapper.getInputData();
+  console.log(image.getBounds());
+
+  // setup widget manager and widget
+  const widgetManager = vtkWidgetManager.newInstance();
+  widgetManager.setRenderer(renderer);
+
+  const widget = vtkImageCroppingWidget.newInstance();
+  widget.copyImageDataDescription(image);
+
+  const viewWidget = widgetManager.addWidget(widget);
+  widgetManager.enablePicking();
+
+  const cropState = widget.getWidgetState().getCroppingPlanes();
+  cropState.onModified(e => {
+    const planes = getCroppingPlanes(image, cropState.getPlanes());
+    volumeMapper.removeAllClippingPlanes();
+    planes.forEach(plane => {
+      volumeMapper.addClippingPlane(plane);
+    });
+    volumeMapper.modified();
+  });
+
+  widget.set({
+    faceHandlesEnabled: true,
+    edgeHandlesEnabled: true,
+    cornerHandlesEnabled: true
+  });
+
+  return { widget, widgetManager }; // or viewWidget ?
+}
+
+/**
+ * Create a plane to perform picking
+ * @param {*} camera
+ * @param {*} actor
+ */
+export function setupPickingPlane(camera, actor) {
+  const plane = vtkPlaneSource.newInstance({
+    xResolution: 1000,
+    yResolution: 1000
+  });
+  plane.setPoint1(0, 0, 1000);
+  plane.setPoint2(1000, 0, 0);
+  plane.setCenter(actor.getCenter());
+  plane.setNormal(camera.getDirectionOfProjection());
+
+  const mapper = vtkMapper.newInstance();
+  mapper.setInputConnection(plane.getOutputPort());
+  const planeActor = vtkActor.newInstance();
+  planeActor.setMapper(mapper);
+  planeActor.getProperty().setOpacity(0.01); // with opacity = 0 it is ignored by picking
+
+  return { plane, planeActor };
+}
+
+/**
+ * Add a sphere in a specific point (useful for debugging)
+ */
+export function addSphereInPoint(point, renderer) {
+  const sphere = vtkSphereSource.newInstance();
+  sphere.setCenter(point);
+  sphere.setRadius(0.01);
+  const sphereMapper = vtkMapper.newInstance();
+  sphereMapper.setInputData(sphere.getOutputData());
+  const sphereActor = vtkActor.newInstance();
+  sphereActor.setMapper(sphereMapper);
+  sphereActor.getProperty().setColor(1.0, 0.0, 0.0);
+  renderer.addActor(sphereActor);
 }

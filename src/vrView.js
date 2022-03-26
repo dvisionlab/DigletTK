@@ -1,11 +1,7 @@
 import vtkGenericRenderWindow from "@kitware/vtk.js/Rendering/Misc/GenericRenderWindow";
 import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction";
 import vtkPiecewiseFunction from "@kitware/vtk.js/Common/DataModel/PiecewiseFunction";
-import vtkImageCroppingWidget from "@kitware/vtk.js/Widgets/Widgets3D/ImageCroppingWidget";
-import vtkImageCropFilter from "@kitware/vtk.js/Filters/General/ImageCropFilter";
-import vtkWidgetManager from "@kitware/vtk.js/Widgets/Core/WidgetManager";
 import vtkColorMaps from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps";
-import vtkPiecewiseGaussianWidget from "@kitware/vtk.js/Interaction/Widgets/PiecewiseGaussianWidget";
 
 import vtkMouseCameraTrackballRotateManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballRotateManipulator";
 import vtkMouseCameraTrackballPanManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
@@ -14,17 +10,21 @@ import vtkMouseRangeManipulator from "@kitware/vtk.js/Interaction/Manipulators/M
 import vtkInteractorStyleManipulator from "@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator";
 
 import vtkPointPicker from "@kitware/vtk.js/Rendering/Core/PointPicker";
-import vtkPlaneSource from "@kitware/vtk.js/Filters/Sources/PlaneSource";
-import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
-import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
-import vtkSphereSource from "@kitware/vtk.js/Filters/Sources/SphereSource";
 import vtkCoordinate from "@kitware/vtk.js/Rendering/Core/Coordinate";
 
-import { createVolumeActor, getCroppingPlanes } from "./utils/utils";
+import {
+  createVolumeActor,
+  setupPGwidget,
+  setCamera,
+  setActorProperties,
+  setupCropWidget,
+  setupPickingPlane
+} from "./utils/utils";
 import { applyStrategy } from "./utils/strategies";
-
 import { createPreset } from "./utils/colormaps";
 import { getRenderPass } from "./renderPasses";
+
+import { baseView } from "./baseView";
 
 // Add custom presets
 vtkColorMaps.addPreset(createPreset());
@@ -32,8 +32,10 @@ vtkColorMaps.addPreset(createPreset());
 //TODO interactions:
 
 /**
- * setTool("Length/Angle", {mouseButtonMask:1}, measurementState); => per cambiare interactors tasto sx
- * setupMouseButtons(config); => inizializzare il tasto dx del mouse
+ * setTool("Length/Angle", {mouseButtonMask:1}, measurementState); => Change interactor on left mouse button
+ * setupMouseButtons(config); => Initialize right mouse button behaviour
+ *
+ * Measurement state structure:
  * measurementState = {
  *  p1: [0, 0],
  *  p2: [0, 0],
@@ -43,12 +45,14 @@ vtkColorMaps.addPreset(createPreset());
  */
 
 /** A class representing a Volume Rendering scene */
-export class VRView {
+export class VRView extends baseView {
   /**
    * Create a volume rendering scene
    * @param {HTMLElement} element - the target html element to render the scene
    */
   constructor(element) {
+    super();
+
     this.VERBOSE = false;
 
     this.element = element;
@@ -97,18 +101,10 @@ export class VRView {
       return;
     }
 
-    const dataArray = this.actor
-      .getMapper()
-      .getInputData()
-      .getPointData()
-      .getScalars();
+    let relativeWwwl = getRelativeRange(this.actor, value);
 
-    const range = dataArray.getRange();
-    let rel_ww = value[0] / (range[1] - range[0]);
-    let rel_wl = (value[1] - range[0]) / range[1];
-
-    this.wl = rel_wl;
-    this.ww = rel_ww;
+    this.wl = relativeWwwl.wl;
+    this.ww = relativeWwwl.ww;
 
     if (this.PGwidget) {
       this.updateWidget();
@@ -116,17 +112,8 @@ export class VRView {
   }
 
   get wwwl() {
-    const dataArray = this.actor
-      .getMapper()
-      .getInputData()
-      .getPointData()
-      .getScalars();
-
-    const range = dataArray.getRange();
-
-    let abs_ww = rel_ww * (range[1] - range[0]);
-    let abs_wl = rel_wl * range[1] + range[0];
-    return [abs_ww, abs_wl];
+    let absoluteWwwl = getAbsoluteRange(this.actor, [this.ww, this.wl]);
+    return [absoluteWwwl.ww, absoluteWwwl.wl];
   }
 
   /**
@@ -186,6 +173,7 @@ export class VRView {
     this.ctfun.setMappingRange(...range);
     this.ctfun.updateRange();
   }
+
   /**
    * Set range to apply lut  !!! WIP
    * @type {Array}
@@ -203,7 +191,7 @@ export class VRView {
    * @type {bool}
    */
   set cropWidget(visible) {
-    if (!this._cropWidget) this.setupCropWidget();
+    if (!this._cropWidget) this._initCropWidget();
     this._cropWidget.setVisibility(visible);
     this._widgetManager.renderWidgets();
     this.renderWindow.render();
@@ -239,7 +227,7 @@ export class VRView {
 
     this.actor.getProperty().setRGBTransferFunction(0, lookupTable);
 
-    // set up opacity function (values will be set by PGwidget)
+    // setup opacity function (values will be set by PGwidget)
     const piecewiseFun = vtkPiecewiseFunction.newInstance();
     this.actor.getProperty().setScalarOpacity(0, piecewiseFun);
 
@@ -330,7 +318,8 @@ export class VRView {
     this.renderWindow = genericRenderWindow.getRenderWindow();
     this._genericRenderWindow = genericRenderWindow;
 
-    this.setupPGwidget();
+    // initalize piecewise gaussian widget
+    this.PGwidget = setupPGwidget(this.PGwidgetElement);
   }
 
   /**
@@ -345,43 +334,27 @@ export class VRView {
     this.lut = "Grayscale";
     this.resolution = 2;
     this.renderer.addVolume(actor);
-    this.setCamera(actor.getCenter());
+
+    // center camera on new volume
+    this.renderer.resetCamera();
+    setCamera(this.renderer.getActiveCamera(), actor.getCenter());
 
     if (this.PGwidget) {
       this.updateWidget();
       this.setWidgetCallbacks();
     }
 
+    // TODO if crop widget, update to new image (or set to null so that it will be initialized again)
+
     // TODO implement a strategy to set rays distance
-    // TODO interactors switching (ex. blurring or wwwl or crop)
-    this.setActorProperties();
+    setActorProperties(this.actor);
 
     this.setupInteractor();
 
     this.blurOnInteraction = true;
 
     this._genericRenderWindow.resize();
-    this.renderer.resetCamera();
     this.renderWindow.render();
-  }
-
-  /**
-   * Set camera lookat point
-   * @param {Array} center - As [x,y,z]
-   */
-  setCamera(center) {
-    this.renderer.resetCamera();
-    this.renderer.getActiveCamera().zoom(1.5);
-    this.renderer.getActiveCamera().elevation(70);
-    this.renderer.getActiveCamera().setViewUp(0, 0, 1);
-    this.renderer
-      .getActiveCamera()
-      .setFocalPoint(center[0], center[1], center[2]);
-    this.renderer
-      .getActiveCamera()
-      .setPosition(center[0], center[1] - 2000, center[2]);
-    this.renderer.getActiveCamera().setThickness(10000);
-    this.renderer.getActiveCamera().setParallelProjection(true);
   }
 
   /**
@@ -393,113 +366,15 @@ export class VRView {
   }
 
   /**
-   * Set actor appearance properties
-   * TODO
-   */
-  setActorProperties() {
-    this.actor.getProperty().setScalarOpacityUnitDistance(0, 30.0);
-    this.actor.getProperty().setInterpolationTypeToLinear();
-    this.actor.getProperty().setUseGradientOpacity(0, true);
-    this.actor.getProperty().setGradientOpacityMinimumValue(0, 2);
-    this.actor.getProperty().setGradientOpacityMinimumOpacity(0, 0.0);
-    this.actor.getProperty().setGradientOpacityMaximumValue(0, 20);
-    this.actor.getProperty().setGradientOpacityMaximumOpacity(0, 2.0);
-    this.actor.getProperty().setShade(true);
-    this.actor.getProperty().setAmbient(0.3);
-    this.actor.getProperty().setDiffuse(0.7);
-    this.actor.getProperty().setSpecular(0.3);
-    this.actor.getProperty().setSpecularPower(0.8);
-  }
-
-  /**
    * Setup crop widget
    */
-  setupCropWidget() {
-    const widgetManager = vtkWidgetManager.newInstance();
-    widgetManager.setRenderer(this.renderer);
+  _initCropWidget() {
+    let cropWidget = setupCropWidget(this.renderer, this.actor.getMapper());
 
-    const widget = vtkImageCroppingWidget.newInstance();
-    const viewWidget = widgetManager.addWidget(widget);
-
-    const cropState = widget.getWidgetState().getCroppingPlanes();
-    cropState.onModified(() => {
-      const planes = getCroppingPlanes(image, cropState.getPlanes());
-      mapper.removeAllClippingPlanes();
-      planes.forEach(plane => {
-        mapper.addClippingPlane(plane);
-      });
-      mapper.modified();
-    });
-
-    // wire up the reader, crop filter, and mapper
-    let mapper = this.actor.getMapper();
-    let image = mapper.getInputData();
-
-    widget.copyImageDataDescription(image);
-
-    widget.set({
-      faceHandlesEnabled: true,
-      edgeHandlesEnabled: true,
-      cornerHandlesEnabled: true
-    });
-
-    widgetManager.enablePicking();
-
-    this._widgetManager = widgetManager;
-    this._cropWidget = widget; // or viewWidget ?
+    this._widgetManager = cropWidget.widgetManager;
+    this._cropWidget = cropWidget.widget;
 
     this.renderWindow.render();
-  }
-
-  /**
-   * Append a vtkPiecewiseGaussianWidget into the target element
-   * @private
-   * @param {HTMLElement} widgetContainer - The target element to place the widget
-   */
-  setupPGwidget() {
-    let containerWidth = this.PGwidgetElement
-      ? this.PGwidgetElement.offsetWidth - 5
-      : 300;
-    let containerHeight = this.PGwidgetElement
-      ? this.PGwidgetElement.offsetHeight - 5
-      : 100;
-
-    const PGwidget = vtkPiecewiseGaussianWidget.newInstance({
-      numberOfBins: 256,
-      size: [containerWidth, containerHeight]
-    });
-    // TODO expose style
-    PGwidget.updateStyle({
-      backgroundColor: "rgba(255, 255, 255, 0.6)",
-      histogramColor: "rgba(50, 50, 50, 0.8)",
-      strokeColor: "rgb(0, 0, 0)",
-      activeColor: "rgb(255, 255, 255)",
-      handleColor: "rgb(50, 150, 50)",
-      buttonDisableFillColor: "rgba(255, 255, 255, 0.5)",
-      buttonDisableStrokeColor: "rgba(0, 0, 0, 0.5)",
-      buttonStrokeColor: "rgba(0, 0, 0, 1)",
-      buttonFillColor: "rgba(255, 255, 255, 1)",
-      strokeWidth: 1,
-      activeStrokeWidth: 1.5,
-      buttonStrokeWidth: 1,
-      handleWidth: 1,
-      iconSize: 0, // Can be 0 if you want to remove buttons (dblClick for (+) / rightClick for (-))
-      padding: 1
-    });
-
-    // to hide widget
-    PGwidget.setContainer(this.PGwidgetElement); // Set to null to hide
-
-    // resize callback
-    window.addEventListener("resize", evt => {
-      PGwidget.setSize(
-        this.PGwidgetElement.offsetWidth - 5,
-        this.PGwidgetElement.offsetHeight - 5
-      );
-      PGwidget.render();
-    });
-
-    this.PGwidget = PGwidget;
   }
 
   /**
@@ -724,31 +599,16 @@ export class VRView {
     // ----------------------------------------------------------------------------
     // Setup picking interaction
     // ----------------------------------------------------------------------------
-    // Only try to pick points
+    // TODO this is slow the first time we pick, maybe we could use cellPicker and decrease resolution
     const picker = vtkPointPicker.newInstance();
     picker.setPickFromList(1);
     picker.initializePickList();
 
     if (!this._pickingPlane) {
       // add a 1000x1000 plane
-      // TODO this is slow the first time we pick, maybe we could use cellPicker and decrease resolution
-      const plane = vtkPlaneSource.newInstance({
-        xResolution: 1000,
-        yResolution: 1000
-      });
       let camera = this.renderer.getActiveCamera();
-      plane.setPoint1(0, 0, 1000);
-      plane.setPoint2(1000, 0, 0);
-      plane.setCenter(this.actor.getCenter());
-      plane.setNormal(camera.getDirectionOfProjection());
-
-      const mapper = vtkMapper.newInstance();
-      mapper.setInputConnection(plane.getOutputPort());
-      const planeActor = vtkActor.newInstance();
-      planeActor.setMapper(mapper);
-      planeActor.getProperty().setOpacity(0.01); // with opacity = 0 it is ignored by picking
+      let { plane, planeActor } = setupPickingPlane(camera, this.actor);
       this.renderer.addActor(planeActor);
-
       this._pickingPlane = plane;
       this._planeActor = planeActor;
     }
@@ -772,28 +632,12 @@ export class VRView {
           const pickedPoint = picker.getPickPosition();
           if (this.VERBOSE)
             console.log(`No point picked, default: ${pickedPoint}`);
-          // const sphere = vtkSphereSource.newInstance();
-          // sphere.setCenter(pickedPoint);
-          // sphere.setRadius(0.01);
-          // const sphereMapper = vtkMapper.newInstance();
-          // sphereMapper.setInputData(sphere.getOutputData());
-          // const sphereActor = vtkActor.newInstance();
-          // sphereActor.setMapper(sphereMapper);
-          // sphereActor.getProperty().setColor(1.0, 0.0, 0.0);
-          // this.renderer.addActor(sphereActor);
+          // addSphereInPoint(pickedPoint, this.renderer);
         } else {
           const pickedPoints = picker.getPickedPositions();
           const pickedPoint = pickedPoints[0]; // always a single point on a plane
           if (this.VERBOSE) console.log(`Picked: ${pickedPoint}`);
-          // const sphere = vtkSphereSource.newInstance();
-          // sphere.setCenter(pickedPoint);
-          // sphere.setRadius(10);
-          // const sphereMapper = vtkMapper.newInstance();
-          // sphereMapper.setInputData(sphere.getOutputData());
-          // const sphereActor = vtkActor.newInstance();
-          // sphereActor.setMapper(sphereMapper);
-          // sphereActor.getProperty().setColor(0.0, 1.0, 0.0);
-          // this.renderer.addActor(sphereActor);
+          // addSphereInPoint(pickedPoint, this.renderer);
 
           // canvas coord
           const wPos = vtkCoordinate.newInstance();
@@ -817,8 +661,8 @@ export class VRView {
    */
   resetView() {
     let center = this.actor.getCenter();
-    console.log(center);
-    this.setCamera(center);
+    let camera = this.renderer.getActiveCamera();
+    setCamera(camera, center);
     this.renderWindow.render();
   }
 
@@ -834,21 +678,6 @@ export class VRView {
    * Destroy webgl content and release listeners
    */
   destroy() {
-    // leave these comments for now
-
-    // this.PGwidget.delete();
-    // this.actor.getMapper().delete();
-    // this.actor.delete();
-    // this.renderWindow.getInteractor().delete();
-    // this.renderWindow.delete();
-    // this.renderer.delete();
-
-    // this.renderer.delete();
-    // this.renderer = null;
-    // this.renderWindow.getInteractor().delete();
-    // this.renderWindow.delete();
-    // this.renderWindow = null;
-
     this.element = null;
     this._genericRenderWindow.delete();
     this._genericRenderWindow = null;
