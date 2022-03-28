@@ -72695,7 +72695,7 @@ class VRView extends baseView {
       return;
     }
 
-    let relativeWwwl = getRelativeRange(this.actor, value);
+    let relativeWwwl = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.getRelativeRange)(this.actor, value);
 
     this.wl = relativeWwwl.wl;
     this.ww = relativeWwwl.ww;

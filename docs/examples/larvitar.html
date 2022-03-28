@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html class="h-100 overflow-hidden">
+  <head>
+    <meta charset="UTF-8" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/styles/vs2015.min.css"
+    />
+    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/highlight.min.js"></script>
+    <script>
+      hljs.highlightAll();
+    </script>
+    <title>DigletTK - VR example</title>
+  </head>
+
+  <body class="h-100" style="background-color: #000000; color: #ffffff">
+    <div class="row h-100">
+      <!-- views -->
+      <div class="col-8 h-100">
+        <div class="row h-50">
+          <div
+            id="viewer"
+            class="h-100"
+            style="background-color: rgb(0, 0, 0)"
+          ></div>
+        </div>
+
+        <div class="row h-50">
+          <div
+            id="viewer-2"
+            class="h-100"
+            style="background-color: rgb(0, 0, 0)"
+          ></div>
+        </div>
+      </div>
+
+      <!-- code preview -->
+      <div class="col-4 h-100">
+        <!-- widget target element -->
+        <h3 style="margin-bottom: 20px">Opacity Widget</h3>
+        <pre>
+Drag outside the gaussian to move it along the histogram.
+Drag inside the gaussian to modify its shape.
+Double click to add a curve.
+Right click to delete a curve.
+        </pre>
+
+        <!-- inputs -->
+        <form class="form-inline">
+          <div style="margin-bottom: 4px">
+            <label class="sr-only" for="select-lut">LUT</label>
+            <select
+              style="max-width: 150px"
+              id="select-lut"
+              onchange="updateLut(this.options[this.selectedIndex].text)"
+            ></select>
+            <input
+              checked
+              type="checkbox"
+              class="custom-control-input"
+              id="customControlAutosizing"
+              onchange="updateRescale(this.checked)"
+            />
+            <label class="custom-control-label" for="customControlAutosizing"
+              >rescale LUT</label
+            >
+          </div>
+        </form>
+        <!-- end inputs -->
+
+        <div
+          id="widget"
+          style="height: 120px; margin: auto; border: 3px solid green"
+        ></div>
+        <h3 style="margin-top: 20px; margin-bottom: 10px">Code Example</h3>
+        <pre class="h-100">
+          <code class="javascript">
+            const element = document.getElementById("viewer-2");
+            const widgetContainer = document.getElementById("widget");
+      
+            let header;
+      
+            diglettk.loadDemoSerieWithLarvitar("knee", larvitar, serie => {
+              console.log(serie);
+              // build vtk volume with larvitar
+              header = larvitar.buildHeader(serie);
+              larvitar.buildDataAsync(serie, 30, onSuccess, onError);
+            });
+       
+            function onSuccess(volume) {
+              data = volume;
+              const image = diglettk.buildVtkVolume(header, volume);
+              // run vr
+              vr = new diglettk.VRView(element);
+              // set an image
+              vr.setImage(image);
+              // set widget element to control opacity
+              vr.widgetElement = widgetContainer;
+              // set a LUT
+              let lutList = vr.getLutList();
+              fillSelect(lutList, "MuscleBone");
+              // vr.lut = lutList[0];
+              vr.lut = "MuscleBone";
+              vr.rescaleLUT = true;
+            }
+      
+            function onError(err) {
+              console.error(err);
+            }
+          </code>
+        </pre>
+      </div>
+    </div>
+
+    <script src="./diglettk.js"></script>
+    <script src="./larvitar.js"></script>
+
+    <script>
+      let vr = null;
+
+      function fillSelect(list, initialLUT) {
+        let select = document.getElementById("select-lut");
+        let index = 0;
+        for (let element of list) {
+          var opt = document.createElement("option");
+          opt.value = index;
+          opt.innerHTML = element;
+          select.appendChild(opt);
+          index++;
+        }
+      }
+
+      function updateLut(v) {
+        console.log("update LUT", v);
+        vr.lut = v;
+      }
+
+      function updateRescale(v) {
+        console.log("rescale", v);
+        vr.rescaleLUT = v;
+      }
+
+      const element = document.getElementById("viewer-2");
+      const widgetContainer = document.getElementById("widget");
+
+      let header;
+
+      diglettk.loadDemoSerieWithLarvitar("knee", larvitar, serie => {
+        console.log(serie);
+        // build vtk volume with larvitar
+        header = larvitar.buildHeader(serie);
+        larvitar.buildDataAsync(serie, 30, onSuccess, onError);
+      });
+
+      function onSuccess(volume) {
+        data = volume;
+        const image = diglettk.buildVtkVolume(header, volume);
+        // run vr
+        vr = new diglettk.VRView(element);
+        // set an image
+        vr.setImage(image);
+        // set widget element to control opacity
+        vr.widgetElement = widgetContainer;
+        // set a LUT
+        let lutList = vr.getLutList();
+        fillSelect(lutList, "MuscleBone");
+        // vr.lut = lutList[0];
+        vr.lut = "MuscleBone";
+        vr.rescaleLUT = true;
+      }
+
+      function onError(err) {
+        console.error(err);
+      }
+    </script>
+  </body>
+</html>
