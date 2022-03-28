@@ -160,7 +160,7 @@ vr.rescaleLUT = true;
         .then(_header => {
           header = _header;
           console.log("header", header);
-          fetch("./demo/data1.json")
+          fetch("./demo/data.json")
             .then(data => data.arrayBuffer())
             .then(buffer => {
               console.log(buffer);

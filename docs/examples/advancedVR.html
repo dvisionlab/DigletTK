@@ -145,9 +145,10 @@ vr.rescaleLUT = true;
           header = _header;
           console.log("header", header);
           fetch("./demo/data.json")
-            .then(data => data.json())
-            .then(objData => {
-              data = new Int16Array(Object.values(objData));
+            .then(data => data.arrayBuffer())
+            .then(buffer => {
+              console.log(buffer);
+              data = new Int16Array(buffer);
               console.log("data", data);
               loadScene();
             });
