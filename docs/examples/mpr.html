@@ -9,9 +9,9 @@
       crossorigin="anonymous"
     />
     <link
-    rel="stylesheet"
-    href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/styles/vs2015.min.css"
-  />
+      rel="stylesheet"
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/styles/vs2015.min.css"
+    />
     <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/highlight.min.js"></script>
     <script>
       hljs.highlightAll();
@@ -19,39 +19,26 @@
     <title>DigletTK - MPR example</title>
   </head>
 
-  <body class="h-100" style="background-color: #000000; color:#ffffff">
-
+  <body class="h-100" style="background-color: #000000; color: #ffffff">
     <div class="row h-100">
-
       <!-- quadview -->
       <div class="col-8 h-100">
-
-        <div class="row h-50">
-          <div
-            id="viewer"
-            class="col-6 h-100"
-            style="background-color: rgb(0, 0, 0)"
-          ></div>
+        <div class="row h-100">
           <div
             id="viewer-1"
-            class="col-6 h-100"
+            class="col-4 h-100"
             style="background-color: rgb(0, 0, 0)"
           ></div>
-
-        </div>
-
-        <div class="row h-50">
           <div
             id="viewer-2"
-            class="col-6 h-100"
+            class="col-4 h-100"
             style="background-color: rgb(0, 0, 0)"
           ></div>
           <div
             id="viewer-3"
-            class="col-6 h-100"
+            class="col-4 h-100"
             style="background-color: rgb(0, 0, 0)"
           ></div>
-
         </div>
       </div>
 
@@ -95,43 +82,51 @@
         element: document.getElementById("viewer-3"),
         key: "front"
       }
-    };
-    
-    // =============================================
-    // Import a serie with Larvitar and load mpr ===
-    // =============================================
-    
-    diglettk.loadSerieWithLarvitar(larvitar, serie => {
-      let header = larvitar.buildHeader(serie);
-      let data = larvitar.buildData(serie, false);
-      // build vtk volume with larvitar
-      const image = diglettk.buildVtkVolume(header, data);
-      // run mpr
-      let mpr = new diglettk.MPRManager(targetElements);
-      // get initial state obj
-      let state = mpr.getInitialState();
-      console.log("state", state);
-      // set image
-      mpr.setImage(state, image);
-      // set active tool ("level" or "crosshair")
-      mpr.setTool("level", state);
-      // add keyoboard events to interact with mpr
-      addEvents(mpr, state);
-    });
+  };
+  
+  // =============================
+  // Build volume and load mpr ===
+  // =============================
+
+  /**
+  * Header must be in the form:
+  * {
+  *   volume: {
+  *            rows: number,
+  *            cols: number.
+  *            imageIds: [],
+  *            imagePosition: [number, number, number],
+  *            sliceThickness: number
+  *           }
+  * }
+  *
+  * Data is a TypedArray
+  */
+  
+  // build vtk volume with larvitar
+  const image = diglettk.buildVtkVolume(header, data);
+  // run mpr
+  mpr = new diglettk.MPRManager(targetElements);
+  // get initial state obj
+  state = mpr.getInitialState();
+  console.log("state", state);
+  // set image
+  mpr.setImage(state, image);
+  // set active tool ("level" or "crosshair")
+  mpr.setTool("level", state);
+  // add keyoboard events to interact with mpr
+  addEvents(mpr, state);
                 
           </code>
         </pre>
-          
       </div>
-        
     </div>
-    
+
     <script src="./diglettk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
     <script src="./larvitar.js"></script>
 
     <script>
-
       let mpr, state;
 
       // =====================
@@ -141,7 +136,7 @@
       const targetElements = {
         top: {
           element: document.getElementById("viewer-1"),
-          key: "top",
+          key: "top"
         },
         left: {
           element: document.getElementById("viewer-2"),
@@ -153,13 +148,32 @@
         }
       };
 
-      // =============================================
-      // Import a serie with Larvitar and load mpr ===
-      // =============================================
+      // =====================
+      // Fetch data ==========
+      // =====================
 
-      diglettk.loadDemoSerieWithLarvitar('knee', larvitar, serie => {
-        let header = larvitar.buildHeader(serie);
-        let data = larvitar.buildData(serie, false);
+      let header, data;
+
+      fetch("./demo/header.json")
+        .then(data => data.json())
+        .then(_header => {
+          header = _header;
+          console.log("header", header);
+          fetch("./demo/data.json")
+            .then(data => data.arrayBuffer())
+            .then(buffer => {
+              console.log(buffer);
+              data = new Int16Array(buffer);
+              console.log("data", data);
+              loadScene();
+            });
+        });
+
+      // =============================
+      // Build volume and load mpr ===
+      // =============================
+
+      function loadScene() {
         // build vtk volume with larvitar
         const image = diglettk.buildVtkVolume(header, data);
         // run mpr
@@ -173,7 +187,7 @@
         mpr.setTool("level", state);
         // add keyoboard events to interact with mpr
         addEvents(mpr, state);
-      });
+      }
 
       // =======================================
       // TESTING EVENTS ========================
@@ -294,17 +308,15 @@
             stateUI.front.dist = 0;
           }
         });
-
       }
 
       // =======================
       // switch tool ===========
       // =======================
 
-      function updateTool(tool){
+      function updateTool(tool) {
         mpr.setTool(tool, state);
       }
-
     </script>
   </body>
 </html>

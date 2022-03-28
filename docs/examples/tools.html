@@ -9,9 +9,9 @@
       crossorigin="anonymous"
     />
     <link
-    rel="stylesheet"
-    href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/styles/vs2015.min.css"
-  />
+      rel="stylesheet"
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/styles/vs2015.min.css"
+    />
     <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/highlight.min.js"></script>
     <script>
       hljs.highlightAll();
@@ -19,34 +19,21 @@
     <title>DigletTK - VR example</title>
   </head>
 
-  <body class="h-100" style="background-color: #000000; color:#ffffff">
-
+  <body class="h-100" style="background-color: #000000; color: #ffffff">
     <div class="row h-100">
-
       <!-- views -->
       <div class="col-8 h-100">
-
-        <div class="row h-50">
-          <div
-            id="viewer"
-            class="h-100"
-            style="background-color: rgb(0, 0, 0)"
-          ></div>
-        </div>
-
-        <div class="row h-50">
-          <div
-            id="viewer-2"
-            class="h-100"
-            style="background-color: rgb(0, 0, 0)"
-          ></div>
-        </div>
+        <div
+          id="viewer-2"
+          class="h-100"
+          style="background-color: rgb(0, 0, 0)"
+        ></div>
       </div>
 
       <!-- code preview -->
       <div class="col-4 h-100">
         <!-- widget target element -->
-        <h3 style="margin-bottom: 20px;">Opacity Widget</h3>
+        <h3 style="margin-bottom: 20px">Opacity Widget</h3>
         <pre>
 Rotation: drag to rotate
 Length and angle: click 2x or 3x  
@@ -54,25 +41,59 @@ Length and angle: click 2x or 3x
 
         <!-- inputs -->
         <form class="form-inline">
-          <div style="margin-bottom: 4px;"> 
-            <div class="btn-group" role="group" aria-label="Basic radio toggle button group">
-                <input type="radio" class="btn-check" name="btnradio" id="btn-level" autocomplete="off" checked onclick="updateTool('Rotation')">
-                <label class="btn btn-outline-danger" for="btn-level">Rotation</label>
-              
-                <input type="radio" class="btn-check" name="btnradio" id="btn-cross" autocomplete="off" onclick="updateTool('Length')">
-                <label class="btn btn-outline-danger" for="btn-cross">Length</label>
-            
-                <input type="radio" class="btn-check" name="btnradio" id="btn-pan" autocomplete="off" onclick="updateTool('Angle')">
-                <label class="btn btn-outline-danger" for="btn-pan">Angle</label>
-              </div>
+          <div style="margin-bottom: 4px">
+            <div
+              class="btn-group"
+              role="group"
+              aria-label="Basic radio toggle button group"
+            >
+              <input
+                type="radio"
+                class="btn-check"
+                name="btnradio"
+                id="btn-level"
+                autocomplete="off"
+                checked
+                onclick="updateTool('Rotation')"
+              />
+              <label class="btn btn-outline-danger" for="btn-level"
+                >Rotation</label
+              >
+
+              <input
+                type="radio"
+                class="btn-check"
+                name="btnradio"
+                id="btn-cross"
+                autocomplete="off"
+                onclick="updateTool('Length')"
+              />
+              <label class="btn btn-outline-danger" for="btn-cross"
+                >Length</label
+              >
+
+              <input
+                type="radio"
+                class="btn-check"
+                name="btnradio"
+                id="btn-pan"
+                autocomplete="off"
+                onclick="updateTool('Angle')"
+              />
+              <label class="btn btn-outline-danger" for="btn-pan">Angle</label>
+            </div>
           </div>
         </form>
         <!-- end inputs -->
 
-        <label style="margin-right: 4px;">Measure:</label><label id="result"></label>
+        <label style="margin-right: 4px">Measure:</label
+        ><label id="result"></label>
 
-        <div id="widget" style="height: 120px; margin:auto; border: 3px solid green"></div>
-        <h3 style="margin-top: 20px; margin-bottom: 10px;">Code Example</h3>
+        <div
+          id="widget"
+          style="height: 120px; margin: auto; border: 3px solid green"
+        ></div>
+        <h3 style="margin-top: 20px; margin-bottom: 10px">Code Example</h3>
         <pre class="h-100">
           <code class="javascript">
 const element = document.getElementById('viewer-2')
@@ -81,23 +102,20 @@ const widgetContainer = document.getElementById("widget");
 // init state
 let state = {p1:new Array(2), p2: new Array(2), p3: new Array(2), label:''}
 
-diglettk.loadSerieWithLarvitar(larvitar, serie => {
-  let header = larvitar.buildHeader(serie);
-  let data = larvitar.buildData(serie, false);
-  console.log(serie)
-  // build vtk volume with larvitar
-  const image = diglettk.buildVtkVolume(header, data);
-  // run vr
-  let vr = new diglettk.VRView(element);
-  // set an image
-  vr.setImage(image);
-  // set widget element to control opacity 
-  vr.widgetElement = widgetContainer;
-  // set a LUT 
-  vr.lut = "2hot";
-  // set a tool
-  vr.setTool("Rotation", {}, state)
-})
+const image = diglettk.buildVtkVolume(header, data);
+// run vr
+vr = new diglettk.VRView(element);
+// set an image
+vr.setImage(image);
+// set widget element to control opacity
+vr.widgetElement = widgetContainer;
+// set a LUT
+let lutList = vr.getLutList();
+vr.lut = lutList[13];
+vr.rescaleLUT = true;
+vr.wwwl = [500, 1000];
+// set a tool
+vr.setTool("Rotation", {}, state);
 
 function updateTool(toolName){
     vr.resetMeasurementState(state);
@@ -105,74 +123,91 @@ function updateTool(toolName){
 }
           </code>
         </pre>
-          
       </div>
-        
     </div>
-    
 
     <script src="./diglettk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
-    <script src="./larvitar.js"></script>
 
     <script>
-        const overlaySize = 15;
-        const overlayBorder = 2;
-        const overlay = document.createElement('div');
-        overlay.style.position = 'absolute';
-        overlay.style.width = `${overlaySize}px`;
-        overlay.style.height = `${overlaySize}px`;
-        overlay.style.border = `solid ${overlayBorder}px red`;
-        overlay.style.borderRadius = '50%';
-        overlay.style.left = '-100px';
-        overlay.style.pointerEvents = 'none';
-        overlay.id = "overlay";
+      const overlaySize = 15;
+      const overlayBorder = 2;
+      const overlay = document.createElement("div");
+      overlay.style.position = "absolute";
+      overlay.style.width = `${overlaySize}px`;
+      overlay.style.height = `${overlaySize}px`;
+      overlay.style.border = `solid ${overlayBorder}px red`;
+      overlay.style.borderRadius = "50%";
+      overlay.style.left = "-100px";
+      overlay.style.pointerEvents = "none";
+      overlay.id = "overlay";
 
-        let vr = null;
+      let vr = null;
 
-        const element = document.getElementById('viewer-2')
-        element.appendChild(overlay);
-        const widgetContainer = document.getElementById("widget");
-        let state = {p1:new Array(2), p2: new Array(2), p3: new Array(2), label:''}
+      const element = document.getElementById("viewer-2");
+      element.appendChild(overlay);
+      const widgetContainer = document.getElementById("widget");
 
-        diglettk.loadDemoSerieWithLarvitar('knee', larvitar, serie => {
-            // build vtk volume with larvitar
-            let header = larvitar.buildHeader(serie);
-            let data = larvitar.buildData(serie, false);
-            console.log(serie)
-            const image = diglettk.buildVtkVolume(header, data);
-            // run vr
-            vr = new diglettk.VRView(element);
-            // set an image
-            vr.setImage(image);
-            // set widget element to control opacity 
-            vr.widgetElement = widgetContainer;
-            // set a LUT 
-            let lutList = vr.getLutList();
-            vr.lut = lutList[13];
-            vr.rescaleLUT = true;
-            // set a tool
-            vr.setTool("Rotation", {}, state)
-        })
+      let state = {
+        p1: new Array(2),
+        p2: new Array(2),
+        p3: new Array(2),
+        label: ""
+      };
 
-        element.addEventListener('mouseup', ()=>{
-            console.log(state)
-            document.getElementById('result').innerHTML = state.label
+      let header, data;
 
-            let pt = state.p3[0] ? state.p3 : (state.p2[0] ? state.p2 : state.p1);
-            let px = pt[0] - overlaySize - overlayBorder
-            let py = window.innerHeight - pt[1] - (overlaySize * 0.5 - overlayBorder)
-            document.getElementById('overlay').style.left = `${px}px`
-            document.getElementById('overlay').style.top = `${py}px`
-        })
+      fetch("./demo/header.json")
+        .then(data => data.json())
+        .then(_header => {
+          header = _header;
+          console.log("header", header);
+          fetch("./demo/data.json")
+            .then(data => data.arrayBuffer())
+            .then(buffer => {
+              console.log(buffer);
+              data = new Int16Array(buffer);
+              console.log("data", data);
+              loadScene();
+            });
+        });
 
-        function updateTool(toolName){
-            vr.resetMeasurementState(state);
-            vr.setTool(toolName, {}, state)
-            document.getElementById('result').innerHTML = state.label
-            document.getElementById('overlay').style.left = `-10px`
-            document.getElementById('overlay').style.top = `-10px`
-        }
+      function loadScene() {
+        const image = diglettk.buildVtkVolume(header, data);
+        // run vr
+        vr = new diglettk.VRView(element);
+        // set an image
+        vr.setImage(image);
+        // set widget element to control opacity
+        vr.widgetElement = widgetContainer;
+        // set a LUT
+        let lutList = vr.getLutList();
+        vr.lut = lutList[13];
+        vr.rescaleLUT = true;
+        vr.wwwl = [500, 1000];
+        // set a tool
+        vr.setTool("Rotation", {}, state);
+      }
+
+      element.addEventListener("mouseup", () => {
+        console.log(state);
+        document.getElementById("result").innerHTML = state.label;
+
+        let pt = state.p3[0] ? state.p3 : state.p2[0] ? state.p2 : state.p1;
+        let px = pt[0] - overlaySize - overlayBorder;
+        let py =
+          window.innerHeight - pt[1] - (overlaySize * 0.5 - overlayBorder);
+        document.getElementById("overlay").style.left = `${px}px`;
+        document.getElementById("overlay").style.top = `${py}px`;
+      });
+
+      function updateTool(toolName) {
+        vr.resetMeasurementState(state);
+        vr.setTool(toolName, {}, state);
+        document.getElementById("result").innerHTML = state.label;
+        document.getElementById("overlay").style.left = `-10px`;
+        document.getElementById("overlay").style.top = `-10px`;
+      }
     </script>
   </body>
 </html>

@@ -88,8 +88,10 @@ export function fitToWindow(genericRenderWindow, dir) {
   }
 }
 
+/**
+ * Utility function to read, parse, load and render a dcm serie with larvitar (tested with larvitar 1.2.7)
+ */
 let larvitarInitialized = false;
-
 export function loadDemoSerieWithLarvitar(name, lrv, cb) {
   let demoFiles = [];
   let counter = 0;
@@ -134,17 +136,15 @@ export function loadDemoSerieWithLarvitar(name, lrv, cb) {
   // load dicom and render
   demoFileList.forEach(function (demoFile) {
     createFile(demoFile, () => {
-      lrv.resetImageParsing();
-      lrv.readFiles(demoFiles, function (seriesStack, err) {
+      larvitar.resetLarvitarManager();
+      larvitar.readFiles(demoFiles).then(seriesStack => {
         // return the first series of the study
-        let seriesId = _.keys(seriesStack)[0];
+        let seriesId = Object.keys(seriesStack)[0];
         let serie = seriesStack[seriesId];
 
         // hack to avoid load and cache (render + timeout)
         lrv.renderImage(serie, "viewer");
-        if (cb) {
-          setTimeout(cb, 3000, serie); // increase timeout if "getPixelData" error
-        }
+        cb(serie);
       });
     });
   });

@@ -18,7 +18,8 @@ import {
   setCamera,
   setActorProperties,
   setupCropWidget,
-  setupPickingPlane
+  setupPickingPlane,
+  getRelativeRange
 } from "./utils/utils";
 import { applyStrategy } from "./utils/strategies";
 import { createPreset } from "./utils/colormaps";
