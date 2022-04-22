@@ -30,21 +30,6 @@ import { baseView } from "./baseView";
 // Add custom presets
 vtkColorMaps.addPreset(createPreset());
 
-//TODO interactions:
-
-/**
- * setTool("Length/Angle", {mouseButtonMask:1}, measurementState); => Change interactor on left mouse button
- * setupMouseButtons(config); => Initialize right mouse button behaviour
- *
- * Measurement state structure:
- * measurementState = {
- *  p1: [0, 0],
- *  p2: [0, 0],
- *  p3: [0, 0],
- *  label: `string`
- * }
- */
-
 /** A class representing a Volume Rendering scene */
 export class VRView extends baseView {
   /**
@@ -56,29 +41,29 @@ export class VRView extends baseView {
 
     this.VERBOSE = false;
 
-    this.element = element;
-    this.renderer = null;
-    this.renderWindow = null;
+    this._element = element;
+    this._renderer = null;
+    this._renderWindow = null;
     this._genericRenderWindow = null;
-    this.actor = null;
+    this._actor = null;
     this._raysDistance = null;
     this._blurOnInteraction = null;
 
     // piecewise gaussian widget stuff
-    this.PGwidgetElement = null;
-    this.PGwidget = null;
-    this.gaussians = null;
+    this._PGwidgetElement = null;
+    this._PGwidget = null;
+    this._gaussians = null;
     this._PGwidgetLoaded = false;
 
     // crop widget
     this._cropWidget = null;
 
     // normalized ww wl
-    this.ww = 0.1;
-    this.wl = 0.4;
+    this._ww = 0.1;
+    this._wl = 0.4;
 
     // absolute ww wl
-    this.wwwl = [0, 0];
+    this._wwwl = [0, 0];
 
     // LUT options
     this._rangeLUT = null;
@@ -90,30 +75,34 @@ export class VRView extends baseView {
     // measurement state
     this._measurementState = null;
 
-    this.initVR();
+    this._initVR();
   }
+
+  // ===========================================================
+  // ====== setters & getters ==================================
+  // ===========================================================
 
   /**
    * wwwl
    * @type {Array}
    */
   set wwwl(value) {
-    if (!this.actor) {
+    if (!this._actor) {
       return;
     }
 
-    let relativeWwwl = getRelativeRange(this.actor, value);
+    let relativeWwwl = getRelativeRange(this._actor, value);
 
-    this.wl = relativeWwwl.wl;
-    this.ww = relativeWwwl.ww;
+    this._wl = relativeWwwl.wl;
+    this._ww = relativeWwwl.ww;
 
-    if (this.PGwidget) {
-      this.updateWidget();
+    if (this._PGwidget) {
+      this._updateWidget();
     }
   }
 
   get wwwl() {
-    let absoluteWwwl = getAbsoluteRange(this.actor, [this.ww, this.wl]);
+    let absoluteWwwl = getAbsoluteRange(this._actor, [this._ww, this._wl]);
     return [absoluteWwwl.ww, absoluteWwwl.wl];
   }
 
@@ -123,10 +112,10 @@ export class VRView extends baseView {
    */
   set resolution(value) {
     this._raysDistance = 1 / value;
-    this.actor.getMapper().setSampleDistance(this._raysDistance);
+    this._actor.getMapper().setSampleDistance(this._raysDistance);
     let maxSamples = value > 1 ? value * 1000 : 1000;
-    this.actor.getMapper().setMaximumSamplesPerRay(maxSamples);
-    this.renderWindow.render();
+    this._actor.getMapper().setMaximumSamplesPerRay(maxSamples);
+    this._renderWindow.render();
   }
 
   get resolution() {
@@ -146,12 +135,12 @@ export class VRView extends baseView {
    * @type {HTMLelement}
    */
   set widgetElement(element) {
-    this.PGwidgetElement = element;
+    this._PGwidgetElement = element;
     let h = element.offsetHeight ? element.offsetHeight - 5 : 100;
     let w = element.offsetWidth ? element.offsetWidth - 5 : 300;
-    this.PGwidget.setSize(w, h);
-    this.PGwidget.setContainer(this.PGwidgetElement);
-    this.PGwidget.render();
+    this._PGwidget.setSize(w, h);
+    this._PGwidget.setContainer(this._PGwidgetElement);
+    this._PGwidget.render();
   }
 
   /**
@@ -161,10 +150,10 @@ export class VRView extends baseView {
   set rescaleLUT(bool) {
     this._rescaleLUT = bool;
     let range;
-    if (this._rescaleLUT && this.PGwidget) {
-      range = this.PGwidget.getOpacityRange();
+    if (this._rescaleLUT && this._PGwidget) {
+      range = this._PGwidget.getOpacityRange();
     } else {
-      range = this.actor
+      range = this._actor
         .getMapper()
         .getInputData()
         .getPointData()
@@ -181,7 +170,7 @@ export class VRView extends baseView {
    */
   set rangeLUT([min, max]) {
     this._rangeLUT = [min, max];
-    this.actor
+    this._actor
       .getProperty()
       .getRGBTransferFunction(0)
       .setMappingRange(min, max);
@@ -195,7 +184,7 @@ export class VRView extends baseView {
     if (!this._cropWidget) this._initCropWidget();
     this._cropWidget.setVisibility(visible);
     this._widgetManager.renderWidgets();
-    this.renderWindow.render();
+    this._renderWindow.render();
   }
 
   /**
@@ -212,9 +201,9 @@ export class VRView extends baseView {
     let range;
 
     if (this._rescaleLUT && this._PGwidgetLoaded) {
-      range = this.PGwidget.getOpacityRange();
+      range = this._PGwidget.getOpacityRange();
     } else {
-      range = this.actor
+      range = this._actor
         .getMapper()
         .getInputData()
         .getPointData()
@@ -226,16 +215,16 @@ export class VRView extends baseView {
     lookupTable.setMappingRange(...range);
     lookupTable.updateRange();
 
-    this.actor.getProperty().setRGBTransferFunction(0, lookupTable);
+    this._actor.getProperty().setRGBTransferFunction(0, lookupTable);
 
     // setup opacity function (values will be set by PGwidget)
     const piecewiseFun = vtkPiecewiseFunction.newInstance();
-    this.actor.getProperty().setScalarOpacity(0, piecewiseFun);
+    this._actor.getProperty().setScalarOpacity(0, piecewiseFun);
 
     this.ctfun = lookupTable;
     this.ofun = piecewiseFun;
 
-    this.updateWidget();
+    this._updateWidget();
   }
 
   /**
@@ -244,8 +233,8 @@ export class VRView extends baseView {
    */
   set blurOnInteraction(toggle) {
     this._blurOnInteraction = toggle;
-    let interactor = this.renderWindow.getInteractor();
-    let mapper = this.actor.getMapper();
+    let interactor = this._renderWindow.getInteractor();
+    let mapper = this._actor.getMapper();
 
     if (toggle) {
       interactor.onLeftButtonPress(() => {
@@ -255,10 +244,10 @@ export class VRView extends baseView {
       interactor.onLeftButtonRelease(() => {
         mapper.setSampleDistance(this._raysDistance);
         // update picking plane
-        let camera = this.renderer.getActiveCamera();
+        let camera = this._renderer.getActiveCamera();
         if (this._pickingPlane)
           this._pickingPlane.setNormal(camera.getDirectionOfProjection());
-        this.renderWindow.render();
+        this._renderWindow.render();
       });
     } else {
       interactor.onLeftButtonPress(() => {
@@ -268,10 +257,10 @@ export class VRView extends baseView {
       interactor.onLeftButtonRelease(() => {
         mapper.setSampleDistance(this._raysDistance);
         // update picking plane
-        let camera = this.renderer.getActiveCamera();
+        let camera = this._renderer.getActiveCamera();
         if (this._pickingPlane)
           this._pickingPlane.setNormal(camera.getDirectionOfProjection());
-        this.renderWindow.render();
+        this._renderWindow.render();
       });
     }
   }
@@ -281,47 +270,14 @@ export class VRView extends baseView {
    */
   set edgeEnhancement([type, value]) {
     let renderPass = getRenderPass(type, value);
-    let view = this.renderWindow.getViews()[0];
+    let view = this._renderWindow.getViews()[0];
     view.setRenderPasses([renderPass]);
-    this.renderWindow.render();
+    this._renderWindow.render();
   }
 
-  /**
-   * Initialize rendering scene
-   * @private
-   */
-  initVR() {
-    const genericRenderWindow = vtkGenericRenderWindow.newInstance();
-    genericRenderWindow.setContainer(this.element);
-    genericRenderWindow.setBackground([0, 0, 0]);
-
-    //add custom resize cb
-    genericRenderWindow.onResize(() => {
-      // bypass genericRenderWindow resize method (do not consider devicePixelRatio)
-      // https://kitware.github.io/vtk-js/api/Rendering_Misc_GenericRenderWindow.html
-      let size = [
-        genericRenderWindow.getContainer().getBoundingClientRect().width,
-        genericRenderWindow.getContainer().getBoundingClientRect().height
-      ];
-      genericRenderWindow.getRenderWindow().getViews()[0].setSize(size);
-
-      if (this.VERBOSE) console.log("resize", size);
-    });
-
-    // resize callback
-    window.addEventListener("resize", evt => {
-      genericRenderWindow.resize();
-    });
-
-    genericRenderWindow.resize();
-
-    this.renderer = genericRenderWindow.getRenderer();
-    this.renderWindow = genericRenderWindow.getRenderWindow();
-    this._genericRenderWindow = genericRenderWindow;
-
-    // initalize piecewise gaussian widget
-    this.PGwidget = setupPGwidget(this.PGwidgetElement);
-  }
+  // ===========================================================
+  // ====== public methods =====================================
+  // ===========================================================
 
   /**
    * Set the image to be rendered
@@ -329,33 +285,32 @@ export class VRView extends baseView {
    */
   setImage(image) {
     // clean scene
-    this.renderer.removeAllVolumes();
-    let actor = createVolumeActor(image);
-    this.actor = actor;
+    this._renderer.removeAllVolumes();
+    this._actor = createVolumeActor(image);
     this.lut = "Grayscale";
     this.resolution = 2;
-    this.renderer.addVolume(actor);
+    this._renderer.addVolume(this._actor);
 
     // center camera on new volume
-    this.renderer.resetCamera();
-    setCamera(this.renderer.getActiveCamera(), actor.getCenter());
+    this._renderer.resetCamera();
+    setCamera(this._renderer.getActiveCamera(), this._actor.getCenter());
 
-    if (this.PGwidget) {
-      this.updateWidget();
-      this.setWidgetCallbacks();
+    if (this._PGwidget) {
+      this._updateWidget();
+      this._setWidgetCallbacks();
     }
 
     // TODO if crop widget, update to new image (or set to null so that it will be initialized again)
 
     // TODO implement a strategy to set rays distance
-    setActorProperties(this.actor);
+    setActorProperties(this._actor);
 
-    this.setupInteractor();
+    this._setupInteractor();
 
     this.blurOnInteraction = true;
 
     this._genericRenderWindow.resize();
-    this.renderWindow.render();
+    this._renderWindow.render();
   }
 
   /**
@@ -364,164 +319,6 @@ export class VRView extends baseView {
    */
   getLutList() {
     return vtkColorMaps.rgbPresetNames;
-  }
-
-  /**
-   * Setup crop widget
-   */
-  _initCropWidget() {
-    let cropWidget = setupCropWidget(this.renderer, this.actor.getMapper());
-
-    this._widgetManager = cropWidget.widgetManager;
-    this._cropWidget = cropWidget.widget;
-
-    this.renderWindow.render();
-  }
-
-  /**
-   * Update the PGwidget after an image has been loaded
-   * @private
-   */
-  updateWidget() {
-    const dataArray = this.actor
-      .getMapper()
-      .getInputData()
-      .getPointData()
-      .getScalars();
-
-    this.PGwidget.setDataArray(dataArray.getData());
-
-    let gaussians = this.PGwidget.getGaussians();
-
-    if (gaussians.length > 0) {
-      let gaussian = gaussians[0];
-
-      gaussian.position = this.wl;
-      gaussian.width = this.ww;
-
-      this.PGwidget.setGaussians([gaussian]);
-    } else {
-      // TODO initilize in a smarter way
-      const default_opacity = 1.0;
-      const default_bias = 0.0; // xBias
-      const default_skew = 1.8; // yBias
-      this.PGwidget.addGaussian(
-        this.wl,
-        default_opacity,
-        this.ww,
-        default_bias,
-        default_skew
-      ); // x, y, ampiezza, sbilanciamento, andamento
-    }
-
-    this.PGwidget.applyOpacity(this.ofun);
-    this.PGwidget.setColorTransferFunction(this.ctfun);
-    this.ctfun.onModified(() => {
-      this.PGwidget.render();
-      this.renderWindow.render();
-    });
-
-    this._PGwidgetLoaded = true;
-  }
-
-  /**
-   * Binds callbacks to user interactions on PGwidget
-   * @private
-   */
-  setWidgetCallbacks() {
-    this.PGwidget.bindMouseListeners();
-
-    this.PGwidget.onAnimation(start => {
-      if (start) {
-        this.renderWindow.getInteractor().requestAnimation(this.PGwidget);
-      } else {
-        this.renderWindow.getInteractor().cancelAnimation(this.PGwidget);
-      }
-    });
-
-    this.PGwidget.onOpacityChange(widget => {
-      this.PGwidget = widget;
-      this.gaussians = widget.getGaussians().slice(); // store
-      this.PGwidget.applyOpacity(this.ofun);
-      if (!this.renderWindow.getInteractor().isAnimating()) {
-        this.renderWindow.render();
-      }
-
-      if (this._rescaleLUT && this.PGwidget) {
-        const range = this.PGwidget.getOpacityRange();
-        this.ctfun.setMappingRange(...range);
-        this.ctfun.updateRange();
-      }
-    });
-  }
-
-  /**
-   * Init interactor
-   * @private
-   */
-  setupInteractor() {
-    // TODO setup from user
-    const rotateManipulator =
-      vtkMouseCameraTrackballRotateManipulator.newInstance({ button: 1 });
-    const panManipulator = vtkMouseCameraTrackballPanManipulator.newInstance({
-      button: 3,
-      control: true
-    });
-    const zoomManipulator = vtkMouseCameraTrackballZoomManipulator.newInstance({
-      button: 3,
-      scrollEnabled: true
-    });
-    const rangeManipulator = vtkMouseRangeManipulator.newInstance({
-      button: 1,
-      shift: true
-    });
-
-    let self = this;
-
-    function getWL() {
-      return self.wl;
-    }
-
-    function getWW() {
-      return self.ww;
-    }
-
-    function setWL(v) {
-      let wl = self.wl + (v - self.wl) / 25;
-      self.wl = wl;
-
-      let gaussians = self.PGwidget.getGaussians().slice(); // NOTE: slice() to clone!
-      gaussians[0].position = self.wl; //TODO: foreach
-      self.PGwidget.setGaussians(gaussians);
-    }
-
-    function setWW(v) {
-      let ww = self.ww + (v - self.ww) / 5;
-      self.ww = ww;
-
-      let gaussians = self.PGwidget.getGaussians().slice(); // NOTE: slice() to clone!
-      gaussians[0].width = self.ww; //TODO: foreach
-      self.PGwidget.setGaussians(gaussians);
-    }
-
-    rangeManipulator.setVerticalListener(-1, 1, 0.001, getWL, setWL);
-    rangeManipulator.setHorizontalListener(0.1, 2.1, 0.001, getWW, setWW);
-
-    const interactorStyle = vtkInteractorStyleManipulator.newInstance();
-    interactorStyle.addMouseManipulator(rangeManipulator);
-    interactorStyle.addMouseManipulator(rotateManipulator);
-    interactorStyle.addMouseManipulator(panManipulator);
-    interactorStyle.addMouseManipulator(zoomManipulator);
-    interactorStyle.setCenterOfRotation(this.actor.getCenter());
-    this.renderWindow.getInteractor().setInteractorStyle(interactorStyle);
-
-    // clear measurements on interactions
-    this.renderWindow
-      .getInteractor()
-      .onMouseWheel(() => this.resetMeasurementState());
-    this.renderWindow
-      .getInteractor()
-      .onRightButtonPress(() => this.resetMeasurementState());
   }
 
   /**
@@ -551,7 +348,7 @@ export class VRView extends baseView {
   /**
    * Set active tool
    * ("Length/Angle", {mouseButtonMask:1}, measurementState)
-   * * @param {*} toolName
+   * @param {*} toolName
    * @param {*} options
    * @param {*} measurementState
    */
@@ -569,7 +366,7 @@ export class VRView extends baseView {
         break;
       case "Rotation":
         this.resetMeasurementState(measurementState);
-        this.setupInteractor();
+        this._setupInteractor();
         break;
       default:
         console.warn("No tool found for", toolName);
@@ -577,94 +374,13 @@ export class VRView extends baseView {
   }
 
   /**
-   * initPicker
-   */
-  _initPicker(state, mode) {
-    // no blur when measure
-    this.blurOnInteraction = false;
-
-    // de-activate rotation
-    let rotateManipulator = this.renderWindow
-      .getInteractor()
-      .getInteractorStyle()
-      .getMouseManipulators()
-      .filter(i => {
-        return i.getClassName() == "vtkMouseCameraTrackballRotateManipulator";
-      })
-      .pop();
-    this.renderWindow
-      .getInteractor()
-      .getInteractorStyle()
-      .removeMouseManipulator(rotateManipulator);
-
-    // ----------------------------------------------------------------------------
-    // Setup picking interaction
-    // ----------------------------------------------------------------------------
-    // TODO this is slow the first time we pick, maybe we could use cellPicker and decrease resolution
-    const picker = vtkPointPicker.newInstance();
-    picker.setPickFromList(1);
-    picker.initializePickList();
-
-    if (!this._pickingPlane) {
-      // add a 1000x1000 plane
-      let camera = this.renderer.getActiveCamera();
-      let { plane, planeActor } = setupPickingPlane(camera, this.actor);
-      this.renderer.addActor(planeActor);
-      this._pickingPlane = plane;
-      this._planeActor = planeActor;
-    }
-
-    // add picking plane to pick list
-    picker.addPickList(this._planeActor);
-
-    // Pick on mouse left click
-    this._leftButtonCb = this.renderWindow
-      .getInteractor()
-      .onLeftButtonPress(callData => {
-        if (this.renderer !== callData.pokedRenderer) {
-          return;
-        }
-
-        const pos = callData.position;
-        const point = [pos.x, pos.y, 0.0];
-        picker.pick(point, this.renderer);
-
-        if (picker.getActors().length === 0) {
-          const pickedPoint = picker.getPickPosition();
-          if (this.VERBOSE)
-            console.log(`No point picked, default: ${pickedPoint}`);
-          // addSphereInPoint(pickedPoint, this.renderer);
-        } else {
-          const pickedPoints = picker.getPickedPositions();
-          const pickedPoint = pickedPoints[0]; // always a single point on a plane
-          if (this.VERBOSE) console.log(`Picked: ${pickedPoint}`);
-          // addSphereInPoint(pickedPoint, this.renderer);
-
-          // canvas coord
-          const wPos = vtkCoordinate.newInstance();
-          wPos.setCoordinateSystemToWorld();
-          wPos.setValue(...pickedPoint);
-          const displayPosition = wPos.getComputedDisplayValue(this.renderer);
-
-          // apply changes on state based on active tool
-          applyStrategy(state, displayPosition, pickedPoint, mode);
-
-          if (this.VERBOSE) console.log(state);
-          this._measurementState = state;
-        }
-
-        this.renderWindow.render();
-      });
-  }
-
-  /**
    * Reset view
    */
   resetView() {
-    let center = this.actor.getCenter();
-    let camera = this.renderer.getActiveCamera();
+    let center = this._actor.getCenter();
+    let camera = this._renderer.getActiveCamera();
     setCamera(camera, center);
-    this.renderWindow.render();
+    this._renderWindow.render();
   }
 
   /**
@@ -679,14 +395,14 @@ export class VRView extends baseView {
    * Destroy webgl content and release listeners
    */
   destroy() {
-    this.element = null;
+    this._element = null;
     this._genericRenderWindow.delete();
     this._genericRenderWindow = null;
 
-    if (this.actor) {
-      this.actor.getMapper().delete();
-      this.actor.delete();
-      this.actor = null;
+    if (this._actor) {
+      this._actor.getMapper().delete();
+      this._actor.delete();
+      this._actor = null;
     }
 
     if (this._planeActor) {
@@ -695,17 +411,291 @@ export class VRView extends baseView {
       this._planeActor = null;
     }
 
-    if (this.PGwidgetElement) {
-      this.PGwidgetElement = null;
-      this.PGwidget.getCanvas().remove();
-      this.PGwidget.delete();
-      this.PGwidget = null;
-      this.gaussians = null;
+    if (this._PGwidgetElement) {
+      this._PGwidgetElement = null;
+      this._PGwidget.getCanvas().remove();
+      this._PGwidget.delete();
+      this._PGwidget = null;
+      this._gaussians = null;
     }
 
     if (this._cropWidget) {
       this._cropWidget.delete();
       this._cropWidget = null;
     }
+  }
+
+  // ===========================================================
+  // ====== private methods ====================================
+  // ===========================================================
+
+  /**
+   * Initialize rendering scene
+   * @private
+   */
+  _initVR() {
+    const genericRenderWindow = vtkGenericRenderWindow.newInstance();
+    genericRenderWindow.setContainer(this._element);
+    genericRenderWindow.setBackground([0, 0, 0]);
+
+    //add custom resize cb
+    genericRenderWindow.onResize(() => {
+      // bypass genericRenderWindow resize method (do not consider devicePixelRatio)
+      // https://kitware.github.io/vtk-js/api/Rendering_Misc_GenericRenderWindow.html
+      let size = [
+        genericRenderWindow.getContainer().getBoundingClientRect().width,
+        genericRenderWindow.getContainer().getBoundingClientRect().height
+      ];
+      genericRenderWindow.getRenderWindow().getViews()[0].setSize(size);
+
+      if (this.VERBOSE) console.log("resize", size);
+    });
+
+    // resize callback
+    window.addEventListener("resize", evt => {
+      genericRenderWindow.resize();
+    });
+
+    genericRenderWindow.resize();
+
+    this._renderer = genericRenderWindow.getRenderer();
+    this._renderWindow = genericRenderWindow.getRenderWindow();
+    this._genericRenderWindow = genericRenderWindow;
+
+    // initalize piecewise gaussian widget
+    this._PGwidget = setupPGwidget(this._PGwidgetElement);
+  }
+
+  /**
+   * Update the PGwidget after an image has been loaded
+   * @private
+   */
+  _updateWidget() {
+    const dataArray = this._actor
+      .getMapper()
+      .getInputData()
+      .getPointData()
+      .getScalars();
+
+    this._PGwidget.setDataArray(dataArray.getData());
+
+    let gaussians = this._PGwidget.getGaussians();
+
+    if (gaussians.length > 0) {
+      let gaussian = gaussians[0];
+
+      gaussian.position = this._wl;
+      gaussian.width = this._ww;
+
+      this._PGwidget.setGaussians([gaussian]);
+    } else {
+      // TODO initilize in a smarter way
+      const default_opacity = 1.0;
+      const default_bias = 0.0; // xBias
+      const default_skew = 1.8; // yBias
+      this._PGwidget.addGaussian(
+        this._wl,
+        default_opacity,
+        this._ww,
+        default_bias,
+        default_skew
+      ); // x, y, ampiezza, sbilanciamento, andamento
+    }
+
+    this._PGwidget.applyOpacity(this.ofun);
+    this._PGwidget.setColorTransferFunction(this.ctfun);
+    this.ctfun.onModified(() => {
+      this._PGwidget.render();
+      this._renderWindow.render();
+    });
+
+    this._PGwidgetLoaded = true;
+  }
+
+  /**
+   * Binds callbacks to user interactions on PGwidget
+   * @private
+   */
+  _setWidgetCallbacks() {
+    this._PGwidget.bindMouseListeners();
+
+    this._PGwidget.onAnimation(start => {
+      if (start) {
+        this._renderWindow.getInteractor().requestAnimation(this._PGwidget);
+      } else {
+        this._renderWindow.getInteractor().cancelAnimation(this._PGwidget);
+      }
+    });
+
+    this._PGwidget.onOpacityChange(widget => {
+      this._PGwidget = widget;
+      this._gaussians = widget.getGaussians().slice(); // store
+      this._PGwidget.applyOpacity(this.ofun);
+      if (!this._renderWindow.getInteractor().isAnimating()) {
+        this._renderWindow.render();
+      }
+
+      if (this._rescaleLUT && this._PGwidget) {
+        const range = this._PGwidget.getOpacityRange();
+        this.ctfun.setMappingRange(...range);
+        this.ctfun.updateRange();
+      }
+    });
+  }
+
+  /**
+   * Setup crop widget
+   */
+  _initCropWidget() {
+    let cropWidget = setupCropWidget(this._renderer, this._actor.getMapper());
+
+    this._widgetManager = cropWidget.widgetManager;
+    this._cropWidget = cropWidget.widget;
+
+    this._renderWindow.render();
+  }
+
+  /**
+   * Init interactor
+   * @private
+   */
+  _setupInteractor() {
+    // TODO setup from user
+    const rotateManipulator =
+      vtkMouseCameraTrackballRotateManipulator.newInstance({ button: 1 });
+    const panManipulator = vtkMouseCameraTrackballPanManipulator.newInstance({
+      button: 3,
+      control: true
+    });
+    const zoomManipulator = vtkMouseCameraTrackballZoomManipulator.newInstance({
+      button: 3,
+      scrollEnabled: true
+    });
+    const rangeManipulator = vtkMouseRangeManipulator.newInstance({
+      button: 1,
+      shift: true
+    });
+
+    let self = this;
+
+    function getWL() {
+      return self._wl;
+    }
+
+    function getWW() {
+      return self._ww;
+    }
+
+    function setWL(v) {
+      self._wl = self._wl + (v - self._wl) / 25; // 25 is a tweaking parameter
+      let gaussians = self._PGwidget.getGaussians().slice(); // NOTE: slice() to clone!
+      gaussians[0].position = self._wl; //TODO: foreach
+      self._PGwidget.setGaussians(gaussians);
+    }
+
+    function setWW(v) {
+      self._ww = self._ww + (v - self._ww) / 5; // 5 is a tweaking parameter
+      let gaussians = self._PGwidget.getGaussians().slice(); // NOTE: slice() to clone!
+      gaussians[0].width = self._ww; //TODO: foreach
+      self._PGwidget.setGaussians(gaussians);
+    }
+
+    rangeManipulator.setVerticalListener(-1, 1, 0.001, getWL, setWL);
+    rangeManipulator.setHorizontalListener(0.1, 2.1, 0.001, getWW, setWW);
+
+    const interactorStyle = vtkInteractorStyleManipulator.newInstance();
+    interactorStyle.addMouseManipulator(rangeManipulator);
+    interactorStyle.addMouseManipulator(rotateManipulator);
+    interactorStyle.addMouseManipulator(panManipulator);
+    interactorStyle.addMouseManipulator(zoomManipulator);
+    interactorStyle.setCenterOfRotation(this._actor.getCenter());
+    this._renderWindow.getInteractor().setInteractorStyle(interactorStyle);
+
+    // clear measurements on interactions
+    this._renderWindow
+      .getInteractor()
+      .onMouseWheel(() => this.resetMeasurementState());
+    this._renderWindow
+      .getInteractor()
+      .onRightButtonPress(() => this.resetMeasurementState());
+  }
+
+  /**
+   * initPicker
+   */
+  _initPicker(state, mode) {
+    // no blur when measure
+    this.blurOnInteraction = false;
+
+    // de-activate rotation
+    let rotateManipulator = this._renderWindow
+      .getInteractor()
+      .getInteractorStyle()
+      .getMouseManipulators()
+      .filter(i => {
+        return i.getClassName() == "vtkMouseCameraTrackballRotateManipulator";
+      })
+      .pop();
+    this._renderWindow
+      .getInteractor()
+      .getInteractorStyle()
+      .removeMouseManipulator(rotateManipulator);
+
+    // Setup picking interaction
+    // TODO this is slow the first time we pick, maybe we could use cellPicker and decrease resolution
+    const picker = vtkPointPicker.newInstance();
+    picker.setPickFromList(1);
+    picker.initializePickList();
+
+    if (!this._pickingPlane) {
+      // add a 1000x1000 plane
+      let camera = this._renderer.getActiveCamera();
+      let { plane, planeActor } = setupPickingPlane(camera, this._actor);
+      this._renderer.addActor(planeActor);
+      this._pickingPlane = plane;
+      this._planeActor = planeActor;
+    }
+
+    // add picking plane to pick list
+    picker.addPickList(this._planeActor);
+
+    // Pick on mouse left click
+    this._leftButtonCb = this._renderWindow
+      .getInteractor()
+      .onLeftButtonPress(callData => {
+        if (this._renderer !== callData.pokedRenderer) {
+          return;
+        }
+
+        const pos = callData.position;
+        const point = [pos.x, pos.y, 0.0];
+        picker.pick(point, this._renderer);
+
+        if (picker.getActors().length === 0) {
+          const pickedPoint = picker.getPickPosition();
+          if (this.VERBOSE)
+            console.log(`No point picked, default: ${pickedPoint}`);
+          // addSphereInPoint(pickedPoint, this._renderer);
+        } else {
+          const pickedPoints = picker.getPickedPositions();
+          const pickedPoint = pickedPoints[0]; // always a single point on a plane
+          if (this.VERBOSE) console.log(`Picked: ${pickedPoint}`);
+          // addSphereInPoint(pickedPoint, this._renderer);
+
+          // canvas coord
+          const wPos = vtkCoordinate.newInstance();
+          wPos.setCoordinateSystemToWorld();
+          wPos.setValue(...pickedPoint);
+          const displayPosition = wPos.getComputedDisplayValue(this._renderer);
+
+          // apply changes on state based on active tool
+          applyStrategy(state, displayPosition, pickedPoint, mode);
+
+          if (this.VERBOSE) console.log(state);
+          this._measurementState = state;
+        }
+
+        this._renderWindow.render();
+      });
   }
 }
