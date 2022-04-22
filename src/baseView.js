@@ -10,17 +10,18 @@
 export class baseView {
   constructor() {}
 
-  get _absoluteRange() {
-    if (this.actor) {
-      return this.actor
-        .getMapper()
-        .getInputData()
-        .getPointData()
-        .getScalars()
-        .getRange();
-    } else {
-      // TODO error
-      return null;
-    }
-  }
+  // set/get blend mode (mpr si vr no)
+  // update blend mode
+
+  // set/get wwwl (uniformare: in mpr non viene usato, è nell'mpr manager)
+
+  // input sanity check... or ts ?
+
+  // LUT / presets... PGwidget ?
+
+  // renderer ?
+
+  // destroy ?
 }
+
+// or maybe just measurement loop and utils...
