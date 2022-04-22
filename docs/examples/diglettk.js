@@ -75565,9 +75565,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _kitware_vtk_js_Rendering_Core_Mapper__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! @kitware/vtk.js/Rendering/Core/Mapper */ "./node_modules/@kitware/vtk.js/Rendering/Core/Mapper.js");
 /* harmony import */ var _kitware_vtk_js_Rendering_Core_Actor__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! @kitware/vtk.js/Rendering/Core/Actor */ "./node_modules/@kitware/vtk.js/Rendering/Core/Actor.js");
 /* harmony import */ var _kitware_vtk_js_Filters_Sources_SphereSource__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! @kitware/vtk.js/Filters/Sources/SphereSource */ "./node_modules/@kitware/vtk.js/Filters/Sources/SphereSource.js");
-/* harmony import */ var gl_matrix__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! gl-matrix */ "./node_modules/gl-matrix/esm/quat.js");
-/* harmony import */ var gl_matrix__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! gl-matrix */ "./node_modules/gl-matrix/esm/mat4.js");
-/* harmony import */ var gl_matrix__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! gl-matrix */ "./node_modules/gl-matrix/esm/vec3.js");
+/* harmony import */ var gl_matrix__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! gl-matrix */ "./node_modules/gl-matrix/esm/quat.js");
+/* harmony import */ var gl_matrix__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! gl-matrix */ "./node_modules/gl-matrix/esm/mat4.js");
+/* harmony import */ var gl_matrix__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! gl-matrix */ "./node_modules/gl-matrix/esm/vec3.js");
+/* harmony import */ var _kitware_vtk_js_Rendering_Misc_GenericRenderWindow__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! @kitware/vtk.js/Rendering/Misc/GenericRenderWindow */ "./node_modules/@kitware/vtk.js/Rendering/Misc/GenericRenderWindow.js");
 
 
 
@@ -75584,6 +75585,13 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+
+/**
+ * Build vtk volume (vtkImageData)
+ * @param {Object} header
+ * @param {TypedArray} data
+ * @returns
+ */
 function buildVtkVolume(header, data) {
   const dims = [
     header.volume.cols,
@@ -75619,7 +75627,11 @@ function buildVtkVolume(header, data) {
   return volume;
 }
 
-// fit to window
+/**
+ * Fit camera to window
+ * @param {vtkGenericRenderWindow} genericRenderWindow
+ * @param {"x" | "y" | "z"} dir
+ */
 function fitToWindow(genericRenderWindow, dir) {
   const bounds = genericRenderWindow.getRenderer().computeVisiblePropBounds();
   const dim = [
@@ -75753,6 +75765,11 @@ function createSyntheticImageData(dims) {
   return imageData;
 }
 
+/**
+ * RGB string from RGB numeric values
+ * @param {*} rgb
+ * @returns
+ */
 function createRGBStringFromRGBValues(rgb) {
   if (rgb.length !== 3) {
     return "rgb(0, 0, 0)";
@@ -75762,10 +75779,20 @@ function createRGBStringFromRGBValues(rgb) {
   ).toString()})`;
 }
 
+/**
+ * Convert angles DEG to RAD
+ * @param {Number} degrees
+ * @returns
+ */
 function degrees2radians(degrees) {
   return (degrees * Math.PI) / 180;
 }
 
+/**
+ * Compute the volume center
+ * @param {vtkVolumeMapper} volumeMapper
+ * @returns [x,y,z]
+ */
 function getVolumeCenter(volumeMapper) {
   const bounds = volumeMapper.getBounds();
   return [
@@ -75775,6 +75802,11 @@ function getVolumeCenter(volumeMapper) {
   ];
 }
 
+/**
+ * Compute image center and width (wwwl)
+ * @param {vtkImageData} volume
+ * @returns
+ */
 function getVOI(volume) {
   // Note: This controls window/level
 
@@ -75821,6 +75853,11 @@ const getPlaneIntersection = (plane1, plane2, plane3) => {
   return NaN;
 };
 
+/**
+ *
+ * @param {*} contentData
+ * @returns
+ */
 function createVolumeActor(contentData) {
   const volumeActor = _kitware_vtk_js_Rendering_Core_Volume__WEBPACK_IMPORTED_MODULE_3__["default"].newInstance();
   const volumeMapper = _kitware_vtk_js_Rendering_Core_VolumeMapper__WEBPACK_IMPORTED_MODULE_4__["default"].newInstance();
@@ -75864,6 +75901,10 @@ function createVolumeActor(contentData) {
   return volumeActor;
 }
 
+/**
+ * Get info about webgl context (GPU)
+ * @returns
+ */
 function getVideoCardInfo() {
   const gl = document.createElement("canvas").getContext("webgl");
   if (!gl) {
@@ -75882,13 +75923,19 @@ function getVideoCardInfo() {
       };
 }
 
+/**
+ *
+ * @param {*} imageData
+ * @param {*} ijkPlanes
+ * @returns
+ */
 function getCroppingPlanes(imageData, ijkPlanes) {
-  const rotation = gl_matrix__WEBPACK_IMPORTED_MODULE_13__.create();
-  gl_matrix__WEBPACK_IMPORTED_MODULE_14__.getRotation(rotation, imageData.getIndexToWorld());
+  const rotation = gl_matrix__WEBPACK_IMPORTED_MODULE_14__.create();
+  gl_matrix__WEBPACK_IMPORTED_MODULE_15__.getRotation(rotation, imageData.getIndexToWorld());
 
   const rotateVec = vec => {
     const out = [0, 0, 0];
-    gl_matrix__WEBPACK_IMPORTED_MODULE_15__.transformQuat(out, vec, rotation);
+    gl_matrix__WEBPACK_IMPORTED_MODULE_16__.transformQuat(out, vec, rotation);
     return out;
   };
 

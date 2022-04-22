@@ -13,7 +13,14 @@ import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
 import vtkSphereSource from "@kitware/vtk.js/Filters/Sources/SphereSource";
 
 import { vec3, quat, mat4 } from "gl-matrix";
+import vtkGenericRenderWindow from "@kitware/vtk.js/Rendering/Misc/GenericRenderWindow";
 
+/**
+ * Build vtk volume (vtkImageData)
+ * @param {Object} header
+ * @param {TypedArray} data
+ * @returns
+ */
 export function buildVtkVolume(header, data) {
   const dims = [
     header.volume.cols,
@@ -49,7 +56,11 @@ export function buildVtkVolume(header, data) {
   return volume;
 }
 
-// fit to window
+/**
+ * Fit camera to window
+ * @param {vtkGenericRenderWindow} genericRenderWindow
+ * @param {"x" | "y" | "z"} dir
+ */
 export function fitToWindow(genericRenderWindow, dir) {
   const bounds = genericRenderWindow.getRenderer().computeVisiblePropBounds();
   const dim = [
@@ -183,6 +194,11 @@ function createSyntheticImageData(dims) {
   return imageData;
 }
 
+/**
+ * RGB string from RGB numeric values
+ * @param {*} rgb
+ * @returns
+ */
 export function createRGBStringFromRGBValues(rgb) {
   if (rgb.length !== 3) {
     return "rgb(0, 0, 0)";
@@ -192,10 +208,20 @@ export function createRGBStringFromRGBValues(rgb) {
   ).toString()})`;
 }
 
+/**
+ * Convert angles DEG to RAD
+ * @param {Number} degrees
+ * @returns
+ */
 export function degrees2radians(degrees) {
   return (degrees * Math.PI) / 180;
 }
 
+/**
+ * Compute the volume center
+ * @param {vtkVolumeMapper} volumeMapper
+ * @returns [x,y,z]
+ */
 export function getVolumeCenter(volumeMapper) {
   const bounds = volumeMapper.getBounds();
   return [
@@ -205,6 +231,11 @@ export function getVolumeCenter(volumeMapper) {
   ];
 }
 
+/**
+ * Compute image center and width (wwwl)
+ * @param {vtkImageData} volume
+ * @returns
+ */
 export function getVOI(volume) {
   // Note: This controls window/level
 
@@ -251,6 +282,11 @@ export const getPlaneIntersection = (plane1, plane2, plane3) => {
   return NaN;
 };
 
+/**
+ *
+ * @param {*} contentData
+ * @returns
+ */
 export function createVolumeActor(contentData) {
   const volumeActor = vtkVolume.newInstance();
   const volumeMapper = vtkVolumeMapper.newInstance();
@@ -294,6 +330,10 @@ export function createVolumeActor(contentData) {
   return volumeActor;
 }
 
+/**
+ * Get info about webgl context (GPU)
+ * @returns
+ */
 export function getVideoCardInfo() {
   const gl = document.createElement("canvas").getContext("webgl");
   if (!gl) {
@@ -312,6 +352,12 @@ export function getVideoCardInfo() {
       };
 }
 
+/**
+ *
+ * @param {*} imageData
+ * @param {*} ijkPlanes
+ * @returns
+ */
 export function getCroppingPlanes(imageData, ijkPlanes) {
   const rotation = quat.create();
   mat4.getRotation(rotation, imageData.getIndexToWorld());
