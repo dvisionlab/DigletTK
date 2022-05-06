@@ -19,7 +19,7 @@ import vtkGenericRenderWindow from "@kitware/vtk.js/Rendering/Misc/GenericRender
  * Build vtk volume (vtkImageData)
  * @param {Object} header
  * @param {TypedArray} data
- * @returns
+ * @returns {vtkImageData}
  */
 export function buildVtkVolume(header, data) {
   const dims = [
@@ -197,7 +197,7 @@ function createSyntheticImageData(dims) {
 /**
  * RGB string from RGB numeric values
  * @param {*} rgb
- * @returns
+ * @returns {string} In the form rgb(128, 128, 128)
  */
 export function createRGBStringFromRGBValues(rgb) {
   if (rgb.length !== 3) {
@@ -211,7 +211,7 @@ export function createRGBStringFromRGBValues(rgb) {
 /**
  * Convert angles DEG to RAD
  * @param {Number} degrees
- * @returns
+ * @returns {Number}
  */
 export function degrees2radians(degrees) {
   return (degrees * Math.PI) / 180;
@@ -220,7 +220,7 @@ export function degrees2radians(degrees) {
 /**
  * Compute the volume center
  * @param {vtkVolumeMapper} volumeMapper
- * @returns [x,y,z]
+ * @returns {Array} In the form [x,y,z]
  */
 export function getVolumeCenter(volumeMapper) {
   const bounds = volumeMapper.getBounds();
@@ -234,7 +234,7 @@ export function getVolumeCenter(volumeMapper) {
 /**
  * Compute image center and width (wwwl)
  * @param {vtkImageData} volume
- * @returns
+ * @returns {Object} {windowCenter, windowWidth}
  */
 export function getVOI(volume) {
   // Note: This controls window/level
@@ -285,7 +285,7 @@ export const getPlaneIntersection = (plane1, plane2, plane3) => {
 /**
  *
  * @param {*} contentData
- * @returns
+ * @returns {vtkVolume} the volume actor
  */
 export function createVolumeActor(contentData) {
   const volumeActor = vtkVolume.newInstance();
@@ -332,7 +332,7 @@ export function createVolumeActor(contentData) {
 
 /**
  * Get info about webgl context (GPU)
- * @returns
+ * @returns {Object} - {vendor, renderer} or {error}
  */
 export function getVideoCardInfo() {
   const gl = document.createElement("canvas").getContext("webgl");
@@ -356,7 +356,7 @@ export function getVideoCardInfo() {
  *
  * @param {*} imageData
  * @param {*} ijkPlanes
- * @returns
+ * @returns {Array} array of vtkPlanes
  */
 export function getCroppingPlanes(imageData, ijkPlanes) {
   const rotation = quat.create();
@@ -459,6 +459,7 @@ export function setActorProperties(actor) {
  * Append a vtkPiecewiseGaussianWidget into the target element
  * @private
  * @param {HTMLElement} widgetContainer - The target element to place the widget
+ * @returns {vtkPiecewiseGaussianWidget}
  */
 export function setupPGwidget(PGwidgetElement) {
   let containerWidth = PGwidgetElement ? PGwidgetElement.offsetWidth - 5 : 300;
@@ -544,6 +545,7 @@ export function setupCropWidget(renderer, volumeMapper) {
  * Create a plane to perform picking
  * @param {*} camera
  * @param {*} actor
+ * @returns {Object} - {plane: vtkPlane, planeActor: vtkActor}
  */
 export function setupPickingPlane(camera, actor) {
   const plane = vtkPlaneSource.newInstance({
