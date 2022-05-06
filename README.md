@@ -83,6 +83,12 @@ then load the desired example with a webserver (eg VS code liveserver).
 
 `yarn generate-docs` to build the documentation in the `documentation` folder.
 
+`yarn codehawk` to run static code analysis with [codehawk](https://github.com/sgb-io/codehawk-cli).
+
+If you have [dependency cruiser](https://github.com/sverweij/dependency-cruiser) globally installed, you can generate dependency graphs with:
+`yarn dep:svg` to build a dependency graph (.svg)
+`yarn dep:html` to build an interactive dependency graph (.html)
+
 ### RoadMap
 
 --

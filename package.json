@@ -8,7 +8,9 @@
     "build": "webpack --progress --color --mode production",
     "serve": "webpack-dev-server --content-base ./dist",
     "generate-docs": "node_modules/.bin/jsdoc -c jsdoc.json",
-    "codehawk": "node ./node_modules/codehawk-cli/build/index.js src"
+    "codehawk": "node ./node_modules/codehawk-cli/build/index.js src",
+    "dep:html": "depcruise --exclude node_modules --output-type dot ./src | dot -T svg | depcruise-wrap-stream-in-html > dependency-graph.html",
+    "dep:svg": "depcruise --exclude node_modules --output-type dot ./src | dot -T svg > dependencygraph.svg"
   },
   "repository": {
     "type": "git",
