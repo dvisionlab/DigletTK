@@ -30242,544 +30242,295 @@ var vtkPlaneSource$1 = {
 
 
 
-;// CONCATENATED MODULE: ./src/utils/utils.js
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/RenderWindow.js
 
 
+var DEFAULT_VIEW_API = navigator.gpu ? 'WebGPU' : 'WebGL';
+var VIEW_CONSTRUCTORS = Object.create(null); // ----------------------------------------------------------------------------
+// static methods
+// ----------------------------------------------------------------------------
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-function buildVtkVolume(header, data) {
-  const dims = [
-    header.volume.cols,
-    header.volume.rows,
-    header.volume.imageIds.length
-  ];
-  const numScalars = dims[0] * dims[1] * dims[2];
-
-  if (numScalars < 1 || dims[1] < 2 || dims[1] < 2 || dims[2] < 2) {
-    return;
-  }
-
-  const volume = vtkImageData$1.newInstance();
-  const origin = header.volume.imagePosition;
-  const spacing = header.volume.pixelSpacing.concat(
-    header.volume.sliceThickness // TODO check
-  );
-
-  volume.setDimensions(dims);
-  volume.setOrigin(origin);
-  volume.setSpacing(spacing);
-
-  const scalars = vtkDataArray$1.newInstance({
-    name: "Scalars",
-    values: data,
-    numberOfComponents: 1
-  });
-
-  volume.getPointData().setScalars(scalars);
-
-  volume.modified();
-
-  return volume;
+function registerViewConstructor(name, constructor) {
+  VIEW_CONSTRUCTORS[name] = constructor;
 }
-
-// fit to window
-function fitToWindow(genericRenderWindow, dir) {
-  const bounds = genericRenderWindow.getRenderer().computeVisiblePropBounds();
-  const dim = [
-    (bounds[1] - bounds[0]) / 2,
-    (bounds[3] - bounds[2]) / 2,
-    (bounds[5] - bounds[4]) / 2
-  ];
-  const w = genericRenderWindow.getContainer().clientWidth;
-  const h = genericRenderWindow.getContainer().clientHeight;
-  const r = w / h;
-
-  let x;
-  let y;
-  if (dir === "x") {
-    x = dim[1];
-    y = dim[2];
-  } else if (dir === "y") {
-    x = dim[0];
-    y = dim[2];
-  } else if (dir === "z") {
-    x = dim[0];
-    y = dim[1];
-  }
-  if (r >= x / y) {
-    // use width
-    genericRenderWindow
-      .getRenderer()
-      .getActiveCamera()
-      .setParallelScale(y + 1);
-  } else {
-    // use height
-    genericRenderWindow
-      .getRenderer()
-      .getActiveCamera()
-      .setParallelScale(x / r + 1);
-  }
+function listViewAPIs() {
+  return Object.keys(VIEW_CONSTRUCTORS);
 }
+function newAPISpecificView(name) {
+  var initialValues = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+  return VIEW_CONSTRUCTORS[name] && VIEW_CONSTRUCTORS[name](initialValues);
+} // ----------------------------------------------------------------------------
+// vtkRenderWindow methods
+// ----------------------------------------------------------------------------
 
-/**
- * Utility function to read, parse, load and render a dcm serie with larvitar (tested with larvitar 1.2.7)
- */
-let larvitarInitialized = false;
-function loadDemoSerieWithLarvitar(name, lrv, cb) {
-  let demoFiles = [];
-  let counter = 0;
-  let demoFileList = getDemoFileNames();
+function vtkRenderWindow(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkRenderWindow'); // Add renderer
 
-  function getDemoFileNames() {
-    let NOF = {
-      knee: 24,
-      thorax: 364,
-      abdomen: 147
+  publicAPI.addRenderer = function (renderer) {
+    if (publicAPI.hasRenderer(renderer)) {
+      return;
+    }
+
+    renderer.setRenderWindow(publicAPI);
+    model.renderers.push(renderer); // for (this->Renderers->InitTraversal(rsit);
+    //      (aren = this->Renderers->GetNextRenderer(rsit)); )
+    //   {
+    //   aren->SetAllocatedRenderTime
+    //     (1.0/(this->DesiredUpdateRate*this->Renderers->GetNumberOfItems()));
+    //   }
+
+    publicAPI.modified();
+  }; // Remove renderer
+
+
+  publicAPI.removeRenderer = function (renderer) {
+    model.renderers = model.renderers.filter(function (r) {
+      return r !== renderer;
+    });
+    publicAPI.modified();
+  };
+
+  publicAPI.hasRenderer = function (ren) {
+    return model.renderers.indexOf(ren) !== -1;
+  }; // get an API specific view of this data
+
+
+  publicAPI.newAPISpecificView = function (name) {
+    var initialValues = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    return newAPISpecificView(name || model.defaultViewAPI, initialValues);
+  }; // Add renderer
+
+
+  publicAPI.addView = function (view) {
+    if (publicAPI.hasView(view)) {
+      return;
+    }
+
+    view.setRenderable(publicAPI);
+    model.views.push(view);
+    publicAPI.modified();
+  }; // Remove renderer
+
+
+  publicAPI.removeView = function (view) {
+    model.views = model.views.filter(function (r) {
+      return r !== view;
+    });
+    publicAPI.modified();
+  };
+
+  publicAPI.hasView = function (view) {
+    return model.views.indexOf(view) !== -1;
+  }; // handle any pre render initializations
+
+
+  publicAPI.preRender = function () {
+    model.renderers.forEach(function (ren) {
+      // make sure we have a camera
+      if (!ren.isActiveCameraCreated()) {
+        ren.resetCamera();
+      }
+    });
+  };
+
+  publicAPI.render = function () {
+    publicAPI.preRender();
+
+    if (model.interactor) {
+      model.interactor.render();
+    } else {
+      model.views.forEach(function (view) {
+        return view.traverseAllPasses();
+      });
+    }
+  };
+
+  publicAPI.getStatistics = function () {
+    var results = {
+      propCount: 0,
+      invisiblePropCount: 0
     };
-    let numberOfFiles = NOF[name];
-    let demoFileList = [];
-    for (let i = 1; i < numberOfFiles; i++) {
-      let filename = `${name} (${i})`;
-      if (name == "abdomen") filename += ".dcm";
-      demoFileList.push(filename);
-    }
-    return demoFileList;
-  }
+    model.renderers.forEach(function (ren) {
+      var props = ren.getViewProps();
+      props.forEach(function (prop) {
+        if (prop.getVisibility()) {
+          results.propCount += 1;
+          var mpr = prop.getMapper && prop.getMapper();
 
-  async function createFile(fileName, cb) {
-    let response = await fetch("./demo/" + fileName);
-    let data = await response.blob();
-    let file = new File([data], fileName);
-    demoFiles.push(file);
-    counter++;
-    if (counter == demoFileList.length) {
-      cb();
-    }
-  }
+          if (mpr && mpr.getPrimitiveCount) {
+            var pcount = mpr.getPrimitiveCount();
+            Object.keys(pcount).forEach(function (keyName) {
+              if (!results[keyName]) {
+                results[keyName] = 0;
+              }
 
-  if (!larvitarInitialized) {
-    // init all larvitar
-    lrv.initLarvitarStore();
-    lrv.initializeImageLoader();
-    lrv.initializeCSTools();
-    lrv.larvitar_store.addViewport("viewer");
-    larvitarInitialized = true;
-  }
-
-  // load dicom and render
-  demoFileList.forEach(function (demoFile) {
-    createFile(demoFile, () => {
-      larvitar.resetLarvitarManager();
-      larvitar.readFiles(demoFiles).then(seriesStack => {
-        // return the first series of the study
-        let seriesId = Object.keys(seriesStack)[0];
-        let serie = seriesStack[seriesId];
-
-        // hack to avoid load and cache (render + timeout)
-        lrv.renderImage(serie, "viewer");
-        cb(serie);
+              results[keyName] += pcount[keyName];
+            });
+          }
+        } else {
+          results.invisiblePropCount += 1;
+        }
       });
     });
-  });
-}
-
-/**
- * Function to create synthetic image data with correct dimensions
- * Can be use for debug
- * @private
- * @param {Array} dims - Array[int]
- */
-// eslint-disable-next-line no-unused-vars
-function createSyntheticImageData(dims) {
-  const imageData = vtkImageData.newInstance();
-  const newArray = new Uint8Array(dims[0] * dims[1] * dims[2]);
-  const s = 0.1;
-  imageData.setSpacing(s, s, s);
-  imageData.setExtent(0, 127, 0, 127, 0, 127);
-  let i = 0;
-  for (let z = 0; z < dims[2]; z++) {
-    for (let y = 0; y < dims[1]; y++) {
-      for (let x = 0; x < dims[0]; x++) {
-        newArray[i++] = (256 * (i % (dims[0] * dims[1]))) / (dims[0] * dims[1]);
-      }
-    }
-  }
-
-  const da = vtkDataArray.newInstance({
-    numberOfComponents: 1,
-    values: newArray
-  });
-  da.setName("scalars");
-
-  imageData.getPointData().setScalars(da);
-
-  return imageData;
-}
-
-function createRGBStringFromRGBValues(rgb) {
-  if (rgb.length !== 3) {
-    return "rgb(0, 0, 0)";
-  }
-  return `rgb(${(rgb[0] * 255).toString()}, ${(rgb[1] * 255).toString()}, ${(
-    rgb[2] * 255
-  ).toString()})`;
-}
-
-function degrees2radians(degrees) {
-  return (degrees * Math.PI) / 180;
-}
-
-function getVolumeCenter(volumeMapper) {
-  const bounds = volumeMapper.getBounds();
-  return [
-    (bounds[0] + bounds[1]) / 2.0,
-    (bounds[2] + bounds[3]) / 2.0,
-    (bounds[4] + bounds[5]) / 2.0
-  ];
-}
-
-function getVOI(volume) {
-  // Note: This controls window/level
-
-  // TODO: Make this work reactively with onModified...
-  const rgbTransferFunction = volume.getProperty().getRGBTransferFunction(0);
-  const range = rgbTransferFunction.getMappingRange();
-  const windowWidth = range[0] + range[1];
-  const windowCenter = range[0] + windowWidth / 2;
-
-  return {
-    windowCenter,
-    windowWidth
+    results.str = Object.keys(results).map(function (keyName) {
+      return "".concat(keyName, ": ").concat(results[keyName]);
+    }).join('\n');
+    return results;
   };
-}
 
-/**
- * Planes are of type `{position:[x,y,z], normal:[x,y,z]}`
- * returns an [x,y,z] array, or NaN if they do not intersect.
- * @private
- */
-const getPlaneIntersection = (plane1, plane2, plane3) => {
-  try {
-    let line = vtkPlane$1.intersectWithPlane(
-      plane1.position,
-      plane1.normal,
-      plane2.position,
-      plane2.normal
-    );
-    if (line.intersection) {
-      const { l0, l1 } = line;
-      const intersectionLocation = vtkPlane$1.intersectWithLine(
-        l0,
-        l1,
-        plane3.position,
-        plane3.normal
-      );
-      if (intersectionLocation.intersection) {
-        return intersectionLocation.x;
-      }
-    }
-  } catch (err) {
-    console.log("some issue calculating the plane intersection", err);
-  }
-  return NaN;
+  publicAPI.captureImages = function () {
+    var format = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'image/png';
+    var opts = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    macro.setImmediate(publicAPI.render);
+    return model.views.map(function (view) {
+      return view.captureNextImage ? view.captureNextImage(format, opts) : undefined;
+    }).filter(function (i) {
+      return !!i;
+    });
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var RenderWindow_DEFAULT_VALUES = {
+  defaultViewAPI: DEFAULT_VIEW_API,
+  renderers: [],
+  views: [],
+  interactor: null,
+  neverRendered: true,
+  numberOfLayers: 1
+}; // ----------------------------------------------------------------------------
+
+function RenderWindow_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, RenderWindow_DEFAULT_VALUES, initialValues); // Build VTK API
+
+  macro.obj(publicAPI, model);
+  macro.setGet(publicAPI, model, ['interactor', 'numberOfLayers', 'views', 'defaultViewAPI']);
+  macro.get(publicAPI, model, ['neverRendered']);
+  macro.getArray(publicAPI, model, ['renderers']);
+  macro.event(publicAPI, model, 'completion'); // Object methods
+
+  vtkRenderWindow(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var RenderWindow_newInstance = macro.newInstance(RenderWindow_extend, 'vtkRenderWindow'); // ----------------------------------------------------------------------------
+
+var vtkRenderWindow$1 = {
+  newInstance: RenderWindow_newInstance,
+  extend: RenderWindow_extend,
+  registerViewConstructor: registerViewConstructor,
+  listViewAPIs: listViewAPIs,
+  newAPISpecificView: newAPISpecificView
 };
 
-function createVolumeActor(contentData) {
-  const volumeActor = vtkVolume$1.newInstance();
-  const volumeMapper = vtkVolumeMapper$1.newInstance();
-  volumeMapper.setSampleDistance(1);
-  volumeActor.setMapper(volumeMapper);
 
-  volumeMapper.setInputData(contentData);
 
-  // set a default wwwl
-  const dataRange = contentData.getPointData().getScalars().getRange();
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture/Constants.js
+var Wrap = {
+  CLAMP_TO_EDGE: 0,
+  REPEAT: 1,
+  MIRRORED_REPEAT: 2
+};
+var Filter = {
+  NEAREST: 0,
+  LINEAR: 1,
+  NEAREST_MIPMAP_NEAREST: 2,
+  NEAREST_MIPMAP_LINEAR: 3,
+  LINEAR_MIPMAP_NEAREST: 4,
+  LINEAR_MIPMAP_LINEAR: 5
+};
+var Texture_Constants_Constants = {
+  Wrap: Wrap,
+  Filter: Filter
+};
 
-  // FIXME: custom range mapping
-  const rgbTransferFunction = volumeActor
-    .getProperty()
-    .getRGBTransferFunction(0);
-  rgbTransferFunction.setMappingRange(dataRange[0], dataRange[1]);
 
-  // update slice min/max values for interface
-  // Crate imageMapper for I,J,K planes
-  // const dataRange = data
-  //   .getPointData()
-  //   .getScalars()
-  //   .getRange();
-  // const extent = data.getExtent();
-  // this.window = {
-  //   min: 0,
-  //   max: dataRange[1] * 2,
-  //   value: dataRange[1]
-  // };
-  // this.level = {
-  //   min: -dataRange[1],
-  //   max: dataRange[1],
-  //   value: (dataRange[0] + dataRange[1]) / 2
-  // };
-  // this.updateColorLevel();
-  // this.updateColorWindow();
 
-  // TODO: find the volume center and set that as the slice intersection point.
-  // TODO: Refactor the MPR slice to set the focal point instead of defaulting to volume center
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Common/Core/HalfFloat.js
+/* eslint-disable no-bitwise */
+var floatView = new Float32Array(1);
+var int32View = new Int32Array(floatView.buffer);
+/* eslint-disable no-bitwise */
 
-  return volumeActor;
-}
+/* This method is faster than the OpenEXR implementation (very often
+ * used, eg. in Ogre), with the additional benefit of rounding, inspired
+ * by James Tursa?s half-precision code. */
 
-function getVideoCardInfo() {
-  const gl = document.createElement("canvas").getContext("webgl");
-  if (!gl) {
-    return {
-      error: "no webgl"
-    };
+function toHalf(val) {
+  floatView[0] = val;
+  var x = int32View[0];
+  var bits = x >> 16 & 0x8000;
+  /* Get the sign */
+
+  var m = x >> 12 & 0x07ff;
+  /* Keep one extra bit for rounding */
+
+  var e = x >> 23 & 0xff;
+  /* Using int is faster here */
+
+  /* If zero, or denormal, or exponent underflows too much for a denormal
+   * half, return signed zero. */
+
+  if (e < 103) {
+    return bits;
   }
-  const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
-  return debugInfo
-    ? {
-        vendor: gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
-        renderer: gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
-      }
-    : {
-        error: "no WEBGL_debug_renderer_info"
-      };
+  /* If NaN, return NaN. If Inf or exponent overflow, return Inf. */
+
+
+  if (e > 142) {
+    bits |= 0x7c00;
+    /* If exponent was 0xff and one mantissa bit was set, it means NaN,
+     * not Inf, so make sure we set one mantissa bit too. */
+
+    bits |= (e === 255 ? 0 : 1) && x & 0x007fffff;
+    return bits;
+  }
+  /* If exponent underflows but not too much, return a denormal */
+
+
+  if (e < 113) {
+    m |= 0x0800;
+    /* Extra rounding may overflow and set mantissa to 0 and exponent
+     * to 1, which is OK. */
+
+    bits |= (m >> 114 - e) + (m >> 113 - e & 1);
+    return bits;
+  }
+
+  bits |= e - 112 << 10 | m >> 1;
+  /* Extra rounding. An overflow will set mantissa to 0 and increment
+   * the exponent, which is OK. */
+
+  bits += m & 1;
+  return bits;
 }
 
-function getCroppingPlanes(imageData, ijkPlanes) {
-  const rotation = quat_create();
-  getRotation(rotation, imageData.getIndexToWorld());
+function fromHalf(h) {
+  var s = (h & 0x8000) >> 15;
+  var e = (h & 0x7c00) >> 10;
+  var f = h & 0x03ff;
 
-  const rotateVec = vec => {
-    const out = [0, 0, 0];
-    transformQuat(out, vec, rotation);
-    return out;
-  };
+  if (e === 0) {
+    return (s ? -1 : 1) * Math.pow(2, -14) * (f / Math.pow(2, 10));
+  }
 
-  const [iMin, iMax, jMin, jMax, kMin, kMax] = ijkPlanes;
-  const origin = imageData.indexToWorld([iMin, jMin, kMin]);
-  // opposite corner from origin
-  const corner = imageData.indexToWorld([iMax, jMax, kMax]);
-  return [
-    // X min/max
-    vtkPlane$1.newInstance({ normal: rotateVec([1, 0, 0]), origin }),
-    vtkPlane$1.newInstance({ normal: rotateVec([-1, 0, 0]), origin: corner }),
-    // Y min/max
-    vtkPlane$1.newInstance({ normal: rotateVec([0, 1, 0]), origin }),
-    vtkPlane$1.newInstance({ normal: rotateVec([0, -1, 0]), origin: corner }),
-    // X min/max
-    vtkPlane$1.newInstance({ normal: rotateVec([0, 0, 1]), origin }),
-    vtkPlane$1.newInstance({ normal: rotateVec([0, 0, -1]), origin: corner })
-  ];
+  if (e === 0x1f) {
+    return f ? NaN : (s ? -1 : 1) * Infinity;
+  }
+
+  return (s ? -1 : 1) * Math.pow(2, e - 15) * (1 + f / Math.pow(2, 10));
 }
 
-/**
- * Rescale abs range to relative range values (eg 0-1)
- * @param {*} actor
- * @param {*} absoluteRange
- * @returns {*} wwwl object
- */
-function getRelativeRange(actor, absoluteRange) {
-  const dataArray = actor
-    .getMapper()
-    .getInputData()
-    .getPointData()
-    .getScalars();
-  const range = dataArray.getRange();
-  let rel_ww = absoluteRange[0] / (range[1] - range[0]);
-  let rel_wl = (absoluteRange[1] - range[0]) / range[1];
+var HalfFloat = {
+  fromHalf: fromHalf,
+  toHalf: toHalf
+};
 
-  return { ww: rel_ww, wl: rel_wl };
-}
 
-/**
- * Rescale relative range to abs range values (eg hist min-max)
- * @param {*} actor
- * @param {*} relativeRange
- * @returns {*} wwwl object
- */
-function utils_getAbsoluteRange(actor, relativeRange) {
-  const dataArray = actor
-    .getMapper()
-    .getInputData()
-    .getPointData()
-    .getScalars();
-  const range = dataArray.getRange();
-  let abs_ww = relativeRange[0] * (range[1] - range[0]);
-  let abs_wl = relativeRange[1] * range[1] + range[0];
-  return { ww: abs_ww, wl: abs_wl };
-}
 
-/**
- * Set camera lookat point
- * @param {Array} center - As [x,y,z]
- */
-function setCamera(camera, center) {
-  camera.zoom(1.5);
-  camera.elevation(70);
-  camera.setViewUp(0, 0, 1);
-  camera.setFocalPoint(center[0], center[1], center[2]);
-  camera.setPosition(center[0], center[1] - 2000, center[2]);
-  camera.setThickness(10000);
-  camera.setParallelProjection(true);
-}
-
-/**
- * Set actor appearance properties
- * @param {*} actor
- */
-function setActorProperties(actor) {
-  actor.getProperty().setScalarOpacityUnitDistance(0, 30.0);
-  actor.getProperty().setInterpolationTypeToLinear();
-  actor.getProperty().setUseGradientOpacity(0, true);
-  actor.getProperty().setGradientOpacityMinimumValue(0, 2);
-  actor.getProperty().setGradientOpacityMinimumOpacity(0, 0.0);
-  actor.getProperty().setGradientOpacityMaximumValue(0, 20);
-  actor.getProperty().setGradientOpacityMaximumOpacity(0, 2.0);
-  actor.getProperty().setShade(true);
-  actor.getProperty().setAmbient(0.3);
-  actor.getProperty().setDiffuse(0.7);
-  actor.getProperty().setSpecular(0.3);
-  actor.getProperty().setSpecularPower(0.8);
-}
-
-/**
- * Append a vtkPiecewiseGaussianWidget into the target element
- * @private
- * @param {HTMLElement} widgetContainer - The target element to place the widget
- */
-function setupPGwidget(PGwidgetElement) {
-  let containerWidth = PGwidgetElement ? PGwidgetElement.offsetWidth - 5 : 300;
-  let containerHeight = PGwidgetElement
-    ? PGwidgetElement.offsetHeight - 5
-    : 100;
-
-  const PGwidget = vtkPiecewiseGaussianWidget$1.newInstance({
-    numberOfBins: 256,
-    size: [containerWidth, containerHeight]
-  });
-  // TODO expose style
-  PGwidget.updateStyle({
-    backgroundColor: "rgba(255, 255, 255, 0.6)",
-    histogramColor: "rgba(50, 50, 50, 0.8)",
-    strokeColor: "rgb(0, 0, 0)",
-    activeColor: "rgb(255, 255, 255)",
-    handleColor: "rgb(50, 150, 50)",
-    buttonDisableFillColor: "rgba(255, 255, 255, 0.5)",
-    buttonDisableStrokeColor: "rgba(0, 0, 0, 0.5)",
-    buttonStrokeColor: "rgba(0, 0, 0, 1)",
-    buttonFillColor: "rgba(255, 255, 255, 1)",
-    strokeWidth: 1,
-    activeStrokeWidth: 1.5,
-    buttonStrokeWidth: 1,
-    handleWidth: 1,
-    iconSize: 0, // Can be 0 if you want to remove buttons (dblClick for (+) / rightClick for (-))
-    padding: 1
-  });
-
-  // to hide widget
-  PGwidget.setContainer(PGwidgetElement); // Set to null to hide
-
-  // resize callback
-  window.addEventListener("resize", evt => {
-    PGwidget.setSize(
-      PGwidgetElement.offsetWidth - 5,
-      PGwidgetElement.offsetHeight - 5
-    );
-    PGwidget.render();
-  });
-
-  return PGwidget;
-}
-
-/**
- * Initialize a crop widget
- */
-function setupCropWidget(renderer, volumeMapper) {
-  let image = volumeMapper.getInputData();
-  console.log(image.getBounds());
-
-  // setup widget manager and widget
-  const widgetManager = vtkWidgetManager$1.newInstance();
-  widgetManager.setRenderer(renderer);
-
-  const widget = vtkImageCroppingWidget$1.newInstance();
-  widget.copyImageDataDescription(image);
-
-  const viewWidget = widgetManager.addWidget(widget);
-  widgetManager.enablePicking();
-
-  const cropState = widget.getWidgetState().getCroppingPlanes();
-  cropState.onModified(e => {
-    const planes = getCroppingPlanes(image, cropState.getPlanes());
-    volumeMapper.removeAllClippingPlanes();
-    planes.forEach(plane => {
-      volumeMapper.addClippingPlane(plane);
-    });
-    volumeMapper.modified();
-  });
-
-  widget.set({
-    faceHandlesEnabled: true,
-    edgeHandlesEnabled: true,
-    cornerHandlesEnabled: true
-  });
-
-  return { widget, widgetManager }; // or viewWidget ?
-}
-
-/**
- * Create a plane to perform picking
- * @param {*} camera
- * @param {*} actor
- */
-function setupPickingPlane(camera, actor) {
-  const plane = vtkPlaneSource$1.newInstance({
-    xResolution: 1000,
-    yResolution: 1000
-  });
-  plane.setPoint1(0, 0, 1000);
-  plane.setPoint2(1000, 0, 0);
-  plane.setCenter(actor.getCenter());
-  plane.setNormal(camera.getDirectionOfProjection());
-
-  const mapper = vtkMapper$1.newInstance();
-  mapper.setInputConnection(plane.getOutputPort());
-  const planeActor = vtkActor$1.newInstance();
-  planeActor.setMapper(mapper);
-  planeActor.getProperty().setOpacity(0.01); // with opacity = 0 it is ignored by picking
-
-  return { plane, planeActor };
-}
-
-/**
- * Add a sphere in a specific point (useful for debugging)
- */
-function addSphereInPoint(point, renderer) {
-  const sphere = vtkSphereSource.newInstance();
-  sphere.setCenter(point);
-  sphere.setRadius(0.01);
-  const sphereMapper = vtkMapper.newInstance();
-  sphereMapper.setInputData(sphere.getOutputData());
-  const sphereActor = vtkActor.newInstance();
-  sphereActor.setMapper(sphereMapper);
-  sphereActor.getProperty().setColor(1.0, 0.0, 0.0);
-  renderer.addActor(sphereActor);
-}
-
-// EXTERNAL MODULE: ./node_modules/regenerator-runtime/runtime.js
-var runtime = __webpack_require__("./node_modules/regenerator-runtime/runtime.js");
 ;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/SceneGraph/ViewNode.js
 
 
@@ -31111,2203 +30862,6 @@ var OpenGL_ViewNodeFactory_newInstance = macro.newInstance(OpenGL_ViewNodeFactor
 var ViewNodeFactory_vtkViewNodeFactory = {
   newInstance: OpenGL_ViewNodeFactory_newInstance,
   extend: OpenGL_ViewNodeFactory_extend
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/Camera.js
-
-
-
-
-
-// vtkOpenGLCamera methods
-// ----------------------------------------------------------------------------
-
-function vtkOpenGLCamera(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkOpenGLCamera');
-
-  publicAPI.buildPass = function (prepass) {
-    if (prepass) {
-      model.openGLRenderer = publicAPI.getFirstAncestorOfType('vtkOpenGLRenderer');
-      model.openGLRenderWindow = model.openGLRenderer.getParent();
-      model.context = model.openGLRenderWindow.getContext();
-    }
-  }; // Renders myself
-
-
-  publicAPI.opaquePass = function (prepass) {
-    if (prepass) {
-      var tsize = model.openGLRenderer.getTiledSizeAndOrigin();
-      model.context.viewport(tsize.lowerLeftU, tsize.lowerLeftV, tsize.usize, tsize.vsize);
-      model.context.scissor(tsize.lowerLeftU, tsize.lowerLeftV, tsize.usize, tsize.vsize);
-    }
-  };
-
-  publicAPI.translucentPass = publicAPI.opaquePass;
-  publicAPI.opaqueZBufferPass = publicAPI.opaquePass;
-  publicAPI.volumePass = publicAPI.opaquePass;
-
-  publicAPI.getKeyMatrices = function (ren) {
-    // has the camera changed?
-    if (ren !== model.lastRenderer || model.openGLRenderWindow.getMTime() > model.keyMatrixTime.getMTime() || publicAPI.getMTime() > model.keyMatrixTime.getMTime() || ren.getMTime() > model.keyMatrixTime.getMTime() || model.renderable.getMTime() > model.keyMatrixTime.getMTime()) {
-      mat4_copy(model.keyMatrices.wcvc, model.renderable.getViewMatrix());
-      fromMat4(model.keyMatrices.normalMatrix, model.keyMatrices.wcvc);
-      mat3_invert(model.keyMatrices.normalMatrix, model.keyMatrices.normalMatrix);
-      transpose(model.keyMatrices.wcvc, model.keyMatrices.wcvc);
-      var aspectRatio = model.openGLRenderer.getAspectRatio();
-      mat4_copy(model.keyMatrices.vcpc, model.renderable.getProjectionMatrix(aspectRatio, -1, 1));
-      transpose(model.keyMatrices.vcpc, model.keyMatrices.vcpc);
-      mat4_multiply(model.keyMatrices.wcpc, model.keyMatrices.vcpc, model.keyMatrices.wcvc);
-      model.keyMatrixTime.modified();
-      model.lastRenderer = ren;
-    }
-
-    return model.keyMatrices;
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var Camera_DEFAULT_VALUES = {
-  context: null,
-  lastRenderer: null,
-  keyMatrixTime: null,
-  keyMatrices: null
-}; // ----------------------------------------------------------------------------
-
-function Camera_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, Camera_DEFAULT_VALUES, initialValues); // Inheritance
-
-  vtkViewNode$1.extend(publicAPI, model, initialValues);
-  model.keyMatrixTime = {};
-  obj(model.keyMatrixTime); // values always get set by the get method
-
-  model.keyMatrices = {
-    normalMatrix: new Float64Array(9),
-    vcpc: new Float64Array(16),
-    wcvc: new Float64Array(16),
-    wcpc: new Float64Array(16)
-  }; // Build VTK API
-
-  setGet(publicAPI, model, ['context', 'keyMatrixTime']); // Object methods
-
-  vtkOpenGLCamera(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var Camera_newInstance = newInstance(Camera_extend); // ----------------------------------------------------------------------------
-
-var vtkCamera = {
-  newInstance: Camera_newInstance,
-  extend: Camera_extend
-}; // Register ourself to OpenGL backend if imported
-
-registerOverride('vtkCamera', Camera_newInstance);
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/Renderer.js
-
-
-
-
-var Renderer_vtkDebugMacro = vtkDebugMacro; // ----------------------------------------------------------------------------
-// vtkOpenGLRenderer methods
-// ----------------------------------------------------------------------------
-
-/* eslint-disable no-bitwise */
-
-function vtkOpenGLRenderer(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkOpenGLRenderer'); // Builds myself.
-
-  publicAPI.buildPass = function (prepass) {
-    if (prepass) {
-      if (!model.renderable) {
-        return;
-      }
-
-      publicAPI.updateLights();
-      publicAPI.prepareNodes();
-      publicAPI.addMissingNode(model.renderable.getActiveCamera());
-      publicAPI.addMissingNodes(model.renderable.getViewPropsWithNestedProps());
-      publicAPI.removeUnusedNodes();
-    }
-  };
-
-  publicAPI.updateLights = function () {
-    var count = 0;
-    var lights = model.renderable.getLightsByReference();
-
-    for (var index = 0; index < lights.length; ++index) {
-      if (lights[index].getSwitch() > 0.0) {
-        count++;
-      }
-    }
-
-    if (!count) {
-      Renderer_vtkDebugMacro('No lights are on, creating one.');
-      model.renderable.createLight();
-    }
-
-    return count;
-  };
-
-  publicAPI.opaqueZBufferPass = function (prepass) {
-    if (prepass) {
-      var clearMask = 0;
-      var gl = model.context;
-
-      if (!model.renderable.getTransparent()) {
-        model.context.clearColor(1.0, 0.0, 0.0, 1.0);
-        clearMask |= gl.COLOR_BUFFER_BIT;
-      }
-
-      if (!model.renderable.getPreserveDepthBuffer()) {
-        gl.clearDepth(1.0);
-        clearMask |= gl.DEPTH_BUFFER_BIT;
-        model.context.depthMask(true);
-      }
-
-      var ts = publicAPI.getTiledSizeAndOrigin();
-      gl.enable(gl.SCISSOR_TEST);
-      gl.scissor(ts.lowerLeftU, ts.lowerLeftV, ts.usize, ts.vsize);
-      gl.viewport(ts.lowerLeftU, ts.lowerLeftV, ts.usize, ts.vsize);
-      gl.colorMask(true, true, true, true);
-      gl.clear(clearMask);
-      gl.enable(gl.DEPTH_TEST);
-    }
-  }; // Renders myself
-
-
-  publicAPI.cameraPass = function (prepass) {
-    if (prepass) {
-      publicAPI.clear();
-    }
-  };
-
-  publicAPI.getAspectRatio = function () {
-    var size = model.parent.getSizeByReference();
-    var viewport = model.renderable.getViewportByReference();
-    return size[0] * (viewport[2] - viewport[0]) / ((viewport[3] - viewport[1]) * size[1]);
-  };
-
-  publicAPI.getTiledSizeAndOrigin = function () {
-    var vport = model.renderable.getViewportByReference(); // if there is no window assume 0 1
-
-    var tileViewPort = [0.0, 0.0, 1.0, 1.0]; // find the lower left corner of the viewport, taking into account the
-    // lower left boundary of this tile
-
-    var vpu = vport[0] - tileViewPort[0];
-    var vpv = vport[1] - tileViewPort[1]; // store the result as a pixel value
-
-    var ndvp = model.parent.normalizedDisplayToDisplay(vpu, vpv);
-    var lowerLeftU = Math.round(ndvp[0]);
-    var lowerLeftV = Math.round(ndvp[1]); // find the upper right corner of the viewport, taking into account the
-    // lower left boundary of this tile
-
-    var vpu2 = vport[2] - tileViewPort[0];
-    var vpv2 = vport[3] - tileViewPort[1];
-    var ndvp2 = model.parent.normalizedDisplayToDisplay(vpu2, vpv2); // now compute the size of the intersection of the viewport with the
-    // current tile
-
-    var usize = Math.round(ndvp2[0]) - lowerLeftU;
-    var vsize = Math.round(ndvp2[1]) - lowerLeftV;
-
-    if (usize < 0) {
-      usize = 0;
-    }
-
-    if (vsize < 0) {
-      vsize = 0;
-    }
-
-    return {
-      usize: usize,
-      vsize: vsize,
-      lowerLeftU: lowerLeftU,
-      lowerLeftV: lowerLeftV
-    };
-  };
-
-  publicAPI.clear = function () {
-    var clearMask = 0;
-    var gl = model.context;
-
-    if (!model.renderable.getTransparent()) {
-      var background = model.renderable.getBackgroundByReference(); // renderable ensures that background has 4 entries.
-
-      model.context.clearColor(background[0], background[1], background[2], background[3]);
-      clearMask |= gl.COLOR_BUFFER_BIT;
-    }
-
-    if (!model.renderable.getPreserveDepthBuffer()) {
-      gl.clearDepth(1.0);
-      clearMask |= gl.DEPTH_BUFFER_BIT;
-      model.context.depthMask(true);
-    }
-
-    gl.colorMask(true, true, true, true);
-    var ts = publicAPI.getTiledSizeAndOrigin();
-    gl.enable(gl.SCISSOR_TEST);
-    gl.scissor(ts.lowerLeftU, ts.lowerLeftV, ts.usize, ts.vsize);
-    gl.viewport(ts.lowerLeftU, ts.lowerLeftV, ts.usize, ts.vsize);
-    gl.clear(clearMask);
-    gl.enable(gl.DEPTH_TEST);
-    /* eslint-enable no-bitwise */
-  };
-
-  publicAPI.releaseGraphicsResources = function () {
-    if (model.selector !== null) {
-      model.selector.releaseGraphicsResources();
-    }
-  };
-
-  publicAPI.setOpenGLRenderWindow = function (rw) {
-    if (model.openGLRenderWindow === rw) {
-      return;
-    }
-
-    publicAPI.releaseGraphicsResources();
-    model.openGLRenderWindow = rw;
-    model.context = null;
-
-    if (rw) {
-      model.context = model.openGLRenderWindow.getContext();
-    }
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var Renderer_DEFAULT_VALUES = {
-  context: null,
-  openGLRenderWindow: null,
-  selector: null
-}; // ----------------------------------------------------------------------------
-
-function Renderer_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, Renderer_DEFAULT_VALUES, initialValues); // Inheritance
-
-  vtkViewNode$1.extend(publicAPI, model, initialValues); // Build VTK API
-
-  get(publicAPI, model, ['shaderCache']);
-  setGet(publicAPI, model, ['selector']); // Object methods
-
-  vtkOpenGLRenderer(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var Renderer_newInstance = newInstance(Renderer_extend, 'vtkOpenGLRenderer'); // ----------------------------------------------------------------------------
-
-var vtkRenderer = {
-  newInstance: Renderer_newInstance,
-  extend: Renderer_extend
-}; // Register ourself to OpenGL backend if imported
-
-registerOverride('vtkRenderer', Renderer_newInstance);
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/ImageMapper/Constants.js
-var SlicingMode = {
-  NONE: -1,
-  I: 0,
-  J: 1,
-  K: 2,
-  X: 3,
-  Y: 4,
-  Z: 5
-};
-var ImageMapper_Constants_Constants = {
-  SlicingMode: SlicingMode
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/BufferObject/Constants.js
-var ObjectType = {
-  ARRAY_BUFFER: 0,
-  ELEMENT_ARRAY_BUFFER: 1,
-  TEXTURE_BUFFER: 2
-};
-var BufferObject_Constants_Constants = {
-  ObjectType: ObjectType
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/BufferObject.js
-
-
-
-
-function BufferObject_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); enumerableOnly && (symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; })), keys.push.apply(keys, symbols); } return keys; }
-
-function BufferObject_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = null != arguments[i] ? arguments[i] : {}; i % 2 ? BufferObject_ownKeys(Object(source), !0).forEach(function (key) { _defineProperty(target, key, source[key]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : BufferObject_ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } return target; }
-var BufferObject_ObjectType = BufferObject_Constants_Constants.ObjectType; // ----------------------------------------------------------------------------
-// Global methods
-// ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
-// Static API
-// ----------------------------------------------------------------------------
-
-var BufferObject_STATIC = {}; // ----------------------------------------------------------------------------
-// vtkOpenGLBufferObject methods
-// ----------------------------------------------------------------------------
-
-function vtkOpenGLBufferObject(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkOpenGLBufferObject'); // Class-specific private functions
-
-  function convertType(type) {
-    switch (type) {
-      case BufferObject_ObjectType.ELEMENT_ARRAY_BUFFER:
-        return model.context.ELEMENT_ARRAY_BUFFER;
-
-      case BufferObject_ObjectType.TEXTURE_BUFFER:
-        if ('TEXTURE_BUFFER' in model.context) {
-          return model.context.TEXTURE_BUFFER;
-        }
-
-      /* eslint-disable no-fallthrough */
-      // Intentional fallthrough in case there is no TEXTURE_BUFFER in WebGL
-
-      case BufferObject_ObjectType.ARRAY_BUFFER:
-      default:
-        return model.context.ARRAY_BUFFER;
-
-      /* eslint-enable no-fallthrough */
-    }
-  }
-
-  var internalType = null;
-  var internalHandle = null;
-  var dirty = true;
-  var error = ''; // Public API methods
-
-  publicAPI.getType = function () {
-    return internalType;
-  };
-
-  publicAPI.setType = function (value) {
-    internalType = value;
-  };
-
-  publicAPI.getHandle = function () {
-    return internalHandle;
-  };
-
-  publicAPI.isReady = function () {
-    return dirty === false;
-  };
-
-  publicAPI.generateBuffer = function (type) {
-    var objectTypeGL = convertType(type);
-
-    if (internalHandle === null) {
-      internalHandle = model.context.createBuffer();
-      internalType = type;
-    }
-
-    return convertType(internalType) === objectTypeGL;
-  };
-
-  publicAPI.upload = function (data, type) {
-    // buffer, size, type
-    var alreadyGenerated = publicAPI.generateBuffer(type);
-
-    if (!alreadyGenerated) {
-      error = 'Trying to upload array buffer to incompatible buffer.';
-      return false;
-    }
-
-    model.context.bindBuffer(convertType(internalType), internalHandle);
-    model.context.bufferData(convertType(internalType), data, model.context.STATIC_DRAW);
-    dirty = false;
-    return true;
-  };
-
-  publicAPI.bind = function () {
-    if (!internalHandle) {
-      return false;
-    }
-
-    model.context.bindBuffer(convertType(internalType), internalHandle);
-    return true;
-  };
-
-  publicAPI.release = function () {
-    if (!internalHandle) {
-      return false;
-    }
-
-    model.context.bindBuffer(convertType(internalType), null);
-    return true;
-  };
-
-  publicAPI.releaseGraphicsResources = function () {
-    if (internalHandle !== null) {
-      model.context.bindBuffer(convertType(internalType), null);
-      model.context.deleteBuffer(internalHandle);
-      internalHandle = null;
-    }
-  };
-
-  publicAPI.setOpenGLRenderWindow = function (rw) {
-    if (model.openGLRenderWindow === rw) {
-      return;
-    }
-
-    publicAPI.releaseGraphicsResources();
-    model.openGLRenderWindow = rw;
-    model.context = null;
-
-    if (rw) {
-      model.context = model.openGLRenderWindow.getContext();
-    }
-  };
-
-  publicAPI.getError = function () {
-    return error;
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var BufferObject_DEFAULT_VALUES = {
-  objectType: BufferObject_ObjectType.ARRAY_BUFFER,
-  openGLRenderWindow: null,
-  context: null
-}; // ----------------------------------------------------------------------------
-
-function BufferObject_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, BufferObject_DEFAULT_VALUES, initialValues); // Object methods
-
-  macro.obj(publicAPI, model);
-  macro.get(publicAPI, model, ['openGLRenderWindow']);
-  vtkOpenGLBufferObject(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var BufferObject_newInstance = macro.newInstance(BufferObject_extend); // ----------------------------------------------------------------------------
-
-var vtkBufferObject = BufferObject_objectSpread(BufferObject_objectSpread({
-  newInstance: BufferObject_newInstance,
-  extend: BufferObject_extend
-}, BufferObject_STATIC), BufferObject_Constants_Constants);
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/CellArrayBufferObject.js
-
-
-
-
-
-
-var CellArrayBufferObject_vtkErrorMacro = macro.vtkErrorMacro; // ----------------------------------------------------------------------------
-// Static functions
-// ----------------------------------------------------------------------------
-
-function computeInverseShiftAndScaleMatrix(coordShift, coordScale) {
-  var inverseScale = new Float64Array(3);
-  inverse(inverseScale, coordScale);
-  var matrix = new Float64Array(16);
-  fromRotationTranslationScale(matrix, quat_create(), coordShift, inverseScale);
-  return matrix;
-}
-
-function shouldApplyCoordShiftAndScale(coordShift, coordScale) {
-  if (coordShift === null || coordScale === null) {
-    return false;
-  }
-
-  return !(exactEquals(coordShift, [0, 0, 0]) && exactEquals(coordScale, [1, 1, 1]));
-} // ----------------------------------------------------------------------------
-// vtkOpenGLCellArrayBufferObject methods
-// ----------------------------------------------------------------------------
-
-
-function vtkOpenGLCellArrayBufferObject(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkOpenGLCellArrayBufferObject');
-  publicAPI.setType(ObjectType.ARRAY_BUFFER);
-
-  publicAPI.createVBO = function (cellArray, inRep, outRep, options) {
-    if (!cellArray.getData() || !cellArray.getData().length) {
-      model.elementCount = 0;
-      return 0;
-    } // Figure out how big each block will be, currently 6 or 7 floats.
-
-
-    model.blockSize = 3;
-    model.vertexOffset = 0;
-    model.normalOffset = 0;
-    model.tCoordOffset = 0;
-    model.tCoordComponents = 0;
-    model.colorComponents = 0;
-    model.colorOffset = 0;
-    model.customData = [];
-    var pointData = options.points.getData();
-    var normalData = null;
-    var tcoordData = null;
-    var colorData = null;
-    var colorComponents = options.colors ? options.colors.getNumberOfComponents() : 0;
-    var textureComponents = options.tcoords ? options.tcoords.getNumberOfComponents() : 0; // the values of 4 below are because floats are 4 bytes
-
-    if (options.normals) {
-      model.normalOffset = 4 * model.blockSize;
-      model.blockSize += 3;
-      normalData = options.normals.getData();
-    }
-
-    if (options.customAttributes) {
-      options.customAttributes.forEach(function (a) {
-        if (a) {
-          model.customData.push({
-            data: a.getData(),
-            offset: 4 * model.blockSize,
-            components: a.getNumberOfComponents(),
-            name: a.getName()
-          });
-          model.blockSize += a.getNumberOfComponents();
-        }
-      });
-    }
-
-    if (options.tcoords) {
-      model.tCoordOffset = 4 * model.blockSize;
-      model.tCoordComponents = textureComponents;
-      model.blockSize += textureComponents;
-      tcoordData = options.tcoords.getData();
-    }
-
-    if (options.colors) {
-      model.colorComponents = options.colors.getNumberOfComponents();
-      model.colorOffset = 0;
-      colorData = options.colors.getData();
-
-      if (!model.colorBO) {
-        model.colorBO = vtkBufferObject.newInstance();
-      }
-
-      model.colorBO.setOpenGLRenderWindow(model.openGLRenderWindow);
-    } else {
-      model.colorBO = null;
-    }
-
-    model.stride = 4 * model.blockSize;
-    var pointIdx = 0;
-    var normalIdx = 0;
-    var tcoordIdx = 0;
-    var colorIdx = 0;
-    var custIdx = 0;
-    var cellCount = 0;
-    var addAPoint;
-    var cellBuilders = {
-      // easy, every input point becomes an output point
-      anythingToPoints: function anythingToPoints(numPoints, cellPts, offset) {
-        for (var i = 0; i < numPoints; ++i) {
-          addAPoint(cellPts[offset + i]);
-        }
-      },
-      linesToWireframe: function linesToWireframe(numPoints, cellPts, offset) {
-        // for lines we add a bunch of segments
-        for (var i = 0; i < numPoints - 1; ++i) {
-          addAPoint(cellPts[offset + i]);
-          addAPoint(cellPts[offset + i + 1]);
-        }
-      },
-      polysToWireframe: function polysToWireframe(numPoints, cellPts, offset) {
-        // for polys we add a bunch of segments and close it
-        if (numPoints > 2) {
-          for (var i = 0; i < numPoints; ++i) {
-            addAPoint(cellPts[offset + i]);
-            addAPoint(cellPts[offset + (i + 1) % numPoints]);
-          }
-        }
-      },
-      stripsToWireframe: function stripsToWireframe(numPoints, cellPts, offset) {
-        if (numPoints > 2) {
-          // for strips we add a bunch of segments and close it
-          for (var i = 0; i < numPoints - 1; ++i) {
-            addAPoint(cellPts[offset + i]);
-            addAPoint(cellPts[offset + i + 1]);
-          }
-
-          for (var _i = 0; _i < numPoints - 2; _i++) {
-            addAPoint(cellPts[offset + _i]);
-            addAPoint(cellPts[offset + _i + 2]);
-          }
-        }
-      },
-      polysToSurface: function polysToSurface(npts, cellPts, offset) {
-        for (var i = 0; i < npts - 2; i++) {
-          addAPoint(cellPts[offset + 0]);
-          addAPoint(cellPts[offset + i + 1]);
-          addAPoint(cellPts[offset + i + 2]);
-        }
-      },
-      stripsToSurface: function stripsToSurface(npts, cellPts, offset) {
-        for (var i = 0; i < npts - 2; i++) {
-          addAPoint(cellPts[offset + i]);
-          addAPoint(cellPts[offset + i + 1 + i % 2]);
-          addAPoint(cellPts[offset + i + 1 + (i + 1) % 2]);
-        }
-      }
-    };
-    var cellCounters = {
-      // easy, every input point becomes an output point
-      anythingToPoints: function anythingToPoints(numPoints, cellPts) {
-        return numPoints;
-      },
-      linesToWireframe: function linesToWireframe(numPoints, cellPts) {
-        if (numPoints > 1) {
-          return (numPoints - 1) * 2;
-        }
-
-        return 0;
-      },
-      polysToWireframe: function polysToWireframe(numPoints, cellPts) {
-        if (numPoints > 2) {
-          return numPoints * 2;
-        }
-
-        return 0;
-      },
-      stripsToWireframe: function stripsToWireframe(numPoints, cellPts) {
-        if (numPoints > 2) {
-          return numPoints * 4 - 6;
-        }
-
-        return 0;
-      },
-      polysToSurface: function polysToSurface(npts, cellPts) {
-        if (npts > 2) {
-          return (npts - 2) * 3;
-        }
-
-        return 0;
-      },
-      stripsToSurface: function stripsToSurface(npts, cellPts, offset) {
-        if (npts > 2) {
-          return (npts - 2) * 3;
-        }
-
-        return 0;
-      }
-    };
-    var func = null;
-    var countFunc = null;
-
-    if (outRep === Representation.POINTS || inRep === 'verts') {
-      func = cellBuilders.anythingToPoints;
-      countFunc = cellCounters.anythingToPoints;
-    } else if (outRep === Representation.WIREFRAME || inRep === 'lines') {
-      func = cellBuilders["".concat(inRep, "ToWireframe")];
-      countFunc = cellCounters["".concat(inRep, "ToWireframe")];
-    } else {
-      func = cellBuilders["".concat(inRep, "ToSurface")];
-      countFunc = cellCounters["".concat(inRep, "ToSurface")];
-    }
-
-    var array = cellArray.getData();
-    var size = array.length;
-    var caboCount = 0;
-
-    for (var index = 0; index < size;) {
-      caboCount += countFunc(array[index], array);
-      index += array[index] + 1;
-    }
-
-    var packedUCVBO = null;
-    var packedVBO = new Float32Array(caboCount * model.blockSize);
-
-    if (colorData) {
-      packedUCVBO = new Uint8Array(caboCount * 4);
-    }
-
-    var vboidx = 0;
-    var ucidx = 0; // Find out if shift scale should be used
-    // Compute squares of diagonal size and distance from the origin
-
-    var diagSq = 0.0;
-    var distSq = 0.0;
-
-    for (var i = 0; i < 3; ++i) {
-      var range = options.points.getRange(i);
-      var delta = range[1] - range[0];
-      diagSq += delta * delta;
-      var distShift = 0.5 * (range[1] + range[0]);
-      distSq += distShift * distShift;
-    }
-
-    var useShiftAndScale = diagSq > 0 && (Math.abs(distSq) / diagSq > 1.0e6 || // If data is far from the origin relative to its size
-    Math.abs(Math.log10(diagSq)) > 3.0 || // If the size is huge when not far from the origin
-    diagSq === 0 && distSq > 1.0e6); // If data is a point, but far from the origin
-
-    if (useShiftAndScale) {
-      // Compute shift and scale vectors
-      var coordShift = new Float64Array(3);
-      var coordScale = new Float64Array(3);
-
-      for (var _i2 = 0; _i2 < 3; ++_i2) {
-        var _range = options.points.getRange(_i2);
-
-        var _delta = _range[1] - _range[0];
-
-        coordShift[_i2] = 0.5 * (_range[1] + _range[0]);
-        coordScale[_i2] = _delta > 0 ? 1.0 / _delta : 1.0;
-      }
-
-      publicAPI.setCoordShiftAndScale(coordShift, coordScale);
-    } else if (model.coordShiftAndScaleEnabled === true) {
-      // Make sure to reset
-      publicAPI.setCoordShiftAndScale(null, null);
-    }
-
-    addAPoint = function addAPointFunc(i) {
-      // Vertices
-      pointIdx = i * 3;
-
-      if (!model.coordShiftAndScaleEnabled) {
-        packedVBO[vboidx++] = pointData[pointIdx++];
-        packedVBO[vboidx++] = pointData[pointIdx++];
-        packedVBO[vboidx++] = pointData[pointIdx++];
-      } else {
-        // Apply shift and scale
-        packedVBO[vboidx++] = (pointData[pointIdx++] - model.coordShift[0]) * model.coordScale[0];
-        packedVBO[vboidx++] = (pointData[pointIdx++] - model.coordShift[1]) * model.coordScale[1];
-        packedVBO[vboidx++] = (pointData[pointIdx++] - model.coordShift[2]) * model.coordScale[2];
-      }
-
-      if (normalData !== null) {
-        if (options.haveCellNormals) {
-          normalIdx = (cellCount + options.cellOffset) * 3;
-        } else {
-          normalIdx = i * 3;
-        }
-
-        packedVBO[vboidx++] = normalData[normalIdx++];
-        packedVBO[vboidx++] = normalData[normalIdx++];
-        packedVBO[vboidx++] = normalData[normalIdx++];
-      }
-
-      model.customData.forEach(function (attr) {
-        custIdx = i * attr.components;
-
-        for (var j = 0; j < attr.components; ++j) {
-          packedVBO[vboidx++] = attr.data[custIdx++];
-        }
-      });
-
-      if (tcoordData !== null) {
-        tcoordIdx = i * textureComponents;
-
-        for (var j = 0; j < textureComponents; ++j) {
-          packedVBO[vboidx++] = tcoordData[tcoordIdx++];
-        }
-      }
-
-      if (colorData !== null) {
-        if (options.haveCellScalars) {
-          colorIdx = (cellCount + options.cellOffset) * colorComponents;
-        } else {
-          colorIdx = i * colorComponents;
-        }
-
-        packedUCVBO[ucidx++] = colorData[colorIdx++];
-        packedUCVBO[ucidx++] = colorData[colorIdx++];
-        packedUCVBO[ucidx++] = colorData[colorIdx++];
-        packedUCVBO[ucidx++] = colorComponents === 4 ? colorData[colorIdx++] : 255;
-      }
-    };
-
-    for (var _index = 0; _index < size;) {
-      func(array[_index], array, _index + 1);
-      _index += array[_index] + 1;
-      cellCount++;
-    }
-
-    model.elementCount = caboCount;
-    publicAPI.upload(packedVBO, ObjectType.ARRAY_BUFFER);
-
-    if (model.colorBO) {
-      model.colorBOStride = 4;
-      model.colorBO.upload(packedUCVBO, ObjectType.ARRAY_BUFFER);
-    }
-
-    return cellCount;
-  };
-
-  publicAPI.setCoordShiftAndScale = function (coordShift, coordScale) {
-    if (coordShift !== null && (coordShift.constructor !== Float64Array || coordShift.length !== 3)) {
-      CellArrayBufferObject_vtkErrorMacro('Wrong type for coordShift, expected vec3 or null');
-      return;
-    }
-
-    if (coordScale !== null && (coordScale.constructor !== Float64Array || coordScale.length !== 3)) {
-      CellArrayBufferObject_vtkErrorMacro('Wrong type for coordScale, expected vec3 or null');
-      return;
-    }
-
-    if (model.coordShift === null || coordShift === null || !vec3_equals(coordShift, model.coordShift)) {
-      model.coordShift = coordShift;
-    }
-
-    if (model.coordScale === null || coordScale === null || !vec3_equals(coordScale, model.coordScale)) {
-      model.coordScale = coordScale;
-    }
-
-    model.coordShiftAndScaleEnabled = shouldApplyCoordShiftAndScale(model.coordShift, model.coordScale);
-
-    if (model.coordShiftAndScaleEnabled) {
-      model.inverseShiftAndScaleMatrix = computeInverseShiftAndScaleMatrix(model.coordShift, model.coordScale);
-    } else {
-      model.inverseShiftAndScaleMatrix = null;
-    }
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var CellArrayBufferObject_DEFAULT_VALUES = {
-  elementCount: 0,
-  stride: 0,
-  colorBOStride: 0,
-  vertexOffset: 0,
-  normalOffset: 0,
-  tCoordOffset: 0,
-  tCoordComponents: 0,
-  colorOffset: 0,
-  colorComponents: 0,
-  tcoordBO: null,
-  customData: [],
-  coordShift: null,
-  coordScale: null,
-  coordShiftAndScaleEnabled: false,
-  inverseShiftAndScaleMatrix: null
-}; // ----------------------------------------------------------------------------
-
-function CellArrayBufferObject_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, CellArrayBufferObject_DEFAULT_VALUES, initialValues); // Inheritance
-
-  vtkBufferObject.extend(publicAPI, model, initialValues);
-  macro.setGet(publicAPI, model, ['colorBO', 'elementCount', 'stride', 'colorBOStride', 'vertexOffset', 'normalOffset', 'tCoordOffset', 'tCoordComponents', 'colorOffset', 'colorComponents', 'customData']);
-  macro.get(publicAPI, model, ['coordShift', 'coordScale', 'coordShiftAndScaleEnabled', 'inverseShiftAndScaleMatrix']); // Object specific methods
-
-  vtkOpenGLCellArrayBufferObject(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var CellArrayBufferObject_newInstance = macro.newInstance(CellArrayBufferObject_extend); // ----------------------------------------------------------------------------
-
-var vtkCellArrayBufferObject = {
-  newInstance: CellArrayBufferObject_newInstance,
-  extend: CellArrayBufferObject_extend
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/Shader.js
-
-
-var Shader_vtkErrorMacro = macro.vtkErrorMacro; // export const SHADER_TYPES = ['Vertex', 'Fragment', 'Geometry', 'Unknown'];
-// ----------------------------------------------------------------------------
-// vtkShader methods
-// ----------------------------------------------------------------------------
-
-function vtkShader(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkShader');
-
-  publicAPI.compile = function () {
-    var stype = model.context.VERTEX_SHADER;
-
-    if (!model.source || !model.source.length || model.shaderType === 'Unknown') {
-      return false;
-    } // Ensure we delete the previous shader if necessary.
-
-
-    if (model.handle !== 0) {
-      model.context.deleteShader(model.handle);
-      model.handle = 0;
-    }
-
-    switch (model.shaderType) {
-      // case vtkShader::Geometry:
-      //   type = GL_GEOMETRY_SHADER;
-      //   break;
-      case 'Fragment':
-        stype = model.context.FRAGMENT_SHADER;
-        break;
-
-      case 'Vertex':
-      default:
-        stype = model.context.VERTEX_SHADER;
-        break;
-    }
-
-    model.handle = model.context.createShader(stype);
-    model.context.shaderSource(model.handle, model.source);
-    model.context.compileShader(model.handle);
-    var isCompiled = model.context.getShaderParameter(model.handle, model.context.COMPILE_STATUS);
-
-    if (!isCompiled) {
-      var lastError = model.context.getShaderInfoLog(model.handle);
-      Shader_vtkErrorMacro("Error compiling shader '".concat(model.source, "': ").concat(lastError));
-      model.context.deleteShader(model.handle);
-      model.handle = 0;
-      return false;
-    } // The shader compiled, store its handle and return success.
-
-
-    return true;
-  };
-
-  publicAPI.cleanup = function () {
-    if (model.shaderType === 'Unknown' || model.handle === 0) {
-      return;
-    }
-
-    model.context.deleteShader(model.handle);
-    model.handle = 0;
-    model.dirty = true;
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var Shader_DEFAULT_VALUES = {
-  shaderType: 'Unknown',
-  source: '',
-  error: '',
-  handle: 0,
-  dirty: false,
-  context: null
-}; // ----------------------------------------------------------------------------
-
-function Shader_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, Shader_DEFAULT_VALUES, initialValues); // Build VTK API
-
-  macro.obj(publicAPI, model);
-  macro.setGet(publicAPI, model, ['shaderType', 'source', 'error', 'handle', 'context']); // Object methods
-
-  vtkShader(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var Shader_newInstance = macro.newInstance(Shader_extend, 'vtkShader'); // ----------------------------------------------------------------------------
-
-var vtkShader$1 = {
-  newInstance: Shader_newInstance,
-  extend: Shader_extend
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/ShaderProgram.js
-
-
-
-var ShaderProgram_vtkErrorMacro = macro.vtkErrorMacro; // perform in place string substitutions, indicate if a substitution was done
-// this is useful for building up shader strings which typically involve
-// lots of string substitutions. Return true if a substitution was done.
-
-function substitute(source, search, replace) {
-  var all = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : true;
-  var replaceStr = Array.isArray(replace) ? replace.join('\n') : replace;
-  var replaced = false;
-
-  if (source.search(search) !== -1) {
-    replaced = true;
-  }
-
-  var gflag = '';
-
-  if (all) {
-    gflag = 'g';
-  }
-
-  var regex = new RegExp(search, gflag);
-  var resultstr = source.replace(regex, replaceStr);
-  return {
-    replace: replaced,
-    result: resultstr
-  };
-} // ----------------------------------------------------------------------------
-// vtkShaderProgram methods
-// ----------------------------------------------------------------------------
-
-
-function vtkShaderProgram(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkShaderProgram');
-
-  publicAPI.compileShader = function () {
-    if (!model.vertexShader.compile()) {
-      ShaderProgram_vtkErrorMacro(model.vertexShader.getSource().split('\n').map(function (line, index) {
-        return "".concat(index, ": ").concat(line);
-      }).join('\n'));
-      ShaderProgram_vtkErrorMacro(model.vertexShader.getError());
-      return 0;
-    }
-
-    if (!model.fragmentShader.compile()) {
-      ShaderProgram_vtkErrorMacro(model.fragmentShader.getSource().split('\n').map(function (line, index) {
-        return "".concat(index, ": ").concat(line);
-      }).join('\n'));
-      ShaderProgram_vtkErrorMacro(model.fragmentShader.getError());
-      return 0;
-    } // skip geometry for now
-
-
-    if (!publicAPI.attachShader(model.vertexShader)) {
-      ShaderProgram_vtkErrorMacro(model.error);
-      return 0;
-    }
-
-    if (!publicAPI.attachShader(model.fragmentShader)) {
-      ShaderProgram_vtkErrorMacro(model.error);
-      return 0;
-    }
-
-    if (!publicAPI.link()) {
-      ShaderProgram_vtkErrorMacro("Links failed: ".concat(model.error));
-      return 0;
-    }
-
-    publicAPI.setCompiled(true);
-    return 1;
-  };
-
-  publicAPI.cleanup = function () {
-    if (model.shaderType === 'Unknown' || model.handle === 0) {
-      return;
-    }
-
-    model.context.deleteShader(model.handle);
-    model.handle = 0;
-  };
-
-  publicAPI.bind = function () {
-    if (!model.linked && !publicAPI.link()) {
-      return false;
-    }
-
-    model.context.useProgram(model.handle);
-    publicAPI.setBound(true);
-    return true;
-  };
-
-  publicAPI.isBound = function () {
-    return !!model.bound;
-  };
-
-  publicAPI.release = function () {
-    model.context.useProgram(null);
-    publicAPI.setBound(false);
-  };
-
-  publicAPI.setContext = function (ctx) {
-    model.vertexShader.setContext(ctx);
-    model.fragmentShader.setContext(ctx);
-    model.geometryShader.setContext(ctx);
-  };
-
-  publicAPI.link = function () {
-    if (model.inked) {
-      return true;
-    }
-
-    if (model.handle === 0) {
-      model.error = 'Program has not been initialized, and/or does not have shaders.';
-      return false;
-    } // clear out the list of uniforms used
-
-
-    model.uniformLocs = {};
-    model.context.linkProgram(model.handle);
-    var isCompiled = model.context.getProgramParameter(model.handle, model.context.LINK_STATUS);
-
-    if (!isCompiled) {
-      var lastError = model.context.getProgramInfoLog(model.handle);
-      ShaderProgram_vtkErrorMacro("Error linking shader ".concat(lastError));
-      model.handle = 0;
-      return false;
-    }
-
-    publicAPI.setLinked(true);
-    model.attributeLocs = {};
-    return true;
-  };
-
-  publicAPI.setUniformMatrix = function (name, v) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    var f32 = new Float32Array(v);
-    model.context.uniformMatrix4fv(location, false, f32);
-    return true;
-  };
-
-  publicAPI.setUniformMatrix3x3 = function (name, v) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    var f32 = new Float32Array(v);
-    model.context.uniformMatrix3fv(location, false, f32);
-    return true;
-  };
-
-  publicAPI.setUniformf = function (name, v) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    model.context.uniform1f(location, v);
-    return true;
-  };
-
-  publicAPI.setUniformfv = function (name, v) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    model.context.uniform1fv(location, v);
-    return true;
-  };
-
-  publicAPI.setUniformi = function (name, v) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    model.context.uniform1i(location, v);
-    return true;
-  };
-
-  publicAPI.setUniformiv = function (name, v) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    model.context.uniform1iv(location, v);
-    return true;
-  };
-
-  publicAPI.setUniform2f = function (name, v1, v2) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    if (v2 === undefined) {
-      throw new RangeError('Invalid number of values for array');
-    }
-
-    model.context.uniform2f(location, v1, v2);
-    return true;
-  };
-
-  publicAPI.setUniform2fv = function (name, v) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    model.context.uniform2fv(location, v);
-    return true;
-  };
-
-  publicAPI.setUniform2i = function (name, v1, v2) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    if (v2 === undefined) {
-      throw new RangeError('Invalid number of values for array');
-    }
-
-    model.context.uniform2i(location, v1, v2);
-    return true;
-  };
-
-  publicAPI.setUniform2iv = function (name, v) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    model.context.uniform2iv(location, v);
-    return true;
-  };
-
-  publicAPI.setUniform3f = function (name, a1, a2, a3) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    if (a3 === undefined) {
-      throw new RangeError('Invalid number of values for array');
-    }
-
-    model.context.uniform3f(location, a1, a2, a3);
-    return true;
-  };
-
-  publicAPI.setUniform3fArray = function (name, a) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    if (!Array.isArray(a) || a.length !== 3) {
-      throw new RangeError('Invalid number of values for array');
-    }
-
-    model.context.uniform3f(location, a[0], a[1], a[2]);
-    return true;
-  };
-
-  publicAPI.setUniform3fv = function (name, v) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    model.context.uniform3fv(location, v);
-    return true;
-  };
-
-  publicAPI.setUniform3i = function (name) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    for (var _len = arguments.length, args = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-      args[_key - 1] = arguments[_key];
-    }
-
-    var array = args; // allow an array passed as a single argument
-
-    if (array.length === 1 && Array.isArray(array[0])) {
-      array = array[0];
-    }
-
-    if (array.length !== 3) {
-      throw new RangeError('Invalid number of values for array');
-    }
-
-    model.context.uniform3i(location, array[0], array[1], array[2]);
-    return true;
-  };
-
-  publicAPI.setUniform3iv = function (name, v) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    model.context.uniform3iv(location, v);
-    return true;
-  };
-
-  publicAPI.setUniform4f = function (name) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    for (var _len2 = arguments.length, args = new Array(_len2 > 1 ? _len2 - 1 : 0), _key2 = 1; _key2 < _len2; _key2++) {
-      args[_key2 - 1] = arguments[_key2];
-    }
-
-    var array = args; // allow an array passed as a single argument
-
-    if (array.length === 1 && Array.isArray(array[0])) {
-      array = array[0];
-    }
-
-    if (array.length !== 4) {
-      throw new RangeError('Invalid number of values for array');
-    }
-
-    model.context.uniform4f(location, array[0], array[1], array[2], array[3]);
-    return true;
-  };
-
-  publicAPI.setUniform4fv = function (name, v) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    model.context.uniform4fv(location, v);
-    return true;
-  };
-
-  publicAPI.setUniform4i = function (name) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    for (var _len3 = arguments.length, args = new Array(_len3 > 1 ? _len3 - 1 : 0), _key3 = 1; _key3 < _len3; _key3++) {
-      args[_key3 - 1] = arguments[_key3];
-    }
-
-    var array = args; // allow an array passed as a single argument
-
-    if (array.length === 1 && Array.isArray(array[0])) {
-      array = array[0];
-    }
-
-    if (array.length !== 4) {
-      throw new RangeError('Invalid number of values for array');
-    }
-
-    model.context.uniform4i(location, array[0], array[1], array[2], array[3]);
-    return true;
-  };
-
-  publicAPI.setUniform4iv = function (name, v) {
-    var location = publicAPI.findUniform(name);
-
-    if (location === -1) {
-      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
-      return false;
-    }
-
-    model.context.uniform4iv(location, v);
-    return true;
-  };
-
-  publicAPI.findUniform = function (name) {
-    if (!name || !model.linked) {
-      return -1;
-    } // see if we have cached the result
-
-
-    var loc = model.uniformLocs[name];
-
-    if (loc !== undefined) {
-      return loc;
-    }
-
-    loc = model.context.getUniformLocation(model.handle, name);
-
-    if (loc === null) {
-      model.error = "Uniform ".concat(name, " not found in current shader program.");
-      model.uniformLocs[name] = -1;
-      return -1;
-    }
-
-    model.uniformLocs[name] = loc;
-    return loc;
-  };
-
-  publicAPI.isUniformUsed = function (name) {
-    if (!name) {
-      return false;
-    } // see if we have cached the result
-
-
-    var loc = model.uniformLocs[name];
-
-    if (loc !== undefined) {
-      return loc !== null;
-    }
-
-    if (!model.linked) {
-      ShaderProgram_vtkErrorMacro('attempt to find uniform when the shader program is not linked');
-      return false;
-    }
-
-    loc = model.context.getUniformLocation(model.handle, name);
-    model.uniformLocs[name] = loc;
-
-    if (loc === null) {
-      return false;
-    }
-
-    return true;
-  };
-
-  publicAPI.isAttributeUsed = function (name) {
-    if (!name) {
-      return false;
-    } // see if we have cached the result
-
-
-    var loc = Object.keys(model.attributeLocs).indexOf(name);
-
-    if (loc !== -1) {
-      return true;
-    }
-
-    if (!model.linked) {
-      ShaderProgram_vtkErrorMacro('attempt to find uniform when the shader program is not linked');
-      return false;
-    }
-
-    loc = model.context.getAttribLocation(model.handle, name);
-
-    if (loc === -1) {
-      return false;
-    }
-
-    model.attributeLocs[name] = loc;
-    return true;
-  };
-
-  publicAPI.attachShader = function (shader) {
-    if (shader.getHandle() === 0) {
-      model.error = 'Shader object was not initialized, cannot attach it.';
-      return false;
-    }
-
-    if (shader.getShaderType() === 'Unknown') {
-      model.error = 'Shader object is of type Unknown and cannot be used.';
-      return false;
-    }
-
-    if (model.handle === 0) {
-      var thandle = model.context.createProgram();
-
-      if (thandle === 0) {
-        model.error = 'Could not create shader program.';
-        return false;
-      }
-
-      model.handle = thandle;
-      model.linked = false;
-    }
-
-    if (shader.getShaderType() === 'Vertex') {
-      if (model.vertexShaderHandle !== 0) {
-        model.comntext.detachShader(model.handle, model.vertexShaderHandle);
-      }
-
-      model.vertexShaderHandle = shader.getHandle();
-    }
-
-    if (shader.getShaderType() === 'Fragment') {
-      if (model.fragmentShaderHandle !== 0) {
-        model.context.detachShader(model.handle, model.fragmentShaderHandle);
-      }
-
-      model.fragmentShaderHandle = shader.getHandle();
-    }
-
-    model.context.attachShader(model.handle, shader.getHandle());
-    publicAPI.setLinked(false);
-    return true;
-  };
-
-  publicAPI.detachShader = function (shader) {
-    if (shader.getHandle() === 0) {
-      model.error = 'shader object was not initialized, cannot attach it.';
-      return false;
-    }
-
-    if (shader.getShaderType() === 'Unknown') {
-      model.error = 'Shader object is of type Unknown and cannot be used.';
-      return false;
-    }
-
-    if (model.handle === 0) {
-      model.error = 'This shader program has not been initialized yet.';
-    }
-
-    switch (shader.getShaderType()) {
-      case 'Vertex':
-        if (model.vertexShaderHandle !== shader.getHandle()) {
-          model.error = 'The supplied shader was not attached to this program.';
-          return false;
-        }
-
-        model.context.detachShader(model.handle, shader.getHandle());
-        model.vertexShaderHandle = 0;
-        model.linked = false;
-        return true;
-
-      case 'Fragment':
-        if (model.fragmentShaderHandle !== shader.getHandle()) {
-          model.error = 'The supplied shader was not attached to this program.';
-          return false;
-        }
-
-        model.context.detachShader(model.handle, shader.getHandle());
-        model.fragmentShaderHandle = 0;
-        model.linked = false;
-        return true;
-
-      default:
-        return false;
-    }
-  };
-
-  publicAPI.setContext = function (ctx) {
-    model.context = ctx;
-    model.vertexShader.setContext(ctx);
-    model.fragmentShader.setContext(ctx);
-    model.geometryShader.setContext(ctx);
-  };
-
-  publicAPI.setLastCameraMTime = function (mtime) {
-    model.lastCameraMTime = mtime;
-  }; // publicAPI.enableAttributeArray = (name) => {
-  //   const location = publicAPI.findAttributeArray(name);
-  //   if (location === -1) {
-  //     model.error = `Could not enable attribute ${name} No such attribute.`;
-  //     return false;
-  //   }
-  //   model.context.enableVertexAttribArray(location);
-  //   return true;
-  // };
-  // publicAPI.disableAttributeArray = (name) => {
-  //   const location = publicAPI.findAttributeArray(name);
-  //   if (location === -1) {
-  //     model.error = `Could not enable attribute ${name} No such attribute.`;
-  //     return false;
-  //   }
-  //   model.context.disableVertexAttribArray(location);
-  //   return true;
-  // };
-
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var ShaderProgram_DEFAULT_VALUES = {
-  vertexShaderHandle: 0,
-  fragmentShaderHandle: 0,
-  geometryShaderHandle: 0,
-  vertexShader: null,
-  fragmentShader: null,
-  geometryShader: null,
-  linked: false,
-  bound: false,
-  compiled: false,
-  error: '',
-  handle: 0,
-  numberOfOutputs: 0,
-  attributesLocs: null,
-  uniformLocs: null,
-  md5Hash: 0,
-  context: null,
-  lastCameraMTime: null
-}; // ----------------------------------------------------------------------------
-
-function ShaderProgram_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, ShaderProgram_DEFAULT_VALUES, initialValues); // Instantiate internal objects
-
-  model.attributesLocs = {};
-  model.uniformLocs = {};
-  model.vertexShader = vtkShader$1.newInstance();
-  model.vertexShader.setShaderType('Vertex');
-  model.fragmentShader = vtkShader$1.newInstance();
-  model.fragmentShader.setShaderType('Fragment');
-  model.geometryShader = vtkShader$1.newInstance();
-  model.geometryShader.setShaderType('Geometry'); // Build VTK API
-
-  macro.obj(publicAPI, model);
-  macro.get(publicAPI, model, ['lastCameraMTime']);
-  macro.setGet(publicAPI, model, ['error', 'handle', 'compiled', 'bound', 'md5Hash', 'vertexShader', 'fragmentShader', 'geometryShader', 'linked']); // Object methods
-
-  vtkShaderProgram(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-
-var ShaderProgram_newInstance = macro.newInstance(ShaderProgram_extend, 'vtkShaderProgram'); // ----------------------------------------------------------------------------
-
-var vtkShaderProgram$1 = {
-  newInstance: ShaderProgram_newInstance,
-  extend: ShaderProgram_extend,
-  substitute: substitute
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/VertexArrayObject.js
-
-
-
-// vtkOpenGLVertexArrayObject methods
-// ----------------------------------------------------------------------------
-
-function vtkOpenGLVertexArrayObject(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkOpenGLVertexArrayObject'); // Public API methods
-
-  publicAPI.exposedMethod = function () {// This is a publicly exposed method of this object
-  };
-
-  publicAPI.initialize = function () {
-    model.instancingExtension = null;
-
-    if (!model.openGLRenderWindow.getWebgl2()) {
-      model.instancingExtension = model.context.getExtension('ANGLE_instanced_arrays');
-    }
-
-    if (!model.forceEmulation && model.openGLRenderWindow && model.openGLRenderWindow.getWebgl2()) {
-      model.extension = null;
-      model.supported = true;
-      model.handleVAO = model.context.createVertexArray();
-    } else {
-      model.extension = model.context.getExtension('OES_vertex_array_object'); // Start setting up VAO
-
-      if (!model.forceEmulation && model.extension) {
-        model.supported = true;
-        model.handleVAO = model.extension.createVertexArrayOES();
-      } else {
-        model.supported = false;
-      }
-    }
-  };
-
-  publicAPI.isReady = function () {
-    return (// We either probed and allocated a VAO, or are falling back as the current
-      // hardware does not support VAOs.
-      model.handleVAO !== 0 || model.supported === false
-    );
-  };
-
-  publicAPI.bind = function () {
-    // Either simply bind the VAO, or emulate behavior by binding all attributes.
-    if (!publicAPI.isReady()) {
-      publicAPI.initialize();
-    }
-
-    if (publicAPI.isReady() && model.supported) {
-      if (model.extension) {
-        model.extension.bindVertexArrayOES(model.handleVAO);
-      } else {
-        model.context.bindVertexArray(model.handleVAO);
-      }
-    } else if (publicAPI.isReady()) {
-      var gl = model.context;
-
-      for (var ibuff = 0; ibuff < model.buffers.length; ++ibuff) {
-        var buff = model.buffers[ibuff];
-        model.context.bindBuffer(gl.ARRAY_BUFFER, buff.buffer);
-
-        for (var iatt = 0; iatt < buff.attributes.length; ++iatt) {
-          var attrIt = buff.attributes[iatt];
-          var matrixCount = attrIt.isMatrix ? attrIt.size : 1;
-
-          for (var i = 0; i < matrixCount; ++i) {
-            gl.enableVertexAttribArray(attrIt.index + i);
-            gl.vertexAttribPointer(attrIt.index + i, attrIt.size, attrIt.type, attrIt.normalize, attrIt.stride, attrIt.offset + attrIt.stride * i / attrIt.size);
-
-            if (attrIt.divisor > 0) {
-              if (model.instancingExtension) {
-                model.instancingExtension.vertexAttribDivisorANGLE(attrIt.index + i, 1);
-              } else {
-                gl.vertexAttribDivisor(attrIt.index + i, 1);
-              }
-            }
-          }
-        }
-      }
-    }
-  };
-
-  publicAPI.release = function () {
-    // Either simply release the VAO, or emulate behavior by releasing all attributes.
-    if (publicAPI.isReady() && model.supported) {
-      if (model.extension) {
-        model.extension.bindVertexArrayOES(null);
-      } else {
-        model.context.bindVertexArray(null);
-      }
-    } else if (publicAPI.isReady()) {
-      var gl = model.context;
-
-      for (var ibuff = 0; ibuff < model.buffers.length; ++ibuff) {
-        var buff = model.buffers[ibuff];
-        model.context.bindBuffer(gl.ARRAY_BUFFER, buff.buffer);
-
-        for (var iatt = 0; iatt < buff.attributes.length; ++iatt) {
-          var attrIt = buff.attributes[iatt];
-          var matrixCount = attrIt.isMatrix ? attrIt.size : 1;
-
-          for (var i = 0; i < matrixCount; ++i) {
-            gl.enableVertexAttribArray(attrIt.index + i);
-            gl.vertexAttribPointer(attrIt.index + i, attrIt.size, attrIt.type, attrIt.normalize, attrIt.stride, attrIt.offset + attrIt.stride * i / attrIt.size);
-
-            if (attrIt.divisor > 0) {
-              if (model.instancingExtension) {
-                model.instancingExtension.vertexAttribDivisorANGLE(attrIt.index + i, 0);
-              } else {
-                gl.vertexAttribDivisor(attrIt.index + i, 0);
-              }
-            }
-
-            gl.disableVertexAttribArray(attrIt.index + i);
-          }
-        }
-      }
-    }
-  };
-
-  publicAPI.shaderProgramChanged = function () {
-    publicAPI.release();
-
-    if (model.handleVAO) {
-      if (model.extension) {
-        model.extension.deleteVertexArrayOES(model.handleVAO);
-      } else {
-        model.context.deleteVertexArray(model.handleVAO);
-      }
-    }
-
-    model.handleVAO = 0;
-    model.handleProgram = 0;
-  };
-
-  publicAPI.releaseGraphicsResources = function () {
-    publicAPI.shaderProgramChanged();
-
-    if (model.handleVAO) {
-      if (model.extension) {
-        model.extension.deleteVertexArrayOES(model.handleVAO);
-      } else {
-        model.context.deleteVertexArray(model.handleVAO);
-      }
-    }
-
-    model.handleVAO = 0;
-    model.supported = true;
-    model.handleProgram = 0;
-  };
-
-  publicAPI.addAttributeArray = function (program, buffer, name, offset, stride, elementType, elementTupleSize, normalize) {
-    return publicAPI.addAttributeArrayWithDivisor(program, buffer, name, offset, stride, elementType, elementTupleSize, normalize, 0, false);
-  };
-
-  publicAPI.addAttributeArrayWithDivisor = function (program, buffer, name, offset, stride, elementType, elementTupleSize, normalize, divisor, isMatrix) {
-    if (!program) {
-      return false;
-    } // Check the program is bound, and the buffer is valid.
-
-
-    if (!program.isBound() || buffer.getHandle() === 0 || buffer.getType() !== ObjectType.ARRAY_BUFFER) {
-      return false;
-    } // Perform initialization if necessary, ensure program matches VAOs.
-
-
-    if (model.handleProgram === 0) {
-      model.handleProgram = program.getHandle();
-    }
-
-    if (!publicAPI.isReady()) {
-      publicAPI.initialize();
-    }
-
-    if (!publicAPI.isReady() || model.handleProgram !== program.getHandle()) {
-      return false;
-    }
-
-    var gl = model.context;
-    var attribs = {};
-    attribs.name = name;
-    attribs.index = gl.getAttribLocation(model.handleProgram, name);
-    attribs.offset = offset;
-    attribs.stride = stride;
-    attribs.type = elementType;
-    attribs.size = elementTupleSize;
-    attribs.normalize = normalize;
-    attribs.isMatrix = isMatrix;
-    attribs.divisor = divisor;
-
-    if (attribs.Index === -1) {
-      return false;
-    } // Always make the call as even the first use wants the attrib pointer setting
-    // up when we are emulating.
-
-
-    buffer.bind();
-    gl.enableVertexAttribArray(attribs.index);
-    gl.vertexAttribPointer(attribs.index, attribs.size, attribs.type, attribs.normalize, attribs.stride, attribs.offset);
-
-    if (divisor > 0) {
-      if (model.instancingExtension) {
-        model.instancingExtension.vertexAttribDivisorANGLE(attribs.index, 1);
-      } else {
-        gl.vertexAttribDivisor(attribs.index, 1);
-      }
-    }
-
-    attribs.buffer = buffer.getHandle(); // If vertex array objects are not supported then build up our list.
-
-    if (!model.supported) {
-      // find the buffer
-      var buffFound = false;
-
-      for (var ibuff = 0; ibuff < model.buffers.length; ++ibuff) {
-        var buff = model.buffers[ibuff];
-
-        if (buff.buffer === attribs.buffer) {
-          buffFound = true;
-          var found = false;
-
-          for (var iatt = 0; iatt < buff.attributes.length; ++iatt) {
-            var attrIt = buff.attributes[iatt];
-
-            if (attrIt.name === name) {
-              found = true;
-              buff.attributes[iatt] = attribs;
-            }
-          }
-
-          if (!found) {
-            buff.attributes.push(attribs);
-          }
-        }
-      }
-
-      if (!buffFound) {
-        model.buffers.push({
-          buffer: attribs.buffer,
-          attributes: [attribs]
-        });
-      }
-    }
-
-    return true;
-  };
-
-  publicAPI.addAttributeMatrixWithDivisor = function (program, buffer, name, offset, stride, elementType, elementTupleSize, normalize, divisor) {
-    // bind the first row of values
-    var result = publicAPI.addAttributeArrayWithDivisor(program, buffer, name, offset, stride, elementType, elementTupleSize, normalize, divisor, true);
-
-    if (!result) {
-      return result;
-    }
-
-    var gl = model.context;
-    var index = gl.getAttribLocation(model.handleProgram, name);
-
-    for (var i = 1; i < elementTupleSize; i++) {
-      gl.enableVertexAttribArray(index + i);
-      gl.vertexAttribPointer(index + i, elementTupleSize, elementType, normalize, stride, offset + stride * i / elementTupleSize);
-
-      if (divisor > 0) {
-        if (model.instancingExtension) {
-          model.instancingExtension.vertexAttribDivisorANGLE(index + i, 1);
-        } else {
-          gl.vertexAttribDivisor(index + i, 1);
-        }
-      }
-    }
-
-    return true;
-  };
-
-  publicAPI.removeAttributeArray = function (name) {
-    if (!publicAPI.isReady() || model.handleProgram === 0) {
-      return false;
-    } // If we don't have real VAOs find the entry and remove it too.
-
-
-    if (!model.supported) {
-      for (var ibuff = 0; ibuff < model.buffers.length; ++ibuff) {
-        var buff = model.buffers[ibuff];
-
-        for (var iatt = 0; iatt < buff.attributes.length; ++iatt) {
-          var attrIt = buff.attributes[iatt];
-
-          if (attrIt.name === name) {
-            buff.attributes.splice(iatt, 1);
-
-            if (!buff.attributes.length) {
-              model.buffers.splice(ibuff, 1);
-            }
-
-            return true;
-          }
-        }
-      }
-    }
-
-    return true;
-  };
-
-  publicAPI.setOpenGLRenderWindow = function (rw) {
-    if (model.openGLRenderWindow === rw) {
-      return;
-    }
-
-    publicAPI.releaseGraphicsResources();
-    model.openGLRenderWindow = rw;
-    model.context = null;
-
-    if (rw) {
-      model.context = model.openGLRenderWindow.getContext();
-    }
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var VertexArrayObject_DEFAULT_VALUES = {
-  forceEmulation: false,
-  handleVAO: 0,
-  handleProgram: 0,
-  supported: true,
-  buffers: null,
-  context: null,
-  openGLRenderWindow: null
-}; // ----------------------------------------------------------------------------
-
-function VertexArrayObject_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, VertexArrayObject_DEFAULT_VALUES, initialValues); // Internal objects initialization
-
-  model.buffers = []; // Object methods
-
-  macro.obj(publicAPI, model); // Create get-only macros
-
-  macro.get(publicAPI, model, ['supported']); // Create get-set macros
-
-  macro.setGet(publicAPI, model, ['forceEmulation']); // For more macro methods, see "Sources/macros.js"
-  // Object specific methods
-
-  vtkOpenGLVertexArrayObject(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var VertexArrayObject_newInstance = macro.newInstance(VertexArrayObject_extend, 'vtkOpenGLVertexArrayObject'); // ----------------------------------------------------------------------------
-
-var vtkVertexArrayObject = {
-  newInstance: VertexArrayObject_newInstance,
-  extend: VertexArrayObject_extend
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/Helper.js
-
-
-
-
-
-// vtkOpenGLHelper methods
-// ----------------------------------------------------------------------------
-
-function vtkOpenGLHelper(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkOpenGLHelper');
-
-  publicAPI.setOpenGLRenderWindow = function (win) {
-    model.program.setContext(win.getContext());
-    model.VAO.setOpenGLRenderWindow(win);
-    model.CABO.setOpenGLRenderWindow(win);
-  };
-
-  publicAPI.releaseGraphicsResources = function (oglwin) {
-    model.VAO.releaseGraphicsResources();
-    model.CABO.releaseGraphicsResources();
-    model.CABO.setElementCount(0);
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var Helper_DEFAULT_VALUES = {
-  program: null,
-  shaderSourceTime: null,
-  VAO: null,
-  attributeUpdateTime: null,
-  CABO: null,
-  primitiveType: 0
-}; // ----------------------------------------------------------------------------
-
-function Helper_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, Helper_DEFAULT_VALUES, initialValues); // Build VTK API
-
-  macro.obj(publicAPI, model);
-  model.shaderSourceTime = {};
-  macro.obj(model.shaderSourceTime);
-  model.attributeUpdateTime = {};
-  macro.obj(model.attributeUpdateTime);
-  macro.setGet(publicAPI, model, ['program', 'shaderSourceTime', 'VAO', 'attributeUpdateTime', 'CABO', 'primitiveType']);
-  model.program = vtkShaderProgram$1.newInstance();
-  model.VAO = vtkVertexArrayObject.newInstance();
-  model.CABO = vtkCellArrayBufferObject.newInstance(); // Object methods
-
-  vtkOpenGLHelper(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var Helper_newInstance = macro.newInstance(Helper_extend); // ----------------------------------------------------------------------------
-
-var vtkHelper = {
-  newInstance: Helper_newInstance,
-  extend: Helper_extend
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture/Constants.js
-var Wrap = {
-  CLAMP_TO_EDGE: 0,
-  REPEAT: 1,
-  MIRRORED_REPEAT: 2
-};
-var Filter = {
-  NEAREST: 0,
-  LINEAR: 1,
-  NEAREST_MIPMAP_NEAREST: 2,
-  NEAREST_MIPMAP_LINEAR: 3,
-  LINEAR_MIPMAP_NEAREST: 4,
-  LINEAR_MIPMAP_LINEAR: 5
-};
-var Texture_Constants_Constants = {
-  Wrap: Wrap,
-  Filter: Filter
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Common/Core/HalfFloat.js
-/* eslint-disable no-bitwise */
-var floatView = new Float32Array(1);
-var int32View = new Int32Array(floatView.buffer);
-/* eslint-disable no-bitwise */
-
-/* This method is faster than the OpenEXR implementation (very often
- * used, eg. in Ogre), with the additional benefit of rounding, inspired
- * by James Tursa?s half-precision code. */
-
-function toHalf(val) {
-  floatView[0] = val;
-  var x = int32View[0];
-  var bits = x >> 16 & 0x8000;
-  /* Get the sign */
-
-  var m = x >> 12 & 0x07ff;
-  /* Keep one extra bit for rounding */
-
-  var e = x >> 23 & 0xff;
-  /* Using int is faster here */
-
-  /* If zero, or denormal, or exponent underflows too much for a denormal
-   * half, return signed zero. */
-
-  if (e < 103) {
-    return bits;
-  }
-  /* If NaN, return NaN. If Inf or exponent overflow, return Inf. */
-
-
-  if (e > 142) {
-    bits |= 0x7c00;
-    /* If exponent was 0xff and one mantissa bit was set, it means NaN,
-     * not Inf, so make sure we set one mantissa bit too. */
-
-    bits |= (e === 255 ? 0 : 1) && x & 0x007fffff;
-    return bits;
-  }
-  /* If exponent underflows but not too much, return a denormal */
-
-
-  if (e < 113) {
-    m |= 0x0800;
-    /* Extra rounding may overflow and set mantissa to 0 and exponent
-     * to 1, which is OK. */
-
-    bits |= (m >> 114 - e) + (m >> 113 - e & 1);
-    return bits;
-  }
-
-  bits |= e - 112 << 10 | m >> 1;
-  /* Extra rounding. An overflow will set mantissa to 0 and increment
-   * the exponent, which is OK. */
-
-  bits += m & 1;
-  return bits;
-}
-
-function fromHalf(h) {
-  var s = (h & 0x8000) >> 15;
-  var e = (h & 0x7c00) >> 10;
-  var f = h & 0x03ff;
-
-  if (e === 0) {
-    return (s ? -1 : 1) * Math.pow(2, -14) * (f / Math.pow(2, 10));
-  }
-
-  if (e === 0x1f) {
-    return f ? NaN : (s ? -1 : 1) * Infinity;
-  }
-
-  return (s ? -1 : 1) * Math.pow(2, e - 15) * (1 + f / Math.pow(2, 10));
-}
-
-var HalfFloat = {
-  fromHalf: fromHalf,
-  toHalf: toHalf
 };
 
 
@@ -34640,6 +32194,7527 @@ registerOverride('vtkTexture', Texture_newInstance);
 
 
 
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/Framebuffer.js
+
+
+
+
+
+// vtkFramebuffer methods
+// ----------------------------------------------------------------------------
+
+function vtkFramebuffer(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkFramebuffer');
+
+  publicAPI.getBothMode = function () {
+    return model.context.FRAMEBUFFER;
+  }; // publicAPI.getDrawMode = () => model.context.DRAW_FRAMEBUFFER;
+  // publicAPI.getReadMode = () => model.context.READ_FRAMEBUFFER;
+
+
+  publicAPI.saveCurrentBindingsAndBuffers = function (modeIn) {
+    var mode = typeof modeIn !== 'undefined' ? modeIn : publicAPI.getBothMode();
+    publicAPI.saveCurrentBindings(mode);
+    publicAPI.saveCurrentBuffers(mode);
+  };
+
+  publicAPI.saveCurrentBindings = function (modeIn) {
+    var gl = model.context;
+    model.previousDrawBinding = gl.getParameter(model.context.FRAMEBUFFER_BINDING);
+    model.previousActiveFramebuffer = model.openGLRenderWindow.getActiveFramebuffer();
+  };
+
+  publicAPI.saveCurrentBuffers = function (modeIn) {// noop on webgl 1
+  };
+
+  publicAPI.restorePreviousBindingsAndBuffers = function (modeIn) {
+    var mode = typeof modeIn !== 'undefined' ? modeIn : publicAPI.getBothMode();
+    publicAPI.restorePreviousBindings(mode);
+    publicAPI.restorePreviousBuffers(mode);
+  };
+
+  publicAPI.restorePreviousBindings = function (modeIn) {
+    var gl = model.context;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, model.previousDrawBinding);
+    model.openGLRenderWindow.setActiveFramebuffer(model.previousActiveFramebuffer);
+  };
+
+  publicAPI.restorePreviousBuffers = function (modeIn) {// currently a noop on webgl1
+  };
+
+  publicAPI.bind = function () {
+    model.context.bindFramebuffer(model.context.FRAMEBUFFER, model.glFramebuffer);
+
+    if (model.colorTexture) {
+      model.colorTexture.bind();
+    }
+
+    model.openGLRenderWindow.setActiveFramebuffer(publicAPI);
+  };
+
+  publicAPI.create = function (width, height) {
+    model.glFramebuffer = model.context.createFramebuffer();
+    model.glFramebuffer.width = width;
+    model.glFramebuffer.height = height;
+  };
+
+  publicAPI.setColorBuffer = function (texture) {
+    var attachment = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
+    var gl = model.context;
+    var glAttachment = gl.COLOR_ATTACHMENT0;
+
+    if (attachment > 0) {
+      if (model.openGLRenderWindow.getWebgl2()) {
+        glAttachment += attachment;
+      } else {
+        vtkErrorMacro('Using multiple framebuffer attachments requires WebGL 2');
+        return;
+      }
+    }
+
+    model.colorTexture = texture;
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, glAttachment, gl.TEXTURE_2D, texture.getHandle(), 0);
+  };
+
+  publicAPI.removeColorBuffer = function () {
+    var attachment = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 0;
+    var gl = model.context;
+    var glAttachment = gl.COLOR_ATTACHMENT0;
+
+    if (attachment > 0) {
+      if (model.openGLRenderWindow.getWebgl2()) {
+        glAttachment += attachment;
+      } else {
+        vtkErrorMacro('Using multiple framebuffer attachments requires WebGL 2');
+        return;
+      }
+    }
+
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, glAttachment, gl.TEXTURE_2D, null, 0);
+  };
+
+  publicAPI.setDepthBuffer = function (texture) {
+    if (model.openGLRenderWindow.getWebgl2()) {
+      var gl = model.context;
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, texture.getHandle(), 0);
+    } else {
+      vtkErrorMacro('Attaching depth buffer textures to fbo requires WebGL 2');
+    }
+  };
+
+  publicAPI.removeDepthBuffer = function () {
+    if (model.openGLRenderWindow.getWebgl2()) {
+      var gl = model.context;
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, null, 0);
+    } else {
+      vtkErrorMacro('Attaching depth buffer textures to framebuffers requires WebGL 2');
+    }
+  };
+
+  publicAPI.getGLFramebuffer = function () {
+    return model.glFramebuffer;
+  };
+
+  publicAPI.setOpenGLRenderWindow = function (rw) {
+    if (model.openGLRenderWindow === rw) {
+      return;
+    }
+
+    publicAPI.releaseGraphicsResources();
+    model.openGLRenderWindow = rw;
+    model.context = null;
+
+    if (rw) {
+      model.context = model.openGLRenderWindow.getContext();
+    }
+  };
+
+  publicAPI.releaseGraphicsResources = function () {
+    if (model.glFramebuffer) {
+      model.context.deleteFramebuffer(model.glFramebuffer);
+    }
+
+    if (model.colorTexture) {
+      model.colorTexture.releaseGraphicsResources();
+    }
+  };
+
+  publicAPI.getSize = function () {
+    var size = [0, 0];
+
+    if (model.glFramebuffer !== null) {
+      size[0] = model.glFramebuffer.width;
+      size[1] = model.glFramebuffer.height;
+    }
+
+    return size;
+  };
+
+  publicAPI.populateFramebuffer = function () {
+    publicAPI.bind();
+    var gl = model.context;
+    var texture = vtkOpenGLTexture$1.newInstance();
+    texture.setOpenGLRenderWindow(model.openGLRenderWindow);
+    texture.setMinificationFilter(Filter.LINEAR);
+    texture.setMagnificationFilter(Filter.LINEAR);
+    texture.create2DFromRaw(model.glFramebuffer.width, model.glFramebuffer.height, 4, VtkDataTypes.UNSIGNED_CHAR, null);
+    publicAPI.setColorBuffer(texture); // for now do not count on having a depth buffer texture
+    // as they are not standard webgl 1
+
+    model.depthTexture = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, model.depthTexture);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, model.glFramebuffer.width, model.glFramebuffer.height);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, model.depthTexture);
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var Framebuffer_DEFAULT_VALUES = {
+  openGLRenderWindow: null,
+  glFramebuffer: null,
+  colorTexture: null,
+  depthTexture: null,
+  previousDrawBinding: 0,
+  previousReadBinding: 0,
+  previousDrawBuffer: 0,
+  previousReadBuffer: 0,
+  previousActiveFramebuffer: null
+}; // ----------------------------------------------------------------------------
+
+function Framebuffer_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, Framebuffer_DEFAULT_VALUES, initialValues); // Build VTK API
+
+  obj(publicAPI, model);
+  setGet(publicAPI, model, ['colorTexture']); // For more macro methods, see "Sources/macros.js"
+  // Object specific methods
+
+  vtkFramebuffer(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var Framebuffer_newInstance = newInstance(Framebuffer_extend, 'vtkFramebuffer'); // ----------------------------------------------------------------------------
+
+var vtkOpenGLFramebuffer = {
+  newInstance: Framebuffer_newInstance,
+  extend: Framebuffer_extend
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/SceneGraph/RenderPass.js
+
+
+function vtkRenderPass(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkRenderPass');
+
+  publicAPI.getOperation = function () {
+    return model.currentOperation;
+  };
+
+  publicAPI.setCurrentOperation = function (val) {
+    model.currentOperation = val;
+    model.currentTraverseOperation = "traverse".concat(macro.capitalize(model.currentOperation));
+  };
+
+  publicAPI.getTraverseOperation = function () {
+    return model.currentTraverseOperation;
+  }; // by default this class will traverse all of its
+  // preDelegateOperations, then call its delegate render passes
+  // the traverse all of its postDelegateOperations
+  // any of those three arrays can be empty
+
+
+  publicAPI.traverse = function (viewNode) {
+    var parent = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
+
+    if (model.deleted) {
+      return;
+    } // we just render our delegates in order
+
+
+    model.currentParent = parent;
+    model.preDelegateOperations.forEach(function (val) {
+      publicAPI.setCurrentOperation(val);
+      viewNode.traverse(publicAPI);
+    });
+    model.delegates.forEach(function (val) {
+      val.traverse(viewNode, publicAPI);
+    });
+    model.postDelegateOperations.forEach(function (val) {
+      publicAPI.setCurrentOperation(val);
+      viewNode.traverse(publicAPI);
+    });
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var RenderPass_DEFAULT_VALUES = {
+  delegates: [],
+  currentOperation: null,
+  preDelegateOperations: [],
+  postDelegateOperations: [],
+  currentParent: null
+}; // ----------------------------------------------------------------------------
+
+function RenderPass_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, RenderPass_DEFAULT_VALUES, initialValues); // Build VTK API
+
+  macro.obj(publicAPI, model);
+  macro.get(publicAPI, model, ['currentOperation']);
+  macro.setGet(publicAPI, model, ['delegates', 'currentParent', 'preDelegateOperations', 'postDelegateOperations']); // Object methods
+
+  vtkRenderPass(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var RenderPass_newInstance = macro.newInstance(RenderPass_extend, 'vtkRenderPass'); // ----------------------------------------------------------------------------
+
+var vtkRenderPass$1 = {
+  newInstance: RenderPass_newInstance,
+  extend: RenderPass_extend
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/ForwardPass.js
+
+
+
+
+function vtkForwardPass(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkForwardPass'); // this pass implements a forward rendering pipeline
+  // if both volumes and opaque geometry are present
+  // it will mix the two together by capturing a zbuffer
+  // first
+
+  publicAPI.traverse = function (viewNode) {
+    var parent = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
+
+    if (model.deleted) {
+      return;
+    } // we just render our delegates in order
+
+
+    model.currentParent = parent; // build
+
+    publicAPI.setCurrentOperation('buildPass');
+    viewNode.traverse(publicAPI);
+    var numlayers = viewNode.getRenderable().getNumberOfLayers(); // iterate over renderers
+
+    var renderers = viewNode.getChildren();
+
+    for (var i = 0; i < numlayers; i++) {
+      for (var index = 0; index < renderers.length; index++) {
+        var renNode = renderers[index];
+        var ren = viewNode.getRenderable().getRenderers()[index];
+
+        if (ren.getDraw() && ren.getLayer() === i) {
+          // check for both opaque and volume actors
+          model.opaqueActorCount = 0;
+          model.translucentActorCount = 0;
+          model.volumeCount = 0;
+          model.overlayActorCount = 0;
+          publicAPI.setCurrentOperation('queryPass');
+          renNode.traverse(publicAPI); // do we need to capture a zbuffer?
+
+          if (model.opaqueActorCount > 0 && model.volumeCount > 0 || model.depthRequested) {
+            var size = viewNode.getFramebufferSize(); // make sure the framebuffer is setup
+
+            if (model.framebuffer === null) {
+              model.framebuffer = vtkOpenGLFramebuffer.newInstance();
+            }
+
+            model.framebuffer.setOpenGLRenderWindow(viewNode);
+            model.framebuffer.saveCurrentBindingsAndBuffers();
+            var fbSize = model.framebuffer.getSize();
+
+            if (fbSize === null || fbSize[0] !== size[0] || fbSize[1] !== size[1]) {
+              model.framebuffer.create(size[0], size[1]);
+              model.framebuffer.populateFramebuffer();
+            }
+
+            model.framebuffer.bind();
+            publicAPI.setCurrentOperation('opaqueZBufferPass');
+            renNode.traverse(publicAPI);
+            model.framebuffer.restorePreviousBindingsAndBuffers(); // reset now that we have done it
+
+            model.depthRequested = false;
+          }
+
+          publicAPI.setCurrentOperation('cameraPass');
+          renNode.traverse(publicAPI);
+
+          if (model.opaqueActorCount > 0) {
+            publicAPI.setCurrentOperation('opaquePass');
+            renNode.traverse(publicAPI);
+          }
+
+          if (model.translucentActorCount > 0) {
+            publicAPI.setCurrentOperation('translucentPass');
+            renNode.traverse(publicAPI);
+          }
+
+          if (model.volumeCount > 0) {
+            publicAPI.setCurrentOperation('volumePass');
+            renNode.traverse(publicAPI);
+          }
+
+          if (model.overlayActorCount > 0) {
+            publicAPI.setCurrentOperation('overlayPass');
+            renNode.traverse(publicAPI);
+          }
+        }
+      }
+    }
+  };
+
+  publicAPI.getZBufferTexture = function () {
+    if (model.framebuffer) {
+      return model.framebuffer.getColorTexture();
+    }
+
+    return null;
+  };
+
+  publicAPI.requestDepth = function () {
+    model.depthRequested = true;
+  };
+
+  publicAPI.incrementOpaqueActorCount = function () {
+    return model.opaqueActorCount++;
+  };
+
+  publicAPI.incrementTranslucentActorCount = function () {
+    return model.translucentActorCount++;
+  };
+
+  publicAPI.incrementVolumeCount = function () {
+    return model.volumeCount++;
+  };
+
+  publicAPI.incrementOverlayActorCount = function () {
+    return model.overlayActorCount++;
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var ForwardPass_DEFAULT_VALUES = {
+  opaqueActorCount: 0,
+  translucentActorCount: 0,
+  volumeCount: 0,
+  overlayActorCount: 0,
+  framebuffer: null,
+  depthRequested: false
+}; // ----------------------------------------------------------------------------
+
+function ForwardPass_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, ForwardPass_DEFAULT_VALUES, initialValues); // Build VTK API
+
+  vtkRenderPass$1.extend(publicAPI, model, initialValues);
+  macro.get(publicAPI, model, ['framebuffer']); // Object methods
+
+  vtkForwardPass(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var ForwardPass_newInstance = macro.newInstance(ForwardPass_extend, 'vtkForwardPass'); // ----------------------------------------------------------------------------
+
+var vtkForwardPass$1 = {
+  newInstance: ForwardPass_newInstance,
+  extend: ForwardPass_extend
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/HardwareSelector/Constants.js
+var PassTypes = {
+  MIN_KNOWN_PASS: 0,
+  ACTOR_PASS: 0,
+  COMPOSITE_INDEX_PASS: 1,
+  ID_LOW24: 2,
+  MAX_KNOWN_PASS: 2
+};
+var HardwareSelector_Constants_Constants = {
+  PassTypes: PassTypes
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/HardwareSelector.js
+
+
+
+
+
+var HardwareSelector_FieldAssociations = vtkDataSet$1.FieldAssociations; // ----------------------------------------------------------------------------
+// vtkHardwareSelector methods
+// ----------------------------------------------------------------------------
+
+function vtkHardwareSelector(publicAPI, model) {
+  model.classHierarchy.push('vtkHardwareSelector'); // get the source data that is used for generating a selection. This
+  // must be called at least once before calling generateSelection. In
+  // raster based backends this method will capture the buffers. You can
+  // call this once and then make multiple calls to generateSelection.
+
+  publicAPI.getSourceDataAsync = /*#__PURE__*/function () {
+    var _ref = _asyncToGenerator( /*#__PURE__*/regenerator_default().mark(function _callee(renderer, fx1, fy1, fx2, fy2) {
+      return regenerator_default().wrap(function _callee$(_context) {
+        while (1) {
+          switch (_context.prev = _context.next) {
+            case 0:
+            case "end":
+              return _context.stop();
+          }
+        }
+      }, _callee);
+    }));
+
+    return function (_x, _x2, _x3, _x4, _x5) {
+      return _ref.apply(this, arguments);
+    };
+  }();
+
+  publicAPI.selectAsync = /*#__PURE__*/function () {
+    var _ref2 = _asyncToGenerator( /*#__PURE__*/regenerator_default().mark(function _callee2(renderer, fx1, fy1, fx2, fy2) {
+      var srcData;
+      return regenerator_default().wrap(function _callee2$(_context2) {
+        while (1) {
+          switch (_context2.prev = _context2.next) {
+            case 0:
+              _context2.next = 2;
+              return publicAPI.getSourceDataAsync(renderer, fx1, fy1, fx2, fy2);
+
+            case 2:
+              srcData = _context2.sent;
+
+              if (!srcData) {
+                _context2.next = 5;
+                break;
+              }
+
+              return _context2.abrupt("return", srcData.generateSelection(fx1, fy1, fx2, fy2));
+
+            case 5:
+              return _context2.abrupt("return", []);
+
+            case 6:
+            case "end":
+              return _context2.stop();
+          }
+        }
+      }, _callee2);
+    }));
+
+    return function (_x6, _x7, _x8, _x9, _x10) {
+      return _ref2.apply(this, arguments);
+    };
+  }();
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var HardwareSelector_DEFAULT_VALUES = {
+  fieldAssociation: HardwareSelector_FieldAssociations.FIELD_ASSOCIATION_CELLS,
+  captureZValues: false
+}; // ----------------------------------------------------------------------------
+
+function HardwareSelector_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, HardwareSelector_DEFAULT_VALUES, initialValues); // Inheritance
+
+  macro.obj(publicAPI, model);
+  macro.setGet(publicAPI, model, ['fieldAssociation', 'captureZValues']); // Object methods
+
+  vtkHardwareSelector(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var HardwareSelector_newInstance = macro.newInstance(HardwareSelector_extend, 'vtkHardwareSelector'); // ----------------------------------------------------------------------------
+
+var vtkHardwareSelector$1 = {
+  newInstance: HardwareSelector_newInstance,
+  extend: HardwareSelector_extend
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/HardwareSelector.js
+
+
+
+
+
+
+
+
+
+
+
+function HardwareSelector_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); enumerableOnly && (symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; })), keys.push.apply(keys, symbols); } return keys; }
+
+function HardwareSelector_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = null != arguments[i] ? arguments[i] : {}; i % 2 ? HardwareSelector_ownKeys(Object(source), !0).forEach(function (key) { _defineProperty(target, key, source[key]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : HardwareSelector_ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } return target; }
+var HardwareSelector_PassTypes = HardwareSelector_Constants_Constants.PassTypes;
+var HardwareSelector_SelectionContent = vtkSelectionNode$1.SelectionContent,
+    HardwareSelector_SelectionField = vtkSelectionNode$1.SelectionField;
+var OpenGL_HardwareSelector_FieldAssociations = vtkDataSet$1.FieldAssociations;
+var HardwareSelector_vtkErrorMacro = macro.vtkErrorMacro;
+var idOffset = 1;
+
+function getInfoHash(info) {
+  return "".concat(info.propID, " ").concat(info.compositeID);
+}
+
+function convert(xx, yy, pb, area) {
+  if (!pb) {
+    return 0;
+  }
+
+  var offset = (yy * (area[2] - area[0] + 1) + xx) * 4;
+  var rgb = [];
+  rgb[0] = pb[offset];
+  rgb[1] = pb[offset + 1];
+  rgb[2] = pb[offset + 2];
+  var val = rgb[2];
+  val *= 256;
+  val += rgb[1];
+  val *= 256;
+  val += rgb[0];
+  return val;
+}
+
+function getPixelInformationWithData(buffdata, inDisplayPosition, maxDistance, outSelectedPosition) {
+  // Base case
+  var maxDist = maxDistance < 0 ? 0 : maxDistance;
+
+  if (maxDist === 0) {
+    outSelectedPosition[0] = inDisplayPosition[0];
+    outSelectedPosition[1] = inDisplayPosition[1];
+
+    if (inDisplayPosition[0] < buffdata.area[0] || inDisplayPosition[0] > buffdata.area[2] || inDisplayPosition[1] < buffdata.area[1] || inDisplayPosition[1] > buffdata.area[3]) {
+      return null;
+    } // offset inDisplayPosition based on the lower-left-corner of the Area.
+
+
+    var displayPosition = [inDisplayPosition[0] - buffdata.area[0], inDisplayPosition[1] - buffdata.area[1]];
+    var actorid = convert(displayPosition[0], displayPosition[1], buffdata.pixBuffer[HardwareSelector_PassTypes.ACTOR_PASS], buffdata.area);
+
+    if (actorid <= 0 || actorid - idOffset >= buffdata.props.length) {
+      // the pixel did not hit any actor.
+      return null;
+    }
+
+    var _info = {};
+    _info.valid = true;
+    _info.propID = actorid - idOffset;
+    _info.prop = buffdata.props[_info.propID];
+    var compositeID = convert(displayPosition[0], displayPosition[1], buffdata.pixBuffer[HardwareSelector_PassTypes.COMPOSITE_INDEX_PASS], buffdata.area);
+
+    if (compositeID < 0 || compositeID > 0xffffff) {
+      compositeID = 0;
+    }
+
+    _info.compositeID = compositeID - idOffset;
+
+    if (buffdata.captureZValues) {
+      var offset = (displayPosition[1] * (buffdata.area[2] - buffdata.area[0] + 1) + displayPosition[0]) * 4;
+      _info.zValue = (256 * buffdata.zBuffer[offset] + buffdata.zBuffer[offset + 1]) / 65535.0;
+      _info.displayPosition = inDisplayPosition;
+    }
+
+    return _info;
+  } // Iterate over successively growing boxes.
+  // They recursively call the base case to handle single pixels.
+
+
+  var dispPos = [inDisplayPosition[0], inDisplayPosition[1]];
+  var curPos = [0, 0];
+  var info = getPixelInformationWithData(buffdata, inDisplayPosition, 0, outSelectedPosition);
+
+  if (info && info.valid) {
+    return info;
+  }
+
+  for (var dist = 1; dist < maxDist; ++dist) {
+    // Vertical sides of box.
+    for (var y = dispPos[1] > dist ? dispPos[1] - dist : 0; y <= dispPos[1] + dist; ++y) {
+      curPos[1] = y;
+
+      if (dispPos[0] >= dist) {
+        curPos[0] = dispPos[0] - dist;
+        info = getPixelInformationWithData(buffdata, curPos, 0, outSelectedPosition);
+
+        if (info && info.valid) {
+          return info;
+        }
+      }
+
+      curPos[0] = dispPos[0] + dist;
+      info = getPixelInformationWithData(buffdata, curPos, 0, outSelectedPosition);
+
+      if (info && info.valid) {
+        return info;
+      }
+    } // Horizontal sides of box.
+
+
+    for (var x = dispPos[0] >= dist ? dispPos[0] - (dist - 1) : 0; x <= dispPos[0] + (dist - 1); ++x) {
+      curPos[0] = x;
+
+      if (dispPos[1] >= dist) {
+        curPos[1] = dispPos[1] - dist;
+        info = getPixelInformationWithData(buffdata, curPos, 0, outSelectedPosition);
+
+        if (info && info.valid) {
+          return info;
+        }
+      }
+
+      curPos[1] = dispPos[1] + dist;
+      info = getPixelInformationWithData(buffdata, curPos, 0, outSelectedPosition);
+
+      if (info && info.valid) {
+        return info;
+      }
+    }
+  } // nothing hit.
+
+
+  outSelectedPosition[0] = inDisplayPosition[0];
+  outSelectedPosition[1] = inDisplayPosition[1];
+  return null;
+} //-----------------------------------------------------------------------------
+
+
+function convertSelection(fieldassociation, dataMap, captureZValues, renderer, openGLRenderWindow) {
+  var sel = [];
+  var count = 0;
+  dataMap.forEach(function (value, key) {
+    var child = vtkSelectionNode$1.newInstance();
+    child.setContentType(HardwareSelector_SelectionContent.INDICES);
+
+    switch (fieldassociation) {
+      case OpenGL_HardwareSelector_FieldAssociations.FIELD_ASSOCIATION_CELLS:
+        child.setFieldType(HardwareSelector_SelectionField.CELL);
+        break;
+
+      case OpenGL_HardwareSelector_FieldAssociations.FIELD_ASSOCIATION_POINTS:
+        child.setFieldType(HardwareSelector_SelectionField.POINT);
+        break;
+
+      default:
+        HardwareSelector_vtkErrorMacro('Unknown field association');
+    }
+
+    child.getProperties().propID = value.info.propID;
+    child.getProperties().prop = value.info.prop;
+    child.getProperties().compositeID = value.info.compositeID;
+    child.getProperties().pixelCount = value.pixelCount;
+
+    if (captureZValues) {
+      child.getProperties().displayPosition = [value.info.displayPosition[0], value.info.displayPosition[1], value.info.zValue];
+      child.getProperties().worldPosition = openGLRenderWindow.displayToWorld(value.info.displayPosition[0], value.info.displayPosition[1], value.info.zValue, renderer);
+    }
+
+    child.setSelectionList(value.attributeIDs);
+    sel[count] = child;
+    count++;
+  });
+  return sel;
+} //----------------------------------------------------------------------------
+
+
+function generateSelectionWithData(buffdata, fx1, fy1, fx2, fy2) {
+  var x1 = Math.floor(fx1);
+  var y1 = Math.floor(fy1);
+  var x2 = Math.floor(fx2);
+  var y2 = Math.floor(fy2);
+  var dataMap = new Map();
+  var outSelectedPosition = [0, 0];
+
+  for (var yy = y1; yy <= y2; yy++) {
+    for (var xx = x1; xx <= x2; xx++) {
+      var pos = [xx, yy];
+      var info = getPixelInformationWithData(buffdata, pos, 0, outSelectedPosition);
+
+      if (info && info.valid) {
+        var hash = getInfoHash(info);
+
+        if (!dataMap.has(hash)) {
+          dataMap.set(hash, {
+            info: info,
+            pixelCount: 1,
+            attributeIDs: [info.attributeID]
+          });
+        } else {
+          var dmv = dataMap.get(hash);
+          dmv.pixelCount++;
+
+          if (buffdata.captureZValues) {
+            if (info.zValue < dmv.info.zValue) {
+              dmv.info = info;
+            }
+          }
+
+          if (dmv.attributeIDs.indexOf(info.attributeID) === -1) {
+            dmv.attributeIDs.push(info.attributeID);
+          }
+        }
+      }
+    }
+  }
+
+  return convertSelection(buffdata.fieldAssociation, dataMap, buffdata.captureZValues, buffdata.renderer, buffdata.openGLRenderWindow);
+} // ----------------------------------------------------------------------------
+// vtkOpenGLHardwareSelector methods
+// ----------------------------------------------------------------------------
+
+
+function vtkOpenGLHardwareSelector(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkOpenGLHardwareSelector'); //----------------------------------------------------------------------------
+
+  publicAPI.releasePixBuffers = function () {
+    model.pixBuffer = [];
+    model.zBuffer = null;
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.beginSelection = function () {
+    model.openGLRenderer = model.openGLRenderWindow.getViewNodeFor(model.renderer);
+    model.maxAttributeId = 0;
+    var size = model.openGLRenderWindow.getSize();
+
+    if (!model.framebuffer) {
+      model.framebuffer = vtkOpenGLFramebuffer.newInstance();
+      model.framebuffer.setOpenGLRenderWindow(model.openGLRenderWindow);
+      model.framebuffer.saveCurrentBindingsAndBuffers();
+      model.framebuffer.create(size[0], size[1]); // this calls model.framebuffer.bind()
+
+      model.framebuffer.populateFramebuffer();
+    } else {
+      model.framebuffer.setOpenGLRenderWindow(model.openGLRenderWindow);
+      model.framebuffer.saveCurrentBindingsAndBuffers();
+      var fbSize = model.framebuffer.getSize();
+
+      if (fbSize[0] !== size[0] || fbSize[1] !== size[1]) {
+        model.framebuffer.create(size[0], size[1]); // this calls model.framebuffer.bind()
+
+        model.framebuffer.populateFramebuffer();
+      } else {
+        model.framebuffer.bind();
+      }
+    }
+
+    model.openGLRenderer.clear();
+    model.openGLRenderer.setSelector(publicAPI);
+    model.hitProps = {};
+    model.props = [];
+    publicAPI.releasePixBuffers();
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.endSelection = function () {
+    model.hitProps = {};
+    model.openGLRenderer.setSelector(null);
+    model.framebuffer.restorePreviousBindingsAndBuffers();
+  };
+
+  publicAPI.preCapturePass = function () {};
+
+  publicAPI.postCapturePass = function () {}; //----------------------------------------------------------------------------
+
+
+  publicAPI.select = function () {
+    var sel = null;
+
+    if (publicAPI.captureBuffers()) {
+      sel = publicAPI.generateSelection(model.area[0], model.area[1], model.area[2], model.area[3]);
+      publicAPI.releasePixBuffers();
+    }
+
+    return sel;
+  };
+
+  publicAPI.getSourceDataAsync = /*#__PURE__*/function () {
+    var _ref = _asyncToGenerator( /*#__PURE__*/regenerator_default().mark(function _callee(renderer, fx1, fy1, fx2, fy2) {
+      var size, result;
+      return regenerator_default().wrap(function _callee$(_context) {
+        while (1) {
+          switch (_context.prev = _context.next) {
+            case 0:
+              // assign the renderer
+              model.renderer = renderer; // set area to all if no arguments provided
+
+              if (fx1 === undefined) {
+                size = model.openGLRenderWindow.getSize();
+                publicAPI.setArea(0, 0, size[0] - 1, size[1] - 1);
+              } else {
+                publicAPI.setArea(fx1, fy1, fx2, fy2);
+              } // just do capture buffers and package up the result
+
+
+              if (publicAPI.captureBuffers()) {
+                _context.next = 4;
+                break;
+              }
+
+              return _context.abrupt("return", false);
+
+            case 4:
+              result = {
+                area: _toConsumableArray(model.area),
+                pixBuffer: _toConsumableArray(model.pixBuffer),
+                captureZValues: model.captureZValues,
+                zBuffer: model.zBuffer,
+                props: _toConsumableArray(model.props),
+                fieldAssociation: model.fieldAssociation,
+                renderer: renderer,
+                openGLRenderWindow: model.openGLRenderWindow
+              };
+
+              result.generateSelection = function () {
+                for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+                  args[_key] = arguments[_key];
+                }
+
+                return generateSelectionWithData.apply(void 0, [result].concat(args));
+              };
+
+              return _context.abrupt("return", result);
+
+            case 7:
+            case "end":
+              return _context.stop();
+          }
+        }
+      }, _callee);
+    }));
+
+    return function (_x, _x2, _x3, _x4, _x5) {
+      return _ref.apply(this, arguments);
+    };
+  }(); //----------------------------------------------------------------------------
+
+
+  publicAPI.captureBuffers = function () {
+    if (!model.renderer || !model.openGLRenderWindow) {
+      HardwareSelector_vtkErrorMacro('Renderer and view must be set before calling Select.');
+      return false;
+    }
+
+    model.openGLRenderer = model.openGLRenderWindow.getViewNodeFor(model.renderer); // todo revisit making selection part of core
+    // then we can do this in core
+
+    model.openGLRenderWindow.getRenderable().preRender(); // int rgba[4];
+    // rwin.getColorBufferSizes(rgba);
+    // if (rgba[0] < 8 || rgba[1] < 8 || rgba[2] < 8) {
+    //   vtkErrorMacro("Color buffer depth must be at least 8 bit. "
+    //     "Currently: " << rgba[0] << ", " << rgba[1] << ", " <<rgba[2]);
+    //   return false;
+    // }
+
+    publicAPI.invokeEvent({
+      type: 'StartEvent'
+    }); // Initialize renderer for selection.
+    // change the renderer's background to black, which will indicate a miss
+
+    model.originalBackground = model.renderer.getBackgroundByReference();
+    model.renderer.setBackground(0.0, 0.0, 0.0);
+    var rpasses = model.openGLRenderWindow.getRenderPasses();
+    publicAPI.beginSelection();
+
+    for (model.currentPass = HardwareSelector_PassTypes.MIN_KNOWN_PASS; model.currentPass <= HardwareSelector_PassTypes.COMPOSITE_INDEX_PASS; model.currentPass++) {
+      if (publicAPI.passRequired(model.currentPass)) {
+        publicAPI.preCapturePass(model.currentPass);
+
+        if (model.captureZValues && model.currentPass === HardwareSelector_PassTypes.ACTOR_PASS && typeof rpasses[0].requestDepth === 'function' && typeof rpasses[0].getFramebuffer === 'function') {
+          rpasses[0].requestDepth();
+          model.openGLRenderWindow.traverseAllPasses();
+        } else {
+          model.openGLRenderWindow.traverseAllPasses();
+        }
+
+        publicAPI.postCapturePass(model.currentPass);
+        publicAPI.savePixelBuffer(model.currentPass);
+      }
+    }
+
+    publicAPI.endSelection(); // restore original background
+
+    model.renderer.setBackground(model.originalBackground);
+    publicAPI.invokeEvent({
+      type: 'EndEvent'
+    }); // restore image, not needed?
+    // model.openGLRenderWindow.traverseAllPasses();
+
+    return true;
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.passRequired = function (pass) {
+    return true;
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.savePixelBuffer = function (passNo) {
+    model.pixBuffer[passNo] = model.openGLRenderWindow.getPixelData(model.area[0], model.area[1], model.area[2], model.area[3]);
+
+    if (passNo === HardwareSelector_PassTypes.ACTOR_PASS) {
+      if (model.captureZValues) {
+        var rpasses = model.openGLRenderWindow.getRenderPasses();
+
+        if (typeof rpasses[0].requestDepth === 'function' && typeof rpasses[0].getFramebuffer === 'function') {
+          var fb = rpasses[0].getFramebuffer();
+          fb.saveCurrentBindingsAndBuffers();
+          fb.bind();
+          model.zBuffer = model.openGLRenderWindow.getPixelData(model.area[0], model.area[1], model.area[2], model.area[3]);
+          fb.restorePreviousBindingsAndBuffers();
+        }
+      }
+
+      publicAPI.buildPropHitList(model.pixBuffer[passNo]);
+    }
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.buildPropHitList = function (pixelbuffer) {
+    for (var yy = 0; yy <= model.area[3] - model.area[1]; yy++) {
+      for (var xx = 0; xx <= model.area[2] - model.area[0]; xx++) {
+        var val = convert(xx, yy, pixelbuffer, model.area);
+
+        if (val > 0) {
+          val--;
+
+          if (!(val in model.hitProps)) {
+            model.hitProps[val] = true;
+          }
+        }
+      }
+    }
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.renderProp = function (prop) {
+    if (model.currentPass === HardwareSelector_PassTypes.ACTOR_PASS) {
+      publicAPI.setPropColorValueFromInt(model.props.length + idOffset);
+      model.props.push(prop);
+    }
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.renderCompositeIndex = function (index) {
+    if (model.currentPass === HardwareSelector_PassTypes.COMPOSITE_INDEX_PASS) {
+      publicAPI.setPropColorValueFromInt(index + idOffset);
+    }
+  }; //----------------------------------------------------------------------------
+  // TODO: make inline
+
+
+  publicAPI.renderAttributeId = function (attribid) {
+    if (attribid < 0) {
+      // negative attribid is valid. It happens when rendering higher order
+      // elements where new points are added for rendering smooth surfaces.
+      return;
+    }
+
+    model.maxAttributeId = attribid > model.maxAttributeId ? attribid : model.maxAttributeId; // if (model.currentPass < PassTypes.ID_LOW24) {
+    //   return; // useless...
+    // }
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.passTypeToString = function (type) {
+    return macro.enumToString(HardwareSelector_PassTypes, type);
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.isPropHit = function (id) {
+    return Boolean(model.hitProps[id]);
+  };
+
+  publicAPI.setPropColorValueFromInt = function (val) {
+    model.propColorValue[0] = val % 256 / 255.0;
+    model.propColorValue[1] = Math.floor(val / 256) % 256 / 255.0;
+    model.propColorValue[2] = Math.floor(val / 65536) % 256 / 255.0;
+  }; // info has
+  //   valid
+  //   propId
+  //   prop
+  //   compositeID
+  //   attributeID
+  //----------------------------------------------------------------------------
+
+
+  publicAPI.getPixelInformation = function (inDisplayPosition, maxDistance, outSelectedPosition) {
+    // Base case
+    var maxDist = maxDistance < 0 ? 0 : maxDistance;
+
+    if (maxDist === 0) {
+      outSelectedPosition[0] = inDisplayPosition[0];
+      outSelectedPosition[1] = inDisplayPosition[1];
+
+      if (inDisplayPosition[0] < model.area[0] || inDisplayPosition[0] > model.area[2] || inDisplayPosition[1] < model.area[1] || inDisplayPosition[1] > model.area[3]) {
+        return null;
+      } // offset inDisplayPosition based on the lower-left-corner of the Area.
+
+
+      var displayPosition = [inDisplayPosition[0] - model.area[0], inDisplayPosition[1] - model.area[1]];
+      var actorid = convert(displayPosition[0], displayPosition[1], model.pixBuffer[HardwareSelector_PassTypes.ACTOR_PASS], model.area);
+
+      if (actorid <= 0 || actorid - idOffset >= model.props.length) {
+        // the pixel did not hit any actor.
+        return null;
+      }
+
+      var _info2 = {};
+      _info2.valid = true;
+      _info2.propID = actorid - idOffset;
+      _info2.prop = model.props[_info2.propID];
+      var compositeID = convert(displayPosition[0], displayPosition[1], model.pixBuffer[HardwareSelector_PassTypes.COMPOSITE_INDEX_PASS], model.area);
+
+      if (compositeID < 0 || compositeID > 0xffffff) {
+        compositeID = 0;
+      }
+
+      _info2.compositeID = compositeID - idOffset;
+
+      if (model.captureZValues) {
+        var offset = (displayPosition[1] * (model.area[2] - model.area[0] + 1) + displayPosition[0]) * 4;
+        _info2.zValue = (256 * model.zBuffer[offset] + model.zBuffer[offset + 1]) / 65535.0;
+        _info2.displayPosition = inDisplayPosition;
+      }
+
+      return _info2;
+    } // Iterate over successively growing boxes.
+    // They recursively call the base case to handle single pixels.
+
+
+    var dispPos = [inDisplayPosition[0], inDisplayPosition[1]];
+    var curPos = [0, 0];
+    var info = publicAPI.getPixelInformation(inDisplayPosition, 0, outSelectedPosition);
+
+    if (info && info.valid) {
+      return info;
+    }
+
+    for (var dist = 1; dist < maxDist; ++dist) {
+      // Vertical sides of box.
+      for (var y = dispPos[1] > dist ? dispPos[1] - dist : 0; y <= dispPos[1] + dist; ++y) {
+        curPos[1] = y;
+
+        if (dispPos[0] >= dist) {
+          curPos[0] = dispPos[0] - dist;
+          info = publicAPI.getPixelInformation(curPos, 0, outSelectedPosition);
+
+          if (info && info.valid) {
+            return info;
+          }
+        }
+
+        curPos[0] = dispPos[0] + dist;
+        info = publicAPI.getPixelInformation(curPos, 0, outSelectedPosition);
+
+        if (info && info.valid) {
+          return info;
+        }
+      } // Horizontal sides of box.
+
+
+      for (var x = dispPos[0] >= dist ? dispPos[0] - (dist - 1) : 0; x <= dispPos[0] + (dist - 1); ++x) {
+        curPos[0] = x;
+
+        if (dispPos[1] >= dist) {
+          curPos[1] = dispPos[1] - dist;
+          info = publicAPI.getPixelInformation(curPos, 0, outSelectedPosition);
+
+          if (info && info.valid) {
+            return info;
+          }
+        }
+
+        curPos[1] = dispPos[1] + dist;
+        info = publicAPI.getPixelInformation(curPos, 0, outSelectedPosition);
+
+        if (info && info.valid) {
+          return info;
+        }
+      }
+    } // nothing hit.
+
+
+    outSelectedPosition[0] = inDisplayPosition[0];
+    outSelectedPosition[1] = inDisplayPosition[1];
+    return null;
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.generateSelection = function (fx1, fy1, fx2, fy2) {
+    var x1 = Math.floor(fx1);
+    var y1 = Math.floor(fy1);
+    var x2 = Math.floor(fx2);
+    var y2 = Math.floor(fy2);
+    var dataMap = new Map();
+    var outSelectedPosition = [0, 0];
+
+    for (var yy = y1; yy <= y2; yy++) {
+      for (var xx = x1; xx <= x2; xx++) {
+        var pos = [xx, yy];
+        var info = publicAPI.getPixelInformation(pos, 0, outSelectedPosition);
+
+        if (info && info.valid) {
+          var hash = getInfoHash(info);
+
+          if (!dataMap.has(hash)) {
+            dataMap.set(hash, {
+              info: info,
+              pixelCount: 1,
+              attributeIDs: [info.attributeID]
+            });
+          } else {
+            var dmv = dataMap.get(hash);
+            dmv.pixelCount++;
+
+            if (model.captureZValues) {
+              if (info.zValue < dmv.info.zValue) {
+                dmv.info = info;
+              }
+            }
+
+            if (dmv.attributeIDs.indexOf(info.attributeID) === -1) {
+              dmv.attributeIDs.push(info.attributeID);
+            }
+          }
+        }
+      }
+    }
+
+    return convertSelection(model.fieldAssociation, dataMap, model.captureZValues, model.renderer, model.openGLRenderWindow);
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.attach = function (w, r) {
+    model.openGLRenderWindow = w;
+    model.renderer = r;
+  }; // override
+
+
+  var superSetArea = publicAPI.setArea;
+
+  publicAPI.setArea = function () {
+    if (superSetArea.apply(void 0, arguments)) {
+      model.area[0] = Math.floor(model.area[0]);
+      model.area[1] = Math.floor(model.area[1]);
+      model.area[2] = Math.floor(model.area[2]);
+      model.area[3] = Math.floor(model.area[3]);
+      return true;
+    }
+
+    return false;
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var OpenGL_HardwareSelector_DEFAULT_VALUES = {
+  area: undefined,
+  renderer: null,
+  openGLRenderWindow: null,
+  openGLRenderer: null,
+  currentPass: -1,
+  propColorValue: null,
+  props: null,
+  idOffset: 1
+}; // ----------------------------------------------------------------------------
+
+function OpenGL_HardwareSelector_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, OpenGL_HardwareSelector_DEFAULT_VALUES, initialValues); // Build VTK API
+
+  vtkHardwareSelector$1.extend(publicAPI, model, initialValues);
+  model.propColorValue = [0, 0, 0];
+  model.props = [];
+
+  if (!model.area) {
+    model.area = [0, 0, 0, 0];
+  }
+
+  macro.setGetArray(publicAPI, model, ['area'], 4);
+  macro.setGet(publicAPI, model, ['renderer', 'currentPass', 'openGLRenderWindow']);
+  macro.setGetArray(publicAPI, model, ['propColorValue'], 3);
+  macro.event(publicAPI, model, 'event'); // Object methods
+
+  vtkOpenGLHardwareSelector(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var OpenGL_HardwareSelector_newInstance = macro.newInstance(OpenGL_HardwareSelector_extend, 'vtkOpenGLHardwareSelector'); // ----------------------------------------------------------------------------
+
+var HardwareSelector_vtkHardwareSelector = HardwareSelector_objectSpread({
+  newInstance: OpenGL_HardwareSelector_newInstance,
+  extend: OpenGL_HardwareSelector_extend
+}, HardwareSelector_Constants_Constants);
+
+
+
+// EXTERNAL MODULE: ./node_modules/spark-md5/spark-md5.js
+var spark_md5 = __webpack_require__("./node_modules/spark-md5/spark-md5.js");
+var spark_md5_default = /*#__PURE__*/__webpack_require__.n(spark_md5);
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/Shader.js
+
+
+var Shader_vtkErrorMacro = macro.vtkErrorMacro; // export const SHADER_TYPES = ['Vertex', 'Fragment', 'Geometry', 'Unknown'];
+// ----------------------------------------------------------------------------
+// vtkShader methods
+// ----------------------------------------------------------------------------
+
+function vtkShader(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkShader');
+
+  publicAPI.compile = function () {
+    var stype = model.context.VERTEX_SHADER;
+
+    if (!model.source || !model.source.length || model.shaderType === 'Unknown') {
+      return false;
+    } // Ensure we delete the previous shader if necessary.
+
+
+    if (model.handle !== 0) {
+      model.context.deleteShader(model.handle);
+      model.handle = 0;
+    }
+
+    switch (model.shaderType) {
+      // case vtkShader::Geometry:
+      //   type = GL_GEOMETRY_SHADER;
+      //   break;
+      case 'Fragment':
+        stype = model.context.FRAGMENT_SHADER;
+        break;
+
+      case 'Vertex':
+      default:
+        stype = model.context.VERTEX_SHADER;
+        break;
+    }
+
+    model.handle = model.context.createShader(stype);
+    model.context.shaderSource(model.handle, model.source);
+    model.context.compileShader(model.handle);
+    var isCompiled = model.context.getShaderParameter(model.handle, model.context.COMPILE_STATUS);
+
+    if (!isCompiled) {
+      var lastError = model.context.getShaderInfoLog(model.handle);
+      Shader_vtkErrorMacro("Error compiling shader '".concat(model.source, "': ").concat(lastError));
+      model.context.deleteShader(model.handle);
+      model.handle = 0;
+      return false;
+    } // The shader compiled, store its handle and return success.
+
+
+    return true;
+  };
+
+  publicAPI.cleanup = function () {
+    if (model.shaderType === 'Unknown' || model.handle === 0) {
+      return;
+    }
+
+    model.context.deleteShader(model.handle);
+    model.handle = 0;
+    model.dirty = true;
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var Shader_DEFAULT_VALUES = {
+  shaderType: 'Unknown',
+  source: '',
+  error: '',
+  handle: 0,
+  dirty: false,
+  context: null
+}; // ----------------------------------------------------------------------------
+
+function Shader_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, Shader_DEFAULT_VALUES, initialValues); // Build VTK API
+
+  macro.obj(publicAPI, model);
+  macro.setGet(publicAPI, model, ['shaderType', 'source', 'error', 'handle', 'context']); // Object methods
+
+  vtkShader(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var Shader_newInstance = macro.newInstance(Shader_extend, 'vtkShader'); // ----------------------------------------------------------------------------
+
+var vtkShader$1 = {
+  newInstance: Shader_newInstance,
+  extend: Shader_extend
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/ShaderProgram.js
+
+
+
+var ShaderProgram_vtkErrorMacro = macro.vtkErrorMacro; // perform in place string substitutions, indicate if a substitution was done
+// this is useful for building up shader strings which typically involve
+// lots of string substitutions. Return true if a substitution was done.
+
+function substitute(source, search, replace) {
+  var all = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : true;
+  var replaceStr = Array.isArray(replace) ? replace.join('\n') : replace;
+  var replaced = false;
+
+  if (source.search(search) !== -1) {
+    replaced = true;
+  }
+
+  var gflag = '';
+
+  if (all) {
+    gflag = 'g';
+  }
+
+  var regex = new RegExp(search, gflag);
+  var resultstr = source.replace(regex, replaceStr);
+  return {
+    replace: replaced,
+    result: resultstr
+  };
+} // ----------------------------------------------------------------------------
+// vtkShaderProgram methods
+// ----------------------------------------------------------------------------
+
+
+function vtkShaderProgram(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkShaderProgram');
+
+  publicAPI.compileShader = function () {
+    if (!model.vertexShader.compile()) {
+      ShaderProgram_vtkErrorMacro(model.vertexShader.getSource().split('\n').map(function (line, index) {
+        return "".concat(index, ": ").concat(line);
+      }).join('\n'));
+      ShaderProgram_vtkErrorMacro(model.vertexShader.getError());
+      return 0;
+    }
+
+    if (!model.fragmentShader.compile()) {
+      ShaderProgram_vtkErrorMacro(model.fragmentShader.getSource().split('\n').map(function (line, index) {
+        return "".concat(index, ": ").concat(line);
+      }).join('\n'));
+      ShaderProgram_vtkErrorMacro(model.fragmentShader.getError());
+      return 0;
+    } // skip geometry for now
+
+
+    if (!publicAPI.attachShader(model.vertexShader)) {
+      ShaderProgram_vtkErrorMacro(model.error);
+      return 0;
+    }
+
+    if (!publicAPI.attachShader(model.fragmentShader)) {
+      ShaderProgram_vtkErrorMacro(model.error);
+      return 0;
+    }
+
+    if (!publicAPI.link()) {
+      ShaderProgram_vtkErrorMacro("Links failed: ".concat(model.error));
+      return 0;
+    }
+
+    publicAPI.setCompiled(true);
+    return 1;
+  };
+
+  publicAPI.cleanup = function () {
+    if (model.shaderType === 'Unknown' || model.handle === 0) {
+      return;
+    }
+
+    model.context.deleteShader(model.handle);
+    model.handle = 0;
+  };
+
+  publicAPI.bind = function () {
+    if (!model.linked && !publicAPI.link()) {
+      return false;
+    }
+
+    model.context.useProgram(model.handle);
+    publicAPI.setBound(true);
+    return true;
+  };
+
+  publicAPI.isBound = function () {
+    return !!model.bound;
+  };
+
+  publicAPI.release = function () {
+    model.context.useProgram(null);
+    publicAPI.setBound(false);
+  };
+
+  publicAPI.setContext = function (ctx) {
+    model.vertexShader.setContext(ctx);
+    model.fragmentShader.setContext(ctx);
+    model.geometryShader.setContext(ctx);
+  };
+
+  publicAPI.link = function () {
+    if (model.inked) {
+      return true;
+    }
+
+    if (model.handle === 0) {
+      model.error = 'Program has not been initialized, and/or does not have shaders.';
+      return false;
+    } // clear out the list of uniforms used
+
+
+    model.uniformLocs = {};
+    model.context.linkProgram(model.handle);
+    var isCompiled = model.context.getProgramParameter(model.handle, model.context.LINK_STATUS);
+
+    if (!isCompiled) {
+      var lastError = model.context.getProgramInfoLog(model.handle);
+      ShaderProgram_vtkErrorMacro("Error linking shader ".concat(lastError));
+      model.handle = 0;
+      return false;
+    }
+
+    publicAPI.setLinked(true);
+    model.attributeLocs = {};
+    return true;
+  };
+
+  publicAPI.setUniformMatrix = function (name, v) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    var f32 = new Float32Array(v);
+    model.context.uniformMatrix4fv(location, false, f32);
+    return true;
+  };
+
+  publicAPI.setUniformMatrix3x3 = function (name, v) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    var f32 = new Float32Array(v);
+    model.context.uniformMatrix3fv(location, false, f32);
+    return true;
+  };
+
+  publicAPI.setUniformf = function (name, v) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    model.context.uniform1f(location, v);
+    return true;
+  };
+
+  publicAPI.setUniformfv = function (name, v) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    model.context.uniform1fv(location, v);
+    return true;
+  };
+
+  publicAPI.setUniformi = function (name, v) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    model.context.uniform1i(location, v);
+    return true;
+  };
+
+  publicAPI.setUniformiv = function (name, v) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    model.context.uniform1iv(location, v);
+    return true;
+  };
+
+  publicAPI.setUniform2f = function (name, v1, v2) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    if (v2 === undefined) {
+      throw new RangeError('Invalid number of values for array');
+    }
+
+    model.context.uniform2f(location, v1, v2);
+    return true;
+  };
+
+  publicAPI.setUniform2fv = function (name, v) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    model.context.uniform2fv(location, v);
+    return true;
+  };
+
+  publicAPI.setUniform2i = function (name, v1, v2) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    if (v2 === undefined) {
+      throw new RangeError('Invalid number of values for array');
+    }
+
+    model.context.uniform2i(location, v1, v2);
+    return true;
+  };
+
+  publicAPI.setUniform2iv = function (name, v) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    model.context.uniform2iv(location, v);
+    return true;
+  };
+
+  publicAPI.setUniform3f = function (name, a1, a2, a3) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    if (a3 === undefined) {
+      throw new RangeError('Invalid number of values for array');
+    }
+
+    model.context.uniform3f(location, a1, a2, a3);
+    return true;
+  };
+
+  publicAPI.setUniform3fArray = function (name, a) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    if (!Array.isArray(a) || a.length !== 3) {
+      throw new RangeError('Invalid number of values for array');
+    }
+
+    model.context.uniform3f(location, a[0], a[1], a[2]);
+    return true;
+  };
+
+  publicAPI.setUniform3fv = function (name, v) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    model.context.uniform3fv(location, v);
+    return true;
+  };
+
+  publicAPI.setUniform3i = function (name) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    for (var _len = arguments.length, args = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+      args[_key - 1] = arguments[_key];
+    }
+
+    var array = args; // allow an array passed as a single argument
+
+    if (array.length === 1 && Array.isArray(array[0])) {
+      array = array[0];
+    }
+
+    if (array.length !== 3) {
+      throw new RangeError('Invalid number of values for array');
+    }
+
+    model.context.uniform3i(location, array[0], array[1], array[2]);
+    return true;
+  };
+
+  publicAPI.setUniform3iv = function (name, v) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    model.context.uniform3iv(location, v);
+    return true;
+  };
+
+  publicAPI.setUniform4f = function (name) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    for (var _len2 = arguments.length, args = new Array(_len2 > 1 ? _len2 - 1 : 0), _key2 = 1; _key2 < _len2; _key2++) {
+      args[_key2 - 1] = arguments[_key2];
+    }
+
+    var array = args; // allow an array passed as a single argument
+
+    if (array.length === 1 && Array.isArray(array[0])) {
+      array = array[0];
+    }
+
+    if (array.length !== 4) {
+      throw new RangeError('Invalid number of values for array');
+    }
+
+    model.context.uniform4f(location, array[0], array[1], array[2], array[3]);
+    return true;
+  };
+
+  publicAPI.setUniform4fv = function (name, v) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    model.context.uniform4fv(location, v);
+    return true;
+  };
+
+  publicAPI.setUniform4i = function (name) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    for (var _len3 = arguments.length, args = new Array(_len3 > 1 ? _len3 - 1 : 0), _key3 = 1; _key3 < _len3; _key3++) {
+      args[_key3 - 1] = arguments[_key3];
+    }
+
+    var array = args; // allow an array passed as a single argument
+
+    if (array.length === 1 && Array.isArray(array[0])) {
+      array = array[0];
+    }
+
+    if (array.length !== 4) {
+      throw new RangeError('Invalid number of values for array');
+    }
+
+    model.context.uniform4i(location, array[0], array[1], array[2], array[3]);
+    return true;
+  };
+
+  publicAPI.setUniform4iv = function (name, v) {
+    var location = publicAPI.findUniform(name);
+
+    if (location === -1) {
+      model.error = "Could not set uniform ".concat(name, " . No such uniform.");
+      return false;
+    }
+
+    model.context.uniform4iv(location, v);
+    return true;
+  };
+
+  publicAPI.findUniform = function (name) {
+    if (!name || !model.linked) {
+      return -1;
+    } // see if we have cached the result
+
+
+    var loc = model.uniformLocs[name];
+
+    if (loc !== undefined) {
+      return loc;
+    }
+
+    loc = model.context.getUniformLocation(model.handle, name);
+
+    if (loc === null) {
+      model.error = "Uniform ".concat(name, " not found in current shader program.");
+      model.uniformLocs[name] = -1;
+      return -1;
+    }
+
+    model.uniformLocs[name] = loc;
+    return loc;
+  };
+
+  publicAPI.isUniformUsed = function (name) {
+    if (!name) {
+      return false;
+    } // see if we have cached the result
+
+
+    var loc = model.uniformLocs[name];
+
+    if (loc !== undefined) {
+      return loc !== null;
+    }
+
+    if (!model.linked) {
+      ShaderProgram_vtkErrorMacro('attempt to find uniform when the shader program is not linked');
+      return false;
+    }
+
+    loc = model.context.getUniformLocation(model.handle, name);
+    model.uniformLocs[name] = loc;
+
+    if (loc === null) {
+      return false;
+    }
+
+    return true;
+  };
+
+  publicAPI.isAttributeUsed = function (name) {
+    if (!name) {
+      return false;
+    } // see if we have cached the result
+
+
+    var loc = Object.keys(model.attributeLocs).indexOf(name);
+
+    if (loc !== -1) {
+      return true;
+    }
+
+    if (!model.linked) {
+      ShaderProgram_vtkErrorMacro('attempt to find uniform when the shader program is not linked');
+      return false;
+    }
+
+    loc = model.context.getAttribLocation(model.handle, name);
+
+    if (loc === -1) {
+      return false;
+    }
+
+    model.attributeLocs[name] = loc;
+    return true;
+  };
+
+  publicAPI.attachShader = function (shader) {
+    if (shader.getHandle() === 0) {
+      model.error = 'Shader object was not initialized, cannot attach it.';
+      return false;
+    }
+
+    if (shader.getShaderType() === 'Unknown') {
+      model.error = 'Shader object is of type Unknown and cannot be used.';
+      return false;
+    }
+
+    if (model.handle === 0) {
+      var thandle = model.context.createProgram();
+
+      if (thandle === 0) {
+        model.error = 'Could not create shader program.';
+        return false;
+      }
+
+      model.handle = thandle;
+      model.linked = false;
+    }
+
+    if (shader.getShaderType() === 'Vertex') {
+      if (model.vertexShaderHandle !== 0) {
+        model.comntext.detachShader(model.handle, model.vertexShaderHandle);
+      }
+
+      model.vertexShaderHandle = shader.getHandle();
+    }
+
+    if (shader.getShaderType() === 'Fragment') {
+      if (model.fragmentShaderHandle !== 0) {
+        model.context.detachShader(model.handle, model.fragmentShaderHandle);
+      }
+
+      model.fragmentShaderHandle = shader.getHandle();
+    }
+
+    model.context.attachShader(model.handle, shader.getHandle());
+    publicAPI.setLinked(false);
+    return true;
+  };
+
+  publicAPI.detachShader = function (shader) {
+    if (shader.getHandle() === 0) {
+      model.error = 'shader object was not initialized, cannot attach it.';
+      return false;
+    }
+
+    if (shader.getShaderType() === 'Unknown') {
+      model.error = 'Shader object is of type Unknown and cannot be used.';
+      return false;
+    }
+
+    if (model.handle === 0) {
+      model.error = 'This shader program has not been initialized yet.';
+    }
+
+    switch (shader.getShaderType()) {
+      case 'Vertex':
+        if (model.vertexShaderHandle !== shader.getHandle()) {
+          model.error = 'The supplied shader was not attached to this program.';
+          return false;
+        }
+
+        model.context.detachShader(model.handle, shader.getHandle());
+        model.vertexShaderHandle = 0;
+        model.linked = false;
+        return true;
+
+      case 'Fragment':
+        if (model.fragmentShaderHandle !== shader.getHandle()) {
+          model.error = 'The supplied shader was not attached to this program.';
+          return false;
+        }
+
+        model.context.detachShader(model.handle, shader.getHandle());
+        model.fragmentShaderHandle = 0;
+        model.linked = false;
+        return true;
+
+      default:
+        return false;
+    }
+  };
+
+  publicAPI.setContext = function (ctx) {
+    model.context = ctx;
+    model.vertexShader.setContext(ctx);
+    model.fragmentShader.setContext(ctx);
+    model.geometryShader.setContext(ctx);
+  };
+
+  publicAPI.setLastCameraMTime = function (mtime) {
+    model.lastCameraMTime = mtime;
+  }; // publicAPI.enableAttributeArray = (name) => {
+  //   const location = publicAPI.findAttributeArray(name);
+  //   if (location === -1) {
+  //     model.error = `Could not enable attribute ${name} No such attribute.`;
+  //     return false;
+  //   }
+  //   model.context.enableVertexAttribArray(location);
+  //   return true;
+  // };
+  // publicAPI.disableAttributeArray = (name) => {
+  //   const location = publicAPI.findAttributeArray(name);
+  //   if (location === -1) {
+  //     model.error = `Could not enable attribute ${name} No such attribute.`;
+  //     return false;
+  //   }
+  //   model.context.disableVertexAttribArray(location);
+  //   return true;
+  // };
+
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var ShaderProgram_DEFAULT_VALUES = {
+  vertexShaderHandle: 0,
+  fragmentShaderHandle: 0,
+  geometryShaderHandle: 0,
+  vertexShader: null,
+  fragmentShader: null,
+  geometryShader: null,
+  linked: false,
+  bound: false,
+  compiled: false,
+  error: '',
+  handle: 0,
+  numberOfOutputs: 0,
+  attributesLocs: null,
+  uniformLocs: null,
+  md5Hash: 0,
+  context: null,
+  lastCameraMTime: null
+}; // ----------------------------------------------------------------------------
+
+function ShaderProgram_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, ShaderProgram_DEFAULT_VALUES, initialValues); // Instantiate internal objects
+
+  model.attributesLocs = {};
+  model.uniformLocs = {};
+  model.vertexShader = vtkShader$1.newInstance();
+  model.vertexShader.setShaderType('Vertex');
+  model.fragmentShader = vtkShader$1.newInstance();
+  model.fragmentShader.setShaderType('Fragment');
+  model.geometryShader = vtkShader$1.newInstance();
+  model.geometryShader.setShaderType('Geometry'); // Build VTK API
+
+  macro.obj(publicAPI, model);
+  macro.get(publicAPI, model, ['lastCameraMTime']);
+  macro.setGet(publicAPI, model, ['error', 'handle', 'compiled', 'bound', 'md5Hash', 'vertexShader', 'fragmentShader', 'geometryShader', 'linked']); // Object methods
+
+  vtkShaderProgram(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+
+var ShaderProgram_newInstance = macro.newInstance(ShaderProgram_extend, 'vtkShaderProgram'); // ----------------------------------------------------------------------------
+
+var vtkShaderProgram$1 = {
+  newInstance: ShaderProgram_newInstance,
+  extend: ShaderProgram_extend,
+  substitute: substitute
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/ShaderCache.js
+
+
+
+
+var SET_GET_FIELDS = ['lastShaderBound', 'context', 'openGLRenderWindow']; // ----------------------------------------------------------------------------
+// vtkShaderCache methods
+// ----------------------------------------------------------------------------
+
+function vtkShaderCache(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkShaderCache');
+
+  publicAPI.replaceShaderValues = function (VSSource, FSSource, GSSource) {
+    // first handle renaming any Fragment shader inputs
+    // if we have a geometry shader. By default fragment shaders
+    // assume their inputs come from a Vertex Shader. When we
+    // have a Geometry shader we rename the frament shader inputs
+    // to come from the geometry shader
+    var nFSSource = FSSource;
+
+    if (GSSource.length > 0) {
+      nFSSource = vtkShaderProgram$1.substitute(nFSSource, 'VSOut', 'GSOut').result;
+    }
+
+    var gl2 = model.openGLRenderWindow.getWebgl2();
+    var fragDepthString = '\n';
+    var version = '#version 100\n';
+
+    if (gl2) {
+      version = '#version 300 es\n' + '#define attribute in\n' + '#define textureCube texture\n' + '#define texture2D texture\n' + '#define textureCubeLod textureLod\n' + '#define texture2DLod textureLod\n';
+    } else {
+      model.context.getExtension('OES_standard_derivatives');
+
+      if (model.context.getExtension('EXT_frag_depth')) {
+        fragDepthString = '#extension GL_EXT_frag_depth : enable\n';
+      }
+
+      if (model.context.getExtension('EXT_shader_texture_lod')) {
+        fragDepthString += '#extension GL_EXT_shader_texture_lod : enable\n' + '#define textureCubeLod textureCubeLodEXT\n' + '#define texture2DLod texture2DLodEXT';
+      }
+    }
+
+    nFSSource = vtkShaderProgram$1.substitute(nFSSource, '//VTK::System::Dec', ["".concat(version, "\n"), gl2 ? '' : '#extension GL_OES_standard_derivatives : enable\n', fragDepthString, '#ifdef GL_FRAGMENT_PRECISION_HIGH', 'precision highp float;', 'precision highp int;', '#else', 'precision mediump float;', 'precision mediump int;', '#endif']).result;
+    var nVSSource = vtkShaderProgram$1.substitute(VSSource, '//VTK::System::Dec', ["".concat(version, "\n"), '#ifdef GL_FRAGMENT_PRECISION_HIGH', 'precision highp float;', 'precision highp int;', '#else', 'precision mediump float;', 'precision mediump int;', '#endif']).result;
+
+    if (gl2) {
+      nVSSource = vtkShaderProgram$1.substitute(nVSSource, 'varying', 'out').result;
+      nFSSource = vtkShaderProgram$1.substitute(nFSSource, 'varying', 'in').result;
+      nFSSource = vtkShaderProgram$1.substitute(nFSSource, 'gl_FragData\\[0\\]', 'fragOutput0').result;
+      nFSSource = vtkShaderProgram$1.substitute(nFSSource, '//VTK::Output::Dec', 'layout(location = 0) out vec4 fragOutput0;').result;
+    } // nFSSource = ShaderProgram.substitute(nFSSource, 'gl_FragData\\[0\\]',
+    //   'gl_FragColor').result;
+
+
+    var nGSSource = vtkShaderProgram$1.substitute(GSSource, '//VTK::System::Dec', version).result;
+    return {
+      VSSource: nVSSource,
+      FSSource: nFSSource,
+      GSSource: nGSSource
+    };
+  }; // return NULL if there is an issue
+
+
+  publicAPI.readyShaderProgramArray = function (vertexCode, fragmentCode, geometryCode) {
+    var data = publicAPI.replaceShaderValues(vertexCode, fragmentCode, geometryCode);
+    var shader = publicAPI.getShaderProgram(data.VSSource, data.FSSource, data.GSSource);
+    return publicAPI.readyShaderProgram(shader);
+  };
+
+  publicAPI.readyShaderProgram = function (shader) {
+    if (!shader) {
+      return null;
+    } // compile if needed
+
+
+    if (!shader.getCompiled() && !shader.compileShader()) {
+      return null;
+    } // bind if needed
+
+
+    if (!publicAPI.bindShader(shader)) {
+      return null;
+    }
+
+    return shader;
+  };
+
+  publicAPI.getShaderProgram = function (vertexCode, fragmentCode, geometryCode) {
+    // compute the MD5 and the check the map
+    var hashInput = "".concat(vertexCode).concat(fragmentCode).concat(geometryCode);
+    var result = spark_md5_default().hash(hashInput); // does it already exist?
+
+    var loc = Object.keys(model.shaderPrograms).indexOf(result);
+
+    if (loc === -1) {
+      // create one
+      var sps = vtkShaderProgram$1.newInstance();
+      sps.setContext(model.context);
+      sps.getVertexShader().setSource(vertexCode);
+      sps.getFragmentShader().setSource(fragmentCode);
+
+      if (geometryCode) {
+        sps.getGeometryShader().setSource(geometryCode);
+      }
+
+      sps.setMd5Hash(result);
+      model.shaderPrograms[result] = sps;
+      return sps;
+    }
+
+    return model.shaderPrograms[result];
+  };
+
+  publicAPI.releaseGraphicsResources = function (win) {
+    // NOTE:
+    // In the current implementation as of October 26th, if a shader
+    // program is created by ShaderCache then it should make sure
+    // that it releases the graphics resources used by these programs.
+    // It is not wisely for callers to do that since then they would
+    // have to loop over all the programs were in use and invoke
+    // release graphics resources individually.
+    publicAPI.releaseCurrentShader();
+    Object.keys(model.shaderPrograms).map(function (key) {
+      return model.shaderPrograms[key];
+    }).forEach(function (sp) {
+      return sp.releaseGraphicsResources(win);
+    });
+  };
+
+  publicAPI.releaseGraphicsResources = function () {
+    // release prior shader
+    if (model.astShaderBound) {
+      model.lastShaderBound.release();
+      model.lastShaderBound = null;
+    }
+  };
+
+  publicAPI.bindShader = function (shader) {
+    if (model.lastShaderBound === shader) {
+      return 1;
+    } // release prior shader
+
+
+    if (model.lastShaderBound) {
+      model.lastShaderBound.release();
+    }
+
+    shader.bind();
+    model.lastShaderBound = shader;
+    return 1;
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var ShaderCache_DEFAULT_VALUES = {
+  lastShaderBound: null,
+  shaderPrograms: null,
+  context: null,
+  openGLRenderWindow: null
+}; // ----------------------------------------------------------------------------
+
+function ShaderCache_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, ShaderCache_DEFAULT_VALUES, initialValues); // Internal objects
+
+  model.shaderPrograms = {}; // Build VTK API
+
+  macro.obj(publicAPI, model);
+  macro.setGet(publicAPI, model, SET_GET_FIELDS); // Object methods
+
+  vtkShaderCache(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var ShaderCache_newInstance = macro.newInstance(ShaderCache_extend, 'vtkShaderCache'); // ----------------------------------------------------------------------------
+
+var vtkShaderCache$1 = {
+  newInstance: ShaderCache_newInstance,
+  extend: ShaderCache_extend
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/TextureUnitManager.js
+
+
+var TextureUnitManager_vtkErrorMacro = macro.vtkErrorMacro; // ----------------------------------------------------------------------------
+// vtkOpenGLTextureUnitManager methods
+// ----------------------------------------------------------------------------
+
+function vtkOpenGLTextureUnitManager(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkOpenGLTextureUnitManager'); // ----------------------------------------------------------------------------
+  // Description:
+  // Delete the allocation table and check if it is not called before
+  // all the texture units have been released.
+
+  publicAPI.deleteTable = function () {
+    for (var i = 0; i < model.numberOfTextureUnits; ++i) {
+      if (model.textureUnits[i] === true) {
+        TextureUnitManager_vtkErrorMacro('some texture units  were not properly released');
+      }
+    }
+
+    model.textureUnits = [];
+    model.numberOfTextureUnits = 0;
+  }; // ----------------------------------------------------------------------------
+
+
+  publicAPI.setContext = function (ctx) {
+    if (model.context !== ctx) {
+      if (model.context !== 0) {
+        publicAPI.deleteTable();
+      }
+
+      model.context = ctx;
+
+      if (model.context) {
+        model.numberOfTextureUnits = ctx.getParameter(ctx.MAX_TEXTURE_IMAGE_UNITS);
+
+        for (var i = 0; i < model.numberOfTextureUnits; ++i) {
+          model.textureUnits[i] = false;
+        }
+      }
+
+      publicAPI.modified();
+    }
+  }; // ----------------------------------------------------------------------------
+  // Description:
+  // Reserve a texture unit. It returns its number.
+  // It returns -1 if the allocation failed (because there are no more
+  // texture units left).
+  // \post valid_result: result==-1 || result>=0 && result<this->GetNumberOfTextureUnits())
+  // \post allocated: result==-1 || this->IsAllocated(result)
+
+
+  publicAPI.allocate = function () {
+    for (var i = 0; i < model.numberOfTextureUnits; i++) {
+      if (!publicAPI.isAllocated(i)) {
+        model.textureUnits[i] = true;
+        return i;
+      }
+    }
+
+    return -1;
+  };
+
+  publicAPI.allocateUnit = function (unit) {
+    if (publicAPI.isAllocated(unit)) {
+      return -1;
+    }
+
+    model.textureUnits[unit] = true;
+    return unit;
+  }; // ----------------------------------------------------------------------------
+  // Description:
+  // Tell if texture unit `textureUnitId' is already allocated.
+  // \pre valid_id_range : textureUnitId>=0 && textureUnitId<this->GetNumberOfTextureUnits()
+
+
+  publicAPI.isAllocated = function (textureUnitId) {
+    return model.textureUnits[textureUnitId];
+  }; // ----------------------------------------------------------------------------
+  // Description:
+  // Release a texture unit.
+  // \pre valid_id: textureUnitId>=0 && textureUnitId<this->GetNumberOfTextureUnits()
+  // \pre allocated_id: this->IsAllocated(textureUnitId)
+
+
+  publicAPI.free = function (val) {
+    model.textureUnits[val] = false;
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var TextureUnitManager_DEFAULT_VALUES = {
+  context: null,
+  numberOfTextureUnits: 0,
+  textureUnits: 0
+}; // ----------------------------------------------------------------------------
+
+function TextureUnitManager_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, TextureUnitManager_DEFAULT_VALUES, initialValues);
+  macro.obj(publicAPI, model);
+  model.textureUnits = []; // Build VTK API
+
+  macro.get(publicAPI, model, ['numberOfTextureUnits']);
+  macro.setGet(publicAPI, model, ['context']); // Object methods
+
+  vtkOpenGLTextureUnitManager(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var TextureUnitManager_newInstance = macro.newInstance(TextureUnitManager_extend, 'vtkOpenGLTextureUnitManager'); // ----------------------------------------------------------------------------
+
+var vtkTextureUnitManager = {
+  newInstance: TextureUnitManager_newInstance,
+  extend: TextureUnitManager_extend
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/SceneGraph/RenderWindowViewNode.js
+
+
+
+// vtkRenderWindowViewNode is intended to be a superclass for all api specific
+// RenderWindows. It is intended to define a common API that can be invoked
+// upon an api specific render window and provide some common method
+// implementations. If your application requires communicating with an api specific
+// view try to limit such interactions to methods defined in this class.
+// ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+// vtkRenderWindowViewNode methods
+// ----------------------------------------------------------------------------
+
+function vtkRenderWindowViewNode(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkRenderWindowViewNode');
+
+  publicAPI.getViewNodeFactory = function () {
+    return null;
+  };
+
+  publicAPI.getAspectRatio = function () {
+    return model.size[0] / model.size[1];
+  };
+
+  publicAPI.getAspectRatioForRenderer = function (renderer) {
+    var viewport = renderer.getViewportByReference();
+    return model.size[0] * (viewport[2] - viewport[0]) / ((viewport[3] - viewport[1]) * model.size[1]);
+  };
+
+  publicAPI.isInViewport = function (x, y, viewport) {
+    var vCoords = viewport.getViewportByReference();
+    var size = publicAPI.getFramebufferSize();
+
+    if (vCoords[0] * size[0] <= x && vCoords[2] * size[0] >= x && vCoords[1] * size[1] <= y && vCoords[3] * size[1] >= y) {
+      return true;
+    }
+
+    return false;
+  };
+
+  publicAPI.getViewportSize = function (viewport) {
+    var vCoords = viewport.getViewportByReference();
+    var size = publicAPI.getFramebufferSize();
+    return [(vCoords[2] - vCoords[0]) * size[0], (vCoords[3] - vCoords[1]) * size[1]];
+  };
+
+  publicAPI.getViewportCenter = function (viewport) {
+    var size = publicAPI.getViewportSize(viewport);
+    return [size[0] * 0.5, size[1] * 0.5];
+  };
+
+  publicAPI.displayToNormalizedDisplay = function (x, y, z) {
+    var size = publicAPI.getFramebufferSize();
+    return [x / size[0], y / size[1], z];
+  };
+
+  publicAPI.normalizedDisplayToDisplay = function (x, y, z) {
+    var size = publicAPI.getFramebufferSize();
+    return [x * size[0], y * size[1], z];
+  };
+
+  publicAPI.worldToView = function (x, y, z, renderer) {
+    return renderer.worldToView(x, y, z);
+  };
+
+  publicAPI.viewToWorld = function (x, y, z, renderer) {
+    return renderer.viewToWorld(x, y, z);
+  };
+
+  publicAPI.worldToDisplay = function (x, y, z, renderer) {
+    var val = renderer.worldToView(x, y, z);
+    var dims = publicAPI.getViewportSize(renderer);
+    var val2 = renderer.viewToProjection(val[0], val[1], val[2], dims[0] / dims[1]);
+    var val3 = renderer.projectionToNormalizedDisplay(val2[0], val2[1], val2[2]);
+    return publicAPI.normalizedDisplayToDisplay(val3[0], val3[1], val3[2]);
+  };
+
+  publicAPI.displayToWorld = function (x, y, z, renderer) {
+    var val = publicAPI.displayToNormalizedDisplay(x, y, z);
+    var val2 = renderer.normalizedDisplayToProjection(val[0], val[1], val[2]);
+    var dims = publicAPI.getViewportSize(renderer);
+    var val3 = renderer.projectionToView(val2[0], val2[1], val2[2], dims[0] / dims[1]);
+    return renderer.viewToWorld(val3[0], val3[1], val3[2]);
+  };
+
+  publicAPI.normalizedDisplayToViewport = function (x, y, z, renderer) {
+    var vCoords = renderer.getViewportByReference();
+    vCoords = publicAPI.normalizedDisplayToDisplay(vCoords[0], vCoords[1], 0.0);
+    var coords = publicAPI.normalizedDisplayToDisplay(x, y, z);
+    return [coords[0] - vCoords[0] - 0.5, coords[1] - vCoords[1] - 0.5, z];
+  };
+
+  publicAPI.viewportToNormalizedViewport = function (x, y, z, renderer) {
+    var size = publicAPI.getViewportSize(renderer);
+
+    if (size && size[0] !== 0 && size[1] !== 0) {
+      return [x / (size[0] - 1.0), y / (size[1] - 1.0), z];
+    }
+
+    return [x, y, z];
+  };
+
+  publicAPI.normalizedViewportToViewport = function (x, y, z, renderer) {
+    var size = publicAPI.getViewportSize(renderer);
+    return [x * (size[0] - 1.0), y * (size[1] - 1.0), z];
+  };
+
+  publicAPI.displayToLocalDisplay = function (x, y, z) {
+    var size = publicAPI.getFramebufferSize();
+    return [x, size[1] - y - 1, z];
+  };
+
+  publicAPI.viewportToNormalizedDisplay = function (x, y, z, renderer) {
+    var vCoords = renderer.getViewportByReference();
+    vCoords = publicAPI.normalizedDisplayToDisplay(vCoords[0], vCoords[1], 0.0);
+    var x2 = x + vCoords[0] + 0.5;
+    var y2 = y + vCoords[1] + 0.5;
+    return publicAPI.displayToNormalizedDisplay(x2, y2, z);
+  };
+
+  publicAPI.getPixelData = function (x1, y1, x2, y2) {
+    macro.vtkErrorMacro('not implemented');
+    return undefined;
+  };
+
+  publicAPI.createSelector = function () {
+    macro.vtkErrorMacro('not implemented');
+    return undefined;
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var RenderWindowViewNode_DEFAULT_VALUES = {
+  size: undefined,
+  selector: undefined
+}; // ----------------------------------------------------------------------------
+
+function RenderWindowViewNode_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, RenderWindowViewNode_DEFAULT_VALUES, initialValues);
+
+  if (!model.size) {
+    model.size = [300, 300];
+  }
+
+  macro.getArray(publicAPI, model, ['size'], 2);
+  macro.get(publicAPI, model, ['selector']); // Inheritance
+
+  vtkViewNode$1.extend(publicAPI, model, initialValues); // Object methods
+
+  vtkRenderWindowViewNode(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var RenderWindowViewNode_newInstance = macro.newInstance(RenderWindowViewNode_extend, 'vtkRenderWindowViewNode'); // ----------------------------------------------------------------------------
+
+var vtkRenderWindowViewNode$1 = {
+  newInstance: RenderWindowViewNode_newInstance,
+  extend: RenderWindowViewNode_extend
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/RenderWindow.js
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+var RenderWindow_vtkDebugMacro = macro.vtkDebugMacro,
+    RenderWindow_vtkErrorMacro = macro.vtkErrorMacro;
+var SCREENSHOT_PLACEHOLDER = {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  width: '100%',
+  height: '100%'
+};
+var DEFAULT_RESET_FACTORS = {
+  vr: {
+    rescaleFactor: 1.0,
+    translateZ: -0.7 // 0.7 m forward from the camera
+
+  },
+  ar: {
+    rescaleFactor: 0.25,
+    // scale down AR for viewing comfort by default
+    translateZ: -0.5 // 0.5 m forward from the camera
+
+  }
+};
+
+function checkRenderTargetSupport(gl, format, type) {
+  // create temporary frame buffer and texture
+  var framebuffer = gl.createFramebuffer();
+  var texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, format, 2, 2, 0, format, type, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0); // check frame buffer status
+
+  var status = gl.checkFramebufferStatus(gl.FRAMEBUFFER); // clean up
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  return status === gl.FRAMEBUFFER_COMPLETE;
+} // ----------------------------------------------------------------------------
+// Monitor the usage of GL context across vtkOpenGLRenderWindow instances
+// ----------------------------------------------------------------------------
+
+
+var GL_CONTEXT_COUNT = 0;
+var GL_CONTEXT_LISTENERS = [];
+
+function createGLContext() {
+  GL_CONTEXT_COUNT++;
+  GL_CONTEXT_LISTENERS.forEach(function (cb) {
+    return cb(GL_CONTEXT_COUNT);
+  });
+}
+
+function deleteGLContext() {
+  GL_CONTEXT_COUNT--;
+  GL_CONTEXT_LISTENERS.forEach(function (cb) {
+    return cb(GL_CONTEXT_COUNT);
+  });
+}
+
+function pushMonitorGLContextCount(cb) {
+  GL_CONTEXT_LISTENERS.push(cb);
+}
+function popMonitorGLContextCount(cb) {
+  return GL_CONTEXT_LISTENERS.pop();
+} // ----------------------------------------------------------------------------
+// vtkOpenGLRenderWindow methods
+// ----------------------------------------------------------------------------
+
+function vtkOpenGLRenderWindow(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkOpenGLRenderWindow');
+
+  publicAPI.getViewNodeFactory = function () {
+    return model.myFactory;
+  }; // Auto update style
+
+
+  var previousSize = [0, 0];
+
+  function updateWindow() {
+    // Canvas size
+    if (model.renderable) {
+      if (model.size[0] !== previousSize[0] || model.size[1] !== previousSize[1]) {
+        previousSize[0] = model.size[0];
+        previousSize[1] = model.size[1];
+        model.canvas.setAttribute('width', model.size[0]);
+        model.canvas.setAttribute('height', model.size[1]);
+      }
+    } // ImageStream size
+
+
+    if (model.viewStream) {
+      // If same size that's a NoOp
+      model.viewStream.setSize(model.size[0], model.size[1]);
+    } // Offscreen ?
+
+
+    model.canvas.style.display = model.useOffScreen ? 'none' : 'block'; // Cursor type
+
+    if (model.el) {
+      model.el.style.cursor = model.cursorVisibility ? model.cursor : 'none';
+    } // Invalidate cached DOM container size
+
+
+    model.containerSize = null;
+  }
+
+  publicAPI.onModified(updateWindow); // Builds myself.
+
+  publicAPI.buildPass = function (prepass) {
+    if (prepass) {
+      if (!model.renderable) {
+        return;
+      }
+
+      publicAPI.prepareNodes();
+      publicAPI.addMissingNodes(model.renderable.getRenderersByReference());
+      publicAPI.removeUnusedNodes();
+      publicAPI.initialize();
+      model.children.forEach(function (child) {
+        child.setOpenGLRenderWindow(publicAPI);
+      });
+    }
+  };
+
+  publicAPI.initialize = function () {
+    if (!model.initialized) {
+      model.context = publicAPI.get3DContext();
+      model.textureUnitManager = vtkTextureUnitManager.newInstance();
+      model.textureUnitManager.setContext(model.context);
+      model.shaderCache.setContext(model.context); // initialize blending for transparency
+
+      var gl = model.context;
+      gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.depthFunc(gl.LEQUAL);
+      gl.enable(gl.BLEND);
+      model.initialized = true;
+    }
+  };
+
+  publicAPI.makeCurrent = function () {
+    model.context.makeCurrent();
+  };
+
+  publicAPI.setContainer = function (el) {
+    if (model.el && model.el !== el) {
+      if (model.canvas.parentNode !== model.el) {
+        RenderWindow_vtkErrorMacro('Error: canvas parent node does not match container');
+      } // Remove canvas from previous container
+
+
+      model.el.removeChild(model.canvas); // If the renderer has previously added
+      // a background image, remove it from the DOM.
+
+      if (model.el.contains(model.bgImage)) {
+        model.el.removeChild(model.bgImage);
+      }
+    }
+
+    if (model.el !== el) {
+      model.el = el;
+
+      if (model.el) {
+        model.el.appendChild(model.canvas); // If the renderer is set to use a background
+        // image, attach it to the DOM.
+
+        if (model.useBackgroundImage) {
+          model.el.appendChild(model.bgImage);
+        }
+      } // Trigger modified()
+
+
+      publicAPI.modified();
+    }
+  };
+
+  publicAPI.getContainer = function () {
+    return model.el;
+  };
+
+  publicAPI.getContainerSize = function () {
+    if (!model.containerSize && model.el) {
+      var _model$el$getBounding = model.el.getBoundingClientRect(),
+          width = _model$el$getBounding.width,
+          height = _model$el$getBounding.height;
+
+      model.containerSize = [width, height];
+    }
+
+    return model.containerSize || model.size;
+  };
+
+  publicAPI.getFramebufferSize = function () {
+    if (model.activeFramebuffer) {
+      return model.activeFramebuffer.getSize();
+    }
+
+    return model.size;
+  };
+
+  publicAPI.getPixelData = function (x1, y1, x2, y2) {
+    var pixels = new Uint8Array((x2 - x1 + 1) * (y2 - y1 + 1) * 4);
+    model.context.readPixels(x1, y1, x2 - x1 + 1, y2 - y1 + 1, model.context.RGBA, model.context.UNSIGNED_BYTE, pixels);
+    return pixels;
+  };
+
+  publicAPI.get3DContext = function () {
+    var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {
+      preserveDrawingBuffer: false,
+      depth: true,
+      alpha: true
+    };
+    var result = null; // Do we have webxr support
+
+    if (navigator.xr !== undefined && navigator.xr.isSessionSupported('immersive-vr')) {
+      publicAPI.invokeHaveVRDisplay();
+    }
+
+    var webgl2Supported = typeof WebGL2RenderingContext !== 'undefined';
+    model.webgl2 = false;
+
+    if (model.defaultToWebgl2 && webgl2Supported) {
+      result = model.canvas.getContext('webgl2', options);
+
+      if (result) {
+        model.webgl2 = true;
+        RenderWindow_vtkDebugMacro('using webgl2');
+      }
+    }
+
+    if (!result) {
+      RenderWindow_vtkDebugMacro('using webgl1');
+      result = model.canvas.getContext('webgl', options) || model.canvas.getContext('experimental-webgl', options);
+    } // prevent default context lost handler
+
+
+    model.canvas.addEventListener('webglcontextlost', function (event) {
+      event.preventDefault();
+    }, false);
+    model.canvas.addEventListener('webglcontextrestored', publicAPI.restoreContext, false);
+    return result;
+  }; // Request an XR session on the user device with WebXR,
+  // typically in response to a user request such as a button press
+
+
+  publicAPI.startXR = function (isAR) {
+    if (navigator.xr === undefined) {
+      throw new Error('WebXR is not available');
+    }
+
+    model.xrSessionIsAR = isAR;
+    var sessionType = isAR ? 'immersive-ar' : 'immersive-vr';
+
+    if (!navigator.xr.isSessionSupported(sessionType)) {
+      if (isAR) {
+        throw new Error('Device does not support AR session');
+      } else {
+        throw new Error('VR display is not available');
+      }
+    }
+
+    if (model.xrSession === null) {
+      navigator.xr.requestSession(sessionType).then(publicAPI.enterXR, function () {
+        throw new Error('Failed to create XR session!');
+      });
+    } else {
+      throw new Error('XR Session already exists!');
+    }
+  }; // When an XR session is available, set up the XRWebGLLayer
+  // and request the first animation frame for the device
+
+
+  publicAPI.enterXR = /*#__PURE__*/function () {
+    var _ref = _asyncToGenerator( /*#__PURE__*/regenerator_default().mark(function _callee(xrSession) {
+      var gl, glLayer;
+      return regenerator_default().wrap(function _callee$(_context) {
+        while (1) {
+          switch (_context.prev = _context.next) {
+            case 0:
+              model.xrSession = xrSession;
+              model.oldCanvasSize = model.size.slice();
+
+              if (!(model.xrSession !== null)) {
+                _context.next = 15;
+                break;
+              }
+
+              gl = publicAPI.get3DContext();
+              _context.next = 6;
+              return gl.makeXRCompatible();
+
+            case 6:
+              glLayer = new __webpack_require__.g.XRWebGLLayer(model.xrSession, gl);
+              publicAPI.setSize(glLayer.framebufferWidth, glLayer.framebufferHeight);
+              model.xrSession.updateRenderState({
+                baseLayer: glLayer
+              });
+              model.xrSession.requestReferenceSpace('local').then(function (refSpace) {
+                model.xrReferenceSpace = refSpace;
+              });
+              publicAPI.resetXRScene();
+              model.renderable.getInteractor().switchToXRAnimation();
+              model.xrSceneFrame = model.xrSession.requestAnimationFrame(publicAPI.xrRender);
+              _context.next = 16;
+              break;
+
+            case 15:
+              throw new Error('Failed to enter VR with a null xrSession.');
+
+            case 16:
+            case "end":
+              return _context.stop();
+          }
+        }
+      }, _callee);
+    }));
+
+    return function (_x) {
+      return _ref.apply(this, arguments);
+    };
+  }();
+
+  publicAPI.resetXRScene = function () {
+    var inputRescaleFactor = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : DEFAULT_RESET_FACTORS.vr.rescaleFactor;
+    var inputTranslateZ = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : DEFAULT_RESET_FACTORS.vr.translateZ;
+    // Adjust world-to-physical parameters for different modalities
+    // Default parameter values are for VR (model.xrSessionIsAR == false)
+    var rescaleFactor = inputRescaleFactor;
+    var translateZ = inputTranslateZ;
+
+    if (model.xrSessionIsAR && rescaleFactor === DEFAULT_RESET_FACTORS.vr.rescaleFactor) {
+      // Scale down by default in AR
+      rescaleFactor = DEFAULT_RESET_FACTORS.ar.rescaleFactor;
+    }
+
+    if (model.xrSessionIsAR && translateZ === DEFAULT_RESET_FACTORS.vr.translateZ) {
+      // Default closer to the camera in AR
+      translateZ = DEFAULT_RESET_FACTORS.ar.translateZ;
+    }
+
+    var ren = model.renderable.getRenderers()[0];
+    ren.resetCamera();
+    var camera = ren.getActiveCamera();
+    var physicalScale = camera.getPhysicalScale();
+    var physicalTranslation = camera.getPhysicalTranslation();
+    physicalScale /= rescaleFactor;
+    translateZ *= physicalScale;
+    physicalTranslation[2] += translateZ;
+    camera.setPhysicalScale(physicalScale);
+    camera.setPhysicalTranslation(physicalTranslation);
+  };
+
+  publicAPI.stopXR = /*#__PURE__*/_asyncToGenerator( /*#__PURE__*/regenerator_default().mark(function _callee2() {
+    var gl, ren;
+    return regenerator_default().wrap(function _callee2$(_context2) {
+      while (1) {
+        switch (_context2.prev = _context2.next) {
+          case 0:
+            if (!(navigator.xr === undefined)) {
+              _context2.next = 2;
+              break;
+            }
+
+            return _context2.abrupt("return");
+
+          case 2:
+            if (!(model.xrSession !== null)) {
+              _context2.next = 10;
+              break;
+            }
+
+            model.xrSession.cancelAnimationFrame(model.xrSceneFrame);
+            model.renderable.getInteractor().returnFromXRAnimation();
+            gl = publicAPI.get3DContext();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            _context2.next = 9;
+            return model.xrSession.end().catch(function (error) {
+              if (!(error instanceof DOMException)) {
+                throw error;
+              }
+            });
+
+          case 9:
+            model.xrSession = null;
+
+          case 10:
+            if (model.oldCanvasSize !== undefined) {
+              publicAPI.setSize.apply(publicAPI, _toConsumableArray(model.oldCanvasSize));
+            } // Reset to default canvas
+
+
+            ren = model.renderable.getRenderers()[0];
+            ren.getActiveCamera().setProjectionMatrix(null);
+            ren.resetCamera();
+            ren.setViewport(0.0, 0, 1.0, 1.0);
+            publicAPI.traverseAllPasses();
+
+          case 16:
+          case "end":
+            return _context2.stop();
+        }
+      }
+    }, _callee2);
+  }));
+
+  publicAPI.xrRender = /*#__PURE__*/function () {
+    var _ref3 = _asyncToGenerator( /*#__PURE__*/regenerator_default().mark(function _callee3(t, frame) {
+      var xrSession, xrPose, gl, glLayer, ren;
+      return regenerator_default().wrap(function _callee3$(_context3) {
+        while (1) {
+          switch (_context3.prev = _context3.next) {
+            case 0:
+              xrSession = frame.session;
+              model.renderable.getInteractor().updateXRGamepads(xrSession, frame, model.xrReferenceSpace);
+              model.xrSceneFrame = model.xrSession.requestAnimationFrame(publicAPI.xrRender);
+              xrPose = frame.getViewerPose(model.xrReferenceSpace);
+
+              if (xrPose) {
+                gl = publicAPI.get3DContext();
+
+                if (model.xrSessionIsAR && model.oldCanvasSize !== undefined) {
+                  gl.canvas.width = model.oldCanvasSize[0];
+                  gl.canvas.height = model.oldCanvasSize[1];
+                }
+
+                glLayer = xrSession.renderState.baseLayer;
+                gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+                gl.clear(gl.DEPTH_BUFFER_BIT); // get the first renderer
+
+                ren = model.renderable.getRenderers()[0]; // Do a render pass for each eye
+
+                xrPose.views.forEach(function (view) {
+                  var viewport = glLayer.getViewport(view);
+                  gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height); // TODO: Appropriate handling for AR passthrough on HMDs
+                  // with two eyes will require further investigation.
+
+                  if (!model.xrSessionIsAR) {
+                    if (view.eye === 'left') {
+                      ren.setViewport(0, 0, 0.5, 1.0);
+                    } else if (view.eye === 'right') {
+                      ren.setViewport(0.5, 0, 1.0, 1.0);
+                    } else {
+                      // No handling for non-eye viewport
+                      return;
+                    }
+                  }
+
+                  ren.getActiveCamera().computeViewParametersFromPhysicalMatrix(view.transform.inverse.matrix);
+                  ren.getActiveCamera().setProjectionMatrix(view.projectionMatrix);
+                  publicAPI.traverseAllPasses();
+                });
+              }
+
+            case 5:
+            case "end":
+              return _context3.stop();
+          }
+        }
+      }, _callee3);
+    }));
+
+    return function (_x2, _x3) {
+      return _ref3.apply(this, arguments);
+    };
+  }();
+
+  publicAPI.restoreContext = function () {
+    var rp = vtkRenderPass$1.newInstance();
+    rp.setCurrentOperation('Release');
+    rp.traverse(publicAPI, null);
+  };
+
+  publicAPI.activateTexture = function (texture) {
+    // Only add if it isn't already there
+    var result = model._textureResourceIds.get(texture);
+
+    if (result !== undefined) {
+      model.context.activeTexture(model.context.TEXTURE0 + result);
+      return;
+    }
+
+    var activeUnit = publicAPI.getTextureUnitManager().allocate();
+
+    if (activeUnit < 0) {
+      RenderWindow_vtkErrorMacro('Hardware does not support the number of textures defined.');
+      return;
+    }
+
+    model._textureResourceIds.set(texture, activeUnit);
+
+    model.context.activeTexture(model.context.TEXTURE0 + activeUnit);
+  };
+
+  publicAPI.deactivateTexture = function (texture) {
+    // Only deactivate if it isn't already there
+    var result = model._textureResourceIds.get(texture);
+
+    if (result !== undefined) {
+      publicAPI.getTextureUnitManager().free(result);
+      delete model._textureResourceIds.delete(texture);
+    }
+  };
+
+  publicAPI.getTextureUnitForTexture = function (texture) {
+    var result = model._textureResourceIds.get(texture);
+
+    if (result !== undefined) {
+      return result;
+    }
+
+    return -1;
+  };
+
+  publicAPI.getDefaultTextureInternalFormat = function (vtktype, numComps, useFloat) {
+    if (model.webgl2) {
+      switch (vtktype) {
+        case VtkDataTypes.UNSIGNED_CHAR:
+          switch (numComps) {
+            case 1:
+              return model.context.R8;
+
+            case 2:
+              return model.context.RG8;
+
+            case 3:
+              return model.context.RGB8;
+
+            case 4:
+            default:
+              return model.context.RGBA8;
+          }
+
+        case VtkDataTypes.FLOAT:
+        default:
+          switch (numComps) {
+            case 1:
+              return model.context.R16F;
+
+            case 2:
+              return model.context.RG16F;
+
+            case 3:
+              return model.context.RGB16F;
+
+            case 4:
+            default:
+              return model.context.RGBA16F;
+          }
+
+      }
+    } // webgl1 only supports four types
+
+
+    switch (numComps) {
+      case 1:
+        return model.context.LUMINANCE;
+
+      case 2:
+        return model.context.LUMINANCE_ALPHA;
+
+      case 3:
+        return model.context.RGB;
+
+      case 4:
+      default:
+        return model.context.RGBA;
+    }
+  };
+
+  publicAPI.setBackgroundImage = function (img) {
+    model.bgImage.src = img.src;
+  };
+
+  publicAPI.setUseBackgroundImage = function (value) {
+    model.useBackgroundImage = value; // Add or remove the background image from the
+    // DOM as specified.
+
+    if (model.useBackgroundImage && !model.el.contains(model.bgImage)) {
+      model.el.appendChild(model.bgImage);
+    } else if (!model.useBackgroundImage && model.el.contains(model.bgImage)) {
+      model.el.removeChild(model.bgImage);
+    }
+  };
+
+  function getCanvasDataURL() {
+    var format = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : model.imageFormat;
+    // Copy current canvas to not modify the original
+    var temporaryCanvas = document.createElement('canvas');
+    var temporaryContext = temporaryCanvas.getContext('2d');
+    temporaryCanvas.width = model.canvas.width;
+    temporaryCanvas.height = model.canvas.height;
+    temporaryContext.drawImage(model.canvas, 0, 0); // Get current client rect to place canvas
+
+    var mainBoundingClientRect = model.canvas.getBoundingClientRect();
+    var renderWindow = model.renderable;
+    var renderers = renderWindow.getRenderers();
+    renderers.forEach(function (renderer) {
+      var viewProps = renderer.getViewProps();
+      viewProps.forEach(function (viewProp) {
+        // Check if the prop has a container that should have canvas
+        if (viewProp.getContainer) {
+          var container = viewProp.getContainer();
+          var canvasList = container.getElementsByTagName('canvas'); // Go throughout all canvas and copy it into temporary main canvas
+
+          for (var i = 0; i < canvasList.length; i++) {
+            var currentCanvas = canvasList[i];
+            var boundingClientRect = currentCanvas.getBoundingClientRect();
+            var newXPosition = boundingClientRect.x - mainBoundingClientRect.x;
+            var newYPosition = boundingClientRect.y - mainBoundingClientRect.y;
+            temporaryContext.drawImage(currentCanvas, newXPosition, newYPosition);
+          }
+        }
+      });
+    });
+    var screenshot = temporaryCanvas.toDataURL(format);
+    temporaryCanvas.remove();
+    publicAPI.invokeImageReady(screenshot);
+  }
+
+  publicAPI.captureNextImage = function () {
+    var format = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'image/png';
+
+    var _ref4 = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {},
+        _ref4$resetCamera = _ref4.resetCamera,
+        resetCamera = _ref4$resetCamera === void 0 ? false : _ref4$resetCamera,
+        _ref4$size = _ref4.size,
+        size = _ref4$size === void 0 ? null : _ref4$size,
+        _ref4$scale = _ref4.scale,
+        scale = _ref4$scale === void 0 ? 1 : _ref4$scale;
+
+    if (model.deleted) {
+      return null;
+    }
+
+    model.imageFormat = format;
+    var previous = model.notifyStartCaptureImage;
+    model.notifyStartCaptureImage = true;
+    model._screenshot = {
+      size: !!size || scale !== 1 ? size || model.size.map(function (val) {
+        return val * scale;
+      }) : null
+    };
+    return new Promise(function (resolve, reject) {
+      var subscription = publicAPI.onImageReady(function (imageURL) {
+        if (model._screenshot.size === null) {
+          model.notifyStartCaptureImage = previous;
+          subscription.unsubscribe();
+
+          if (model._screenshot.placeHolder) {
+            // resize the main canvas back to its original size and show it
+            model.size = model._screenshot.originalSize; // process the resize
+
+            publicAPI.modified(); // restore the saved camera parameters, if applicable
+
+            if (model._screenshot.cameras) {
+              model._screenshot.cameras.forEach(function (_ref5) {
+                var restoreParamsFn = _ref5.restoreParamsFn,
+                    arg = _ref5.arg;
+                return restoreParamsFn(arg);
+              });
+            } // Trigger a render at the original size
+
+
+            publicAPI.traverseAllPasses(); // Remove and clean up the placeholder, revealing the original
+
+            model.el.removeChild(model._screenshot.placeHolder);
+
+            model._screenshot.placeHolder.remove();
+
+            model._screenshot = null;
+          }
+
+          resolve(imageURL);
+        } else {
+          // Create a placeholder image overlay while we resize and render
+          var tmpImg = document.createElement('img');
+          tmpImg.style = SCREENSHOT_PLACEHOLDER;
+          tmpImg.src = imageURL;
+          model._screenshot.placeHolder = model.el.appendChild(tmpImg); // hide the main canvas
+
+          model.canvas.style.display = 'none'; // remember the main canvas original size, then resize it
+
+          model._screenshot.originalSize = model.size;
+          model.size = model._screenshot.size;
+          model._screenshot.size = null; // process the resize
+
+          publicAPI.modified();
+
+          if (resetCamera) {
+            var isUserResetCamera = resetCamera !== true; // If resetCamera was requested, we first save camera parameters
+            // from all the renderers, so we can restore them later
+
+            model._screenshot.cameras = model.renderable.getRenderers().map(function (renderer) {
+              var camera = renderer.getActiveCamera();
+              var params = camera.get('focalPoint', 'position', 'parallelScale');
+              return {
+                resetCameraArgs: isUserResetCamera ? {
+                  renderer: renderer
+                } : undefined,
+                resetCameraFn: isUserResetCamera ? resetCamera : renderer.resetCamera,
+                restoreParamsFn: camera.set,
+                // "clone" the params so we don't keep refs to properties
+                arg: JSON.parse(JSON.stringify(params))
+              };
+            }); // Perform the resetCamera() on each renderer only after capturing
+            // the params from all active cameras, in case there happen to be
+            // linked cameras among the renderers.
+
+            model._screenshot.cameras.forEach(function (_ref6) {
+              var resetCameraFn = _ref6.resetCameraFn,
+                  resetCameraArgs = _ref6.resetCameraArgs;
+              return resetCameraFn(resetCameraArgs);
+            });
+          } // Trigger a render at the custom size
+
+
+          publicAPI.traverseAllPasses();
+        }
+      });
+    });
+  };
+
+  publicAPI.getGLInformations = function () {
+    var gl = publicAPI.get3DContext();
+    var glTextureFloat = gl.getExtension('OES_texture_float');
+    var glTextureHalfFloat = gl.getExtension('OES_texture_half_float');
+    var glDebugRendererInfo = gl.getExtension('WEBGL_debug_renderer_info');
+    var glDrawBuffers = gl.getExtension('WEBGL_draw_buffers');
+    var glAnisotropic = gl.getExtension('EXT_texture_filter_anisotropic') || gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic');
+    var params = [['Max Vertex Attributes', 'MAX_VERTEX_ATTRIBS', gl.getParameter(gl.MAX_VERTEX_ATTRIBS)], ['Max Varying Vectors', 'MAX_VARYING_VECTORS', gl.getParameter(gl.MAX_VARYING_VECTORS)], ['Max Vertex Uniform Vectors', 'MAX_VERTEX_UNIFORM_VECTORS', gl.getParameter(gl.MAX_VERTEX_UNIFORM_VECTORS)], ['Max Fragment Uniform Vectors', 'MAX_FRAGMENT_UNIFORM_VECTORS', gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS)], ['Max Fragment Texture Image Units', 'MAX_TEXTURE_IMAGE_UNITS', gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS)], ['Max Vertex Texture Image Units', 'MAX_VERTEX_TEXTURE_IMAGE_UNITS', gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS)], ['Max Combined Texture Image Units', 'MAX_COMBINED_TEXTURE_IMAGE_UNITS', gl.getParameter(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS)], ['Max 2D Texture Size', 'MAX_TEXTURE_SIZE', gl.getParameter(gl.MAX_TEXTURE_SIZE)], ['Max Cube Texture Size', 'MAX_CUBE_MAP_TEXTURE_SIZE', gl.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE)], ['Max Texture Anisotropy', 'MAX_TEXTURE_MAX_ANISOTROPY_EXT', glAnisotropic && gl.getParameter(glAnisotropic.MAX_TEXTURE_MAX_ANISOTROPY_EXT)], ['Point Size Range', 'ALIASED_POINT_SIZE_RANGE', gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE).join(' - ')], ['Line Width Range', 'ALIASED_LINE_WIDTH_RANGE', gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE).join(' - ')], ['Max Viewport Dimensions', 'MAX_VIEWPORT_DIMS', gl.getParameter(gl.MAX_VIEWPORT_DIMS).join(' - ')], ['Max Renderbuffer Size', 'MAX_RENDERBUFFER_SIZE', gl.getParameter(gl.MAX_RENDERBUFFER_SIZE)], ['Framebuffer Red Bits', 'RED_BITS', gl.getParameter(gl.RED_BITS)], ['Framebuffer Green Bits', 'GREEN_BITS', gl.getParameter(gl.GREEN_BITS)], ['Framebuffer Blue Bits', 'BLUE_BITS', gl.getParameter(gl.BLUE_BITS)], ['Framebuffer Alpha Bits', 'ALPHA_BITS', gl.getParameter(gl.ALPHA_BITS)], ['Framebuffer Depth Bits', 'DEPTH_BITS', gl.getParameter(gl.DEPTH_BITS)], ['Framebuffer Stencil Bits', 'STENCIL_BITS', gl.getParameter(gl.STENCIL_BITS)], ['Framebuffer Subpixel Bits', 'SUBPIXEL_BITS', gl.getParameter(gl.SUBPIXEL_BITS)], ['MSAA Samples', 'SAMPLES', gl.getParameter(gl.SAMPLES)], ['MSAA Sample Buffers', 'SAMPLE_BUFFERS', gl.getParameter(gl.SAMPLE_BUFFERS)], ['Supported Formats for UByte Render Targets     ', 'UNSIGNED_BYTE RENDER TARGET FORMATS', [glTextureFloat && checkRenderTargetSupport(gl, gl.RGBA, gl.UNSIGNED_BYTE) ? 'RGBA' : '', glTextureFloat && checkRenderTargetSupport(gl, gl.RGB, gl.UNSIGNED_BYTE) ? 'RGB' : '', glTextureFloat && checkRenderTargetSupport(gl, gl.LUMINANCE, gl.UNSIGNED_BYTE) ? 'LUMINANCE' : '', glTextureFloat && checkRenderTargetSupport(gl, gl.ALPHA, gl.UNSIGNED_BYTE) ? 'ALPHA' : '', glTextureFloat && checkRenderTargetSupport(gl, gl.LUMINANCE_ALPHA, gl.UNSIGNED_BYTE) ? 'LUMINANCE_ALPHA' : ''].join(' ')], ['Supported Formats for Half Float Render Targets', 'HALF FLOAT RENDER TARGET FORMATS', [glTextureHalfFloat && checkRenderTargetSupport(gl, gl.RGBA, glTextureHalfFloat.HALF_FLOAT_OES) ? 'RGBA' : '', glTextureHalfFloat && checkRenderTargetSupport(gl, gl.RGB, glTextureHalfFloat.HALF_FLOAT_OES) ? 'RGB' : '', glTextureHalfFloat && checkRenderTargetSupport(gl, gl.LUMINANCE, glTextureHalfFloat.HALF_FLOAT_OES) ? 'LUMINANCE' : '', glTextureHalfFloat && checkRenderTargetSupport(gl, gl.ALPHA, glTextureHalfFloat.HALF_FLOAT_OES) ? 'ALPHA' : '', glTextureHalfFloat && checkRenderTargetSupport(gl, gl.LUMINANCE_ALPHA, glTextureHalfFloat.HALF_FLOAT_OES) ? 'LUMINANCE_ALPHA' : ''].join(' ')], ['Supported Formats for Full Float Render Targets', 'FLOAT RENDER TARGET FORMATS', [glTextureFloat && checkRenderTargetSupport(gl, gl.RGBA, gl.FLOAT) ? 'RGBA' : '', glTextureFloat && checkRenderTargetSupport(gl, gl.RGB, gl.FLOAT) ? 'RGB' : '', glTextureFloat && checkRenderTargetSupport(gl, gl.LUMINANCE, gl.FLOAT) ? 'LUMINANCE' : '', glTextureFloat && checkRenderTargetSupport(gl, gl.ALPHA, gl.FLOAT) ? 'ALPHA' : '', glTextureFloat && checkRenderTargetSupport(gl, gl.LUMINANCE_ALPHA, gl.FLOAT) ? 'LUMINANCE_ALPHA' : ''].join(' ')], ['Max Multiple Render Targets Buffers', 'MAX_DRAW_BUFFERS_WEBGL', glDrawBuffers ? gl.getParameter(glDrawBuffers.MAX_DRAW_BUFFERS_WEBGL) : 0], ['High Float Precision in Vertex Shader', 'HIGH_FLOAT VERTEX_SHADER', [gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.HIGH_FLOAT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.HIGH_FLOAT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.HIGH_FLOAT).rangeMax, '</sup>)'].join('')], ['Medium Float Precision in Vertex Shader', 'MEDIUM_FLOAT VERTEX_SHADER', [gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.MEDIUM_FLOAT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.MEDIUM_FLOAT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.MEDIUM_FLOAT).rangeMax, '</sup>)'].join('')], ['Low Float Precision in Vertex Shader', 'LOW_FLOAT VERTEX_SHADER', [gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.LOW_FLOAT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.LOW_FLOAT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.LOW_FLOAT).rangeMax, '</sup>)'].join('')], ['High Float Precision in Fragment Shader', 'HIGH_FLOAT FRAGMENT_SHADER', [gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT).rangeMax, '</sup>)'].join('')], ['Medium Float Precision in Fragment Shader', 'MEDIUM_FLOAT FRAGMENT_SHADER', [gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_FLOAT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_FLOAT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_FLOAT).rangeMax, '</sup>)'].join('')], ['Low Float Precision in Fragment Shader', 'LOW_FLOAT FRAGMENT_SHADER', [gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.LOW_FLOAT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.LOW_FLOAT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.LOW_FLOAT).rangeMax, '</sup>)'].join('')], ['High Int Precision in Vertex Shader', 'HIGH_INT VERTEX_SHADER', [gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.HIGH_INT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.HIGH_INT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.HIGH_INT).rangeMax, '</sup>)'].join('')], ['Medium Int Precision in Vertex Shader', 'MEDIUM_INT VERTEX_SHADER', [gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.MEDIUM_INT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.MEDIUM_INT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.MEDIUM_INT).rangeMax, '</sup>)'].join('')], ['Low Int Precision in Vertex Shader', 'LOW_INT VERTEX_SHADER', [gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.LOW_INT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.LOW_INT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.LOW_INT).rangeMax, '</sup>)'].join('')], ['High Int Precision in Fragment Shader', 'HIGH_INT FRAGMENT_SHADER', [gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_INT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_INT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_INT).rangeMax, '</sup>)'].join('')], ['Medium Int Precision in Fragment Shader', 'MEDIUM_INT FRAGMENT_SHADER', [gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_INT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_INT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_INT).rangeMax, '</sup>)'].join('')], ['Low Int Precision in Fragment Shader', 'LOW_INT FRAGMENT_SHADER', [gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.LOW_INT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.LOW_INT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.LOW_INT).rangeMax, '</sup>)'].join('')], ['Supported Extensions', 'EXTENSIONS', gl.getSupportedExtensions().join('<br/>\t\t\t\t\t    ')], ['WebGL Renderer', 'RENDERER', gl.getParameter(gl.RENDERER)], ['WebGL Vendor', 'VENDOR', gl.getParameter(gl.VENDOR)], ['WebGL Version', 'VERSION', gl.getParameter(gl.VERSION)], ['Shading Language Version', 'SHADING_LANGUAGE_VERSION', gl.getParameter(gl.SHADING_LANGUAGE_VERSION)], ['Unmasked Renderer', 'UNMASKED_RENDERER', glDebugRendererInfo && gl.getParameter(glDebugRendererInfo.UNMASKED_RENDERER_WEBGL)], ['Unmasked Vendor', 'UNMASKED_VENDOR', glDebugRendererInfo && gl.getParameter(glDebugRendererInfo.UNMASKED_VENDOR_WEBGL)], ['WebGL Version', 'WEBGL_VERSION', model.webgl2 ? 2 : 1]];
+    var result = {};
+
+    while (params.length) {
+      var _params$pop = params.pop(),
+          _params$pop2 = _slicedToArray(_params$pop, 3),
+          label = _params$pop2[0],
+          key = _params$pop2[1],
+          value = _params$pop2[2];
+
+      if (key) {
+        result[key] = {
+          label: label,
+          value: value
+        };
+      }
+    }
+
+    return result;
+  };
+
+  publicAPI.traverseAllPasses = function () {
+    if (model.renderPasses) {
+      for (var index = 0; index < model.renderPasses.length; ++index) {
+        model.renderPasses[index].traverse(publicAPI, null);
+      }
+    }
+
+    if (model.notifyStartCaptureImage) {
+      getCanvasDataURL();
+    }
+  };
+
+  publicAPI.disableCullFace = function () {
+    if (model.cullFaceEnabled) {
+      model.context.disable(model.context.CULL_FACE);
+      model.cullFaceEnabled = false;
+    }
+  };
+
+  publicAPI.enableCullFace = function () {
+    if (!model.cullFaceEnabled) {
+      model.context.enable(model.context.CULL_FACE);
+      model.cullFaceEnabled = true;
+    }
+  };
+
+  publicAPI.setViewStream = function (stream) {
+    if (model.viewStream === stream) {
+      return false;
+    }
+
+    if (model.subscription) {
+      model.subscription.unsubscribe();
+      model.subscription = null;
+    }
+
+    model.viewStream = stream;
+
+    if (model.viewStream) {
+      // Force background to be transparent + render
+      var mainRenderer = model.renderable.getRenderers()[0];
+      mainRenderer.getBackgroundByReference()[3] = 0; // Enable display of the background image
+
+      publicAPI.setUseBackgroundImage(true); // Bind to remote stream
+
+      model.subscription = model.viewStream.onImageReady(function (e) {
+        return publicAPI.setBackgroundImage(e.image);
+      });
+      model.viewStream.setSize(model.size[0], model.size[1]);
+      model.viewStream.invalidateCache();
+      model.viewStream.render();
+      publicAPI.modified();
+    }
+
+    return true;
+  };
+
+  publicAPI.createSelector = function () {
+    var ret = HardwareSelector_vtkHardwareSelector.newInstance();
+    ret.setOpenGLRenderWindow(publicAPI);
+    return ret;
+  };
+
+  publicAPI.delete = macro.chain(publicAPI.delete, publicAPI.setViewStream, deleteGLContext);
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var OpenGL_RenderWindow_DEFAULT_VALUES = {
+  cullFaceEnabled: false,
+  shaderCache: null,
+  initialized: false,
+  context: null,
+  canvas: null,
+  cursorVisibility: true,
+  cursor: 'pointer',
+  textureUnitManager: null,
+  textureResourceIds: null,
+  containerSize: null,
+  renderPasses: [],
+  notifyStartCaptureImage: false,
+  webgl2: false,
+  defaultToWebgl2: true,
+  // attempt webgl2 on by default
+  activeFramebuffer: null,
+  xrSession: null,
+  xrSessionIsAR: false,
+  xrReferenceSpace: null,
+  xrSupported: true,
+  imageFormat: 'image/png',
+  useOffScreen: false,
+  useBackgroundImage: false
+}; // ----------------------------------------------------------------------------
+
+function OpenGL_RenderWindow_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, OpenGL_RenderWindow_DEFAULT_VALUES, initialValues); // Inheritance
+
+  vtkRenderWindowViewNode$1.extend(publicAPI, model, initialValues); // Create internal instances
+
+  model.canvas = document.createElement('canvas');
+  model.canvas.style.width = '100%';
+  createGLContext();
+
+  if (!model.selector) {
+    model.selector = HardwareSelector_vtkHardwareSelector.newInstance();
+    model.selector.setOpenGLRenderWindow(publicAPI);
+  } // Create internal bgImage
+
+
+  model.bgImage = new Image();
+  model.bgImage.style.position = 'absolute';
+  model.bgImage.style.left = '0';
+  model.bgImage.style.top = '0';
+  model.bgImage.style.width = '100%';
+  model.bgImage.style.height = '100%';
+  model.bgImage.style.zIndex = '-1';
+  model._textureResourceIds = new Map();
+  model.myFactory = ViewNodeFactory_vtkViewNodeFactory.newInstance();
+  /* eslint-disable no-use-before-define */
+
+  model.myFactory.registerOverride('vtkRenderWindow', OpenGL_RenderWindow_newInstance);
+  /* eslint-enable no-use-before-define */
+
+  model.shaderCache = vtkShaderCache$1.newInstance();
+  model.shaderCache.setOpenGLRenderWindow(publicAPI); // setup default forward pass rendering
+
+  model.renderPasses[0] = vtkForwardPass$1.newInstance();
+  macro.event(publicAPI, model, 'imageReady');
+  macro.event(publicAPI, model, 'haveVRDisplay'); // Build VTK API
+
+  macro.get(publicAPI, model, ['shaderCache', 'textureUnitManager', 'webgl2', 'vrDisplay', 'useBackgroundImage', 'xrSupported']);
+  macro.setGet(publicAPI, model, ['initialized', 'context', 'canvas', 'renderPasses', 'notifyStartCaptureImage', 'defaultToWebgl2', 'cursor', 'useOffScreen', // might want to make this not call modified as
+  // we change the active framebuffer a lot. Or maybe
+  // only mark modified if the size or depth
+  // of the buffer has changed
+  'activeFramebuffer']);
+  macro.setGetArray(publicAPI, model, ['size'], 2); // Object methods
+
+  vtkOpenGLRenderWindow(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var OpenGL_RenderWindow_newInstance = macro.newInstance(OpenGL_RenderWindow_extend, 'vtkOpenGLRenderWindow'); // ----------------------------------------------------------------------------
+// Register API specific RenderWindow implementation
+// ----------------------------------------------------------------------------
+
+registerViewConstructor('WebGL', OpenGL_RenderWindow_newInstance); // ----------------------------------------------------------------------------
+
+var RenderWindow_vtkRenderWindow = {
+  newInstance: OpenGL_RenderWindow_newInstance,
+  extend: OpenGL_RenderWindow_extend,
+  pushMonitorGLContextCount: pushMonitorGLContextCount,
+  popMonitorGLContextCount: popMonitorGLContextCount
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/Camera.js
+
+
+
+
+
+var Camera_vtkDebugMacro = macro.vtkDebugMacro;
+/* eslint-disable new-cap */
+
+/*
+ * Convenience function to access elements of a gl-matrix.  If it turns
+ * out I have rows and columns swapped everywhere, then I'll just change
+ * the order of 'row' and 'col' parameters in this function
+ */
+// function getMatrixElement(matrix, row, col) {
+//   const idx = (row * 4) + col;
+//   return matrix[idx];
+// }
+// ----------------------------------------------------------------------------
+// vtkCamera methods
+// ----------------------------------------------------------------------------
+
+function vtkCamera(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkCamera'); // Set up private variables and methods
+
+  var origin = new Float64Array(3);
+  var dopbasis = new Float64Array([0.0, 0.0, -1.0]);
+  var upbasis = new Float64Array([0.0, 1.0, 0.0]);
+  var tmpMatrix = mat4_identity(new Float64Array(16));
+  var tmpvec1 = new Float64Array(3);
+  var tmpvec2 = new Float64Array(3);
+  var tmpvec3 = new Float64Array(3);
+  var rotateMatrix = mat4_identity(new Float64Array(16));
+  var trans = mat4_identity(new Float64Array(16));
+  var newPosition = new Float64Array(3);
+  var newFocalPoint = new Float64Array(3); // Internal Functions that don't need to be public
+
+  function computeViewPlaneNormal() {
+    // VPN is -DOP
+    model.viewPlaneNormal[0] = -model.directionOfProjection[0];
+    model.viewPlaneNormal[1] = -model.directionOfProjection[1];
+    model.viewPlaneNormal[2] = -model.directionOfProjection[2];
+  }
+
+  publicAPI.orthogonalizeViewUp = function () {
+    var vt = publicAPI.getViewMatrix();
+    model.viewUp[0] = vt[4];
+    model.viewUp[1] = vt[5];
+    model.viewUp[2] = vt[6];
+    publicAPI.modified();
+  };
+
+  publicAPI.setPosition = function (x, y, z) {
+    if (x === model.position[0] && y === model.position[1] && z === model.position[2]) {
+      return;
+    }
+
+    model.position[0] = x;
+    model.position[1] = y;
+    model.position[2] = z; // recompute the focal distance
+
+    publicAPI.computeDistance();
+    publicAPI.modified();
+  };
+
+  publicAPI.setFocalPoint = function (x, y, z) {
+    if (x === model.focalPoint[0] && y === model.focalPoint[1] && z === model.focalPoint[2]) {
+      return;
+    }
+
+    model.focalPoint[0] = x;
+    model.focalPoint[1] = y;
+    model.focalPoint[2] = z; // recompute the focal distance
+
+    publicAPI.computeDistance();
+    publicAPI.modified();
+  };
+
+  publicAPI.setDistance = function (d) {
+    if (model.distance === d) {
+      return;
+    }
+
+    model.distance = d;
+
+    if (model.distance < 1e-20) {
+      model.distance = 1e-20;
+      Camera_vtkDebugMacro('Distance is set to minimum.');
+    } // we want to keep the camera pointing in the same direction
+
+
+    var vec = model.directionOfProjection; // recalculate FocalPoint
+
+    model.focalPoint[0] = model.position[0] + vec[0] * model.distance;
+    model.focalPoint[1] = model.position[1] + vec[1] * model.distance;
+    model.focalPoint[2] = model.position[2] + vec[2] * model.distance;
+    publicAPI.modified();
+  }; //----------------------------------------------------------------------------
+  // This method must be called when the focal point or camera position changes
+
+
+  publicAPI.computeDistance = function () {
+    var dx = model.focalPoint[0] - model.position[0];
+    var dy = model.focalPoint[1] - model.position[1];
+    var dz = model.focalPoint[2] - model.position[2];
+    model.distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    if (model.distance < 1e-20) {
+      model.distance = 1e-20;
+      Camera_vtkDebugMacro('Distance is set to minimum.');
+      var vec = model.directionOfProjection; // recalculate FocalPoint
+
+      model.focalPoint[0] = model.position[0] + vec[0] * model.distance;
+      model.focalPoint[1] = model.position[1] + vec[1] * model.distance;
+      model.focalPoint[2] = model.position[2] + vec[2] * model.distance;
+    }
+
+    model.directionOfProjection[0] = dx / model.distance;
+    model.directionOfProjection[1] = dy / model.distance;
+    model.directionOfProjection[2] = dz / model.distance;
+    computeViewPlaneNormal();
+  }; //----------------------------------------------------------------------------
+  // Move the position of the camera along the view plane normal. Moving
+  // towards the focal point (e.g., > 1) is a dolly-in, moving away
+  // from the focal point (e.g., < 1) is a dolly-out.
+
+
+  publicAPI.dolly = function (amount) {
+    if (amount <= 0.0) {
+      return;
+    } // dolly moves the camera towards the focus
+
+
+    var d = model.distance / amount;
+    publicAPI.setPosition(model.focalPoint[0] - d * model.directionOfProjection[0], model.focalPoint[1] - d * model.directionOfProjection[1], model.focalPoint[2] - d * model.directionOfProjection[2]);
+  };
+
+  publicAPI.roll = function (angle) {
+    var eye = model.position;
+    var at = model.focalPoint;
+    var up = model.viewUp;
+    var viewUpVec4 = new Float64Array([up[0], up[1], up[2], 0.0]);
+    mat4_identity(rotateMatrix);
+    var viewDir = new Float64Array([at[0] - eye[0], at[1] - eye[1], at[2] - eye[2]]);
+    mat4_rotate(rotateMatrix, rotateMatrix, radiansFromDegrees(angle), viewDir);
+    vec4_transformMat4(viewUpVec4, viewUpVec4, rotateMatrix);
+    model.viewUp[0] = viewUpVec4[0];
+    model.viewUp[1] = viewUpVec4[1];
+    model.viewUp[2] = viewUpVec4[2];
+    publicAPI.modified();
+  };
+
+  publicAPI.azimuth = function (angle) {
+    var fp = model.focalPoint;
+    mat4_identity(trans); // translate the focal point to the origin,
+    // rotate about view up,
+    // translate back again
+
+    mat4_translate(trans, trans, fp);
+    mat4_rotate(trans, trans, radiansFromDegrees(angle), model.viewUp);
+    mat4_translate(trans, trans, [-fp[0], -fp[1], -fp[2]]); // apply the transform to the position
+
+    transformMat4(newPosition, model.position, trans);
+    publicAPI.setPosition(newPosition[0], newPosition[1], newPosition[2]);
+  };
+
+  publicAPI.yaw = function (angle) {
+    var position = model.position;
+    mat4_identity(trans); // translate the camera to the origin,
+    // rotate about axis,
+    // translate back again
+
+    mat4_translate(trans, trans, position);
+    mat4_rotate(trans, trans, radiansFromDegrees(angle), model.viewUp);
+    mat4_translate(trans, trans, [-position[0], -position[1], -position[2]]); // apply the transform to the position
+
+    transformMat4(newFocalPoint, model.focalPoint, trans);
+    publicAPI.setFocalPoint(newFocalPoint[0], newFocalPoint[1], newFocalPoint[2]);
+  };
+
+  publicAPI.elevation = function (angle) {
+    var fp = model.focalPoint; // get the eye / camera position from the viewMatrix
+
+    var vt = publicAPI.getViewMatrix();
+    var axis = [-vt[0], -vt[1], -vt[2]];
+    mat4_identity(trans); // translate the focal point to the origin,
+    // rotate about view up,
+    // translate back again
+
+    mat4_translate(trans, trans, fp);
+    mat4_rotate(trans, trans, radiansFromDegrees(angle), axis);
+    mat4_translate(trans, trans, [-fp[0], -fp[1], -fp[2]]); // apply the transform to the position
+
+    transformMat4(newPosition, model.position, trans);
+    publicAPI.setPosition(newPosition[0], newPosition[1], newPosition[2]);
+  };
+
+  publicAPI.pitch = function (angle) {
+    var position = model.position;
+    var vt = publicAPI.getViewMatrix();
+    var axis = [vt[0], vt[1], vt[2]];
+    mat4_identity(trans); // translate the camera to the origin,
+    // rotate about axis,
+    // translate back again
+
+    mat4_translate(trans, trans, position);
+    mat4_rotate(trans, trans, radiansFromDegrees(angle), axis);
+    mat4_translate(trans, trans, [-position[0], -position[1], -position[2]]); // apply the transform to the focal point
+
+    transformMat4(newFocalPoint, model.focalPoint, trans);
+    publicAPI.setFocalPoint.apply(publicAPI, _toConsumableArray(newFocalPoint));
+  };
+
+  publicAPI.zoom = function (factor) {
+    if (factor <= 0) {
+      return;
+    }
+
+    if (model.parallelProjection) {
+      model.parallelScale /= factor;
+    } else {
+      model.viewAngle /= factor;
+    }
+
+    publicAPI.modified();
+  };
+
+  publicAPI.translate = function (x, y, z) {
+    var offset = [x, y, z];
+    add(model.position, offset, model.position);
+    add(model.focalPoint, offset, model.focalPoint);
+    publicAPI.computeDistance();
+    publicAPI.modified();
+  };
+
+  publicAPI.applyTransform = function (transformMat4) {
+    var vuOld = [].concat(_toConsumableArray(model.viewUp), [1.0]);
+    var posNew = [];
+    var fpNew = [];
+    var vuNew = [];
+    vuOld[0] += model.position[0];
+    vuOld[1] += model.position[1];
+    vuOld[2] += model.position[2];
+    vec4_transformMat4(posNew, [].concat(_toConsumableArray(model.position), [1.0]), transformMat4);
+    vec4_transformMat4(fpNew, [].concat(_toConsumableArray(model.focalPoint), [1.0]), transformMat4);
+    vec4_transformMat4(vuNew, vuOld, transformMat4);
+    vuNew[0] -= posNew[0];
+    vuNew[1] -= posNew[1];
+    vuNew[2] -= posNew[2];
+    publicAPI.setPosition.apply(publicAPI, _toConsumableArray(posNew.slice(0, 3)));
+    publicAPI.setFocalPoint.apply(publicAPI, _toConsumableArray(fpNew.slice(0, 3)));
+    publicAPI.setViewUp.apply(publicAPI, _toConsumableArray(vuNew.slice(0, 3)));
+  };
+
+  publicAPI.getThickness = function () {
+    return model.clippingRange[1] - model.clippingRange[0];
+  };
+
+  publicAPI.setThickness = function (thickness) {
+    var t = thickness;
+
+    if (t < 1e-20) {
+      t = 1e-20;
+      Camera_vtkDebugMacro('Thickness is set to minimum.');
+    }
+
+    publicAPI.setClippingRange(model.clippingRange[0], model.clippingRange[0] + t);
+  };
+
+  publicAPI.setThicknessFromFocalPoint = function (thickness) {
+    var t = thickness;
+
+    if (t < 1e-20) {
+      t = 1e-20;
+      Camera_vtkDebugMacro('Thickness is set to minimum.');
+    }
+
+    publicAPI.setClippingRange(model.distance - t / 2, model.distance + t / 2);
+  }; // Unimplemented functions
+
+
+  publicAPI.setRoll = function (angle) {}; // dependency on GetOrientation() and a model.ViewTransform object, see https://github.com/Kitware/VTK/blob/master/Common/Transforms/vtkTransform.cxx and https://vtk.org/doc/nightly/html/classvtkTransform.html
+
+
+  publicAPI.getRoll = function () {};
+
+  publicAPI.setObliqueAngles = function (alpha, beta) {};
+
+  publicAPI.getOrientation = function () {};
+
+  publicAPI.getOrientationWXYZ = function () {};
+
+  publicAPI.getFrustumPlanes = function (aspect) {// Return array of 24 params (4 params for each of 6 plane equations)
+  };
+
+  publicAPI.getCameraLightTransformMatrix = function () {};
+
+  publicAPI.deepCopy = function (sourceCamera) {};
+
+  publicAPI.physicalOrientationToWorldDirection = function (ori) {
+    // push the x axis through the orientation quat
+    var oriq = quat_fromValues(ori[0], ori[1], ori[2], ori[3]);
+    var coriq = quat_create();
+    var qdir = quat_fromValues(0.0, 0.0, 1.0, 0.0);
+    conjugate(coriq, oriq); // rotate the z axis by the quat
+
+    quat_multiply(qdir, oriq, qdir);
+    quat_multiply(qdir, qdir, coriq); // return the z axis in world coords
+
+    return [qdir[0], qdir[1], qdir[2]];
+  };
+
+  publicAPI.getPhysicalToWorldMatrix = function (result) {
+    publicAPI.getWorldToPhysicalMatrix(result);
+    invert(result, result);
+  };
+
+  publicAPI.getWorldToPhysicalMatrix = function (result) {
+    mat4_identity(result); // now the physical to vtk world rotation tform
+
+    var physVRight = [3];
+    cross(model.physicalViewNorth, model.physicalViewUp, physVRight);
+    result[0] = physVRight[0];
+    result[1] = physVRight[1];
+    result[2] = physVRight[2];
+    result[4] = model.physicalViewUp[0];
+    result[5] = model.physicalViewUp[1];
+    result[6] = model.physicalViewUp[2];
+    result[8] = -model.physicalViewNorth[0];
+    result[9] = -model.physicalViewNorth[1];
+    result[10] = -model.physicalViewNorth[2];
+    transpose(result, result);
+    vec3_set(tmpvec1, 1 / model.physicalScale, 1 / model.physicalScale, 1 / model.physicalScale);
+    mat4_scale(result, result, tmpvec1);
+    mat4_translate(result, result, model.physicalTranslation);
+  };
+
+  publicAPI.computeViewParametersFromViewMatrix = function (vmat) {
+    // invert to get view to world
+    invert(tmpMatrix, vmat); // note with glmatrix operations happen in
+    // the reverse order
+    // mat.scale
+    // mat.translate
+    // will result in the translation then the scale
+    // mat.mult(a,b)
+    // results in perform the B transformation then A
+    // then extract the params position, orientation
+    // push 0,0,0 through to get a translation
+
+    transformMat4(tmpvec1, origin, tmpMatrix);
+    publicAPI.computeDistance();
+    var oldDist = model.distance;
+    publicAPI.setPosition(tmpvec1[0], tmpvec1[1], tmpvec1[2]); // push basis vectors to get orientation
+
+    transformMat4(tmpvec2, dopbasis, tmpMatrix);
+    vec3_subtract(tmpvec2, tmpvec2, tmpvec1);
+    vec3_normalize(tmpvec2, tmpvec2);
+    publicAPI.setDirectionOfProjection(tmpvec2[0], tmpvec2[1], tmpvec2[2]);
+    transformMat4(tmpvec3, upbasis, tmpMatrix);
+    vec3_subtract(tmpvec3, tmpvec3, tmpvec1);
+    vec3_normalize(tmpvec3, tmpvec3);
+    publicAPI.setViewUp(tmpvec3[0], tmpvec3[1], tmpvec3[2]);
+    publicAPI.setDistance(oldDist);
+  }; // the provided matrix should include
+  // translation and orientation only
+  // mat is physical to view
+
+
+  publicAPI.computeViewParametersFromPhysicalMatrix = function (mat) {
+    // get the WorldToPhysicalMatrix
+    publicAPI.getWorldToPhysicalMatrix(tmpMatrix); // first convert the physical -> view matrix to be
+    // world -> view
+
+    mat4_multiply(tmpMatrix, mat, tmpMatrix);
+    publicAPI.computeViewParametersFromViewMatrix(tmpMatrix);
+  };
+
+  publicAPI.setViewMatrix = function (mat) {
+    model.viewMatrix = mat;
+
+    if (model.viewMatrix) {
+      mat4_copy(tmpMatrix, model.viewMatrix);
+      publicAPI.computeViewParametersFromViewMatrix(tmpMatrix);
+      transpose(model.viewMatrix, model.viewMatrix);
+    }
+  };
+
+  publicAPI.getViewMatrix = function () {
+    if (model.viewMatrix) {
+      return model.viewMatrix;
+    }
+
+    lookAt(tmpMatrix, model.position, // eye
+    model.focalPoint, // at
+    model.viewUp // up
+    );
+    transpose(tmpMatrix, tmpMatrix);
+    var result = new Float64Array(16);
+    mat4_copy(result, tmpMatrix);
+    return result;
+  };
+
+  publicAPI.setProjectionMatrix = function (mat) {
+    model.projectionMatrix = mat;
+  };
+
+  publicAPI.getProjectionMatrix = function (aspect, nearz, farz) {
+    var result = new Float64Array(16);
+    mat4_identity(result);
+
+    if (model.projectionMatrix) {
+      var scale = 1 / model.physicalScale;
+      vec3_set(tmpvec1, scale, scale, scale);
+      mat4_copy(result, model.projectionMatrix);
+      mat4_scale(result, result, tmpvec1);
+      transpose(result, result);
+      return result;
+    }
+
+    mat4_identity(tmpMatrix); // FIXME: Not sure what to do about adjust z buffer here
+    // adjust Z-buffer range
+    // this->ProjectionTransform->AdjustZBuffer( -1, +1, nearz, farz );
+
+    var cWidth = model.clippingRange[1] - model.clippingRange[0];
+    var cRange = [model.clippingRange[0] + (nearz + 1) * cWidth / 2.0, model.clippingRange[0] + (farz + 1) * cWidth / 2.0];
+
+    if (model.parallelProjection) {
+      // set up a rectangular parallelipiped
+      var width = model.parallelScale * aspect;
+      var height = model.parallelScale;
+      var xmin = (model.windowCenter[0] - 1.0) * width;
+      var xmax = (model.windowCenter[0] + 1.0) * width;
+      var ymin = (model.windowCenter[1] - 1.0) * height;
+      var ymax = (model.windowCenter[1] + 1.0) * height;
+      ortho(tmpMatrix, xmin, xmax, ymin, ymax, cRange[0], cRange[1]);
+      transpose(tmpMatrix, tmpMatrix);
+    } else if (model.useOffAxisProjection) {
+      throw new Error('Off-Axis projection is not supported at this time');
+    } else {
+      var tmp = Math.tan(radiansFromDegrees(model.viewAngle) / 2.0);
+
+      var _width;
+
+      var _height;
+
+      if (model.useHorizontalViewAngle === true) {
+        _width = model.clippingRange[0] * tmp;
+        _height = model.clippingRange[0] * tmp / aspect;
+      } else {
+        _width = model.clippingRange[0] * tmp * aspect;
+        _height = model.clippingRange[0] * tmp;
+      }
+
+      var _xmin = (model.windowCenter[0] - 1.0) * _width;
+
+      var _xmax = (model.windowCenter[0] + 1.0) * _width;
+
+      var _ymin = (model.windowCenter[1] - 1.0) * _height;
+
+      var _ymax = (model.windowCenter[1] + 1.0) * _height;
+
+      var znear = cRange[0];
+      var zfar = cRange[1];
+      tmpMatrix[0] = 2.0 * znear / (_xmax - _xmin);
+      tmpMatrix[5] = 2.0 * znear / (_ymax - _ymin);
+      tmpMatrix[2] = (_xmin + _xmax) / (_xmax - _xmin);
+      tmpMatrix[6] = (_ymin + _ymax) / (_ymax - _ymin);
+      tmpMatrix[10] = -(znear + zfar) / (zfar - znear);
+      tmpMatrix[14] = -1.0;
+      tmpMatrix[11] = -2.0 * znear * zfar / (zfar - znear);
+      tmpMatrix[15] = 0.0;
+    }
+
+    mat4_copy(result, tmpMatrix);
+    return result;
+  };
+
+  publicAPI.getCompositeProjectionMatrix = function (aspect, nearz, farz) {
+    var vMat = publicAPI.getViewMatrix();
+    var pMat = publicAPI.getProjectionMatrix(aspect, nearz, farz); // mats are transposed so the order is A then B
+    // we reuse pMat as it is a copy so we can do what we want with it
+
+    mat4_multiply(pMat, vMat, pMat);
+    return pMat;
+  };
+
+  publicAPI.setDirectionOfProjection = function (x, y, z) {
+    if (model.directionOfProjection[0] === x && model.directionOfProjection[1] === y && model.directionOfProjection[2] === z) {
+      return;
+    }
+
+    model.directionOfProjection[0] = x;
+    model.directionOfProjection[1] = y;
+    model.directionOfProjection[2] = z;
+    var vec = model.directionOfProjection; // recalculate FocalPoint
+
+    model.focalPoint[0] = model.position[0] + vec[0] * model.distance;
+    model.focalPoint[1] = model.position[1] + vec[1] * model.distance;
+    model.focalPoint[2] = model.position[2] + vec[2] * model.distance;
+    computeViewPlaneNormal();
+  }; // used to handle convert js device orientation angles
+  // when you use this method the camera will adjust to the
+  // device orientation such that the physicalViewUp you set
+  // in world coordinates looks up, and the physicalViewNorth
+  // you set in world coorindates will (maybe) point north
+  //
+  // NOTE WARNING - much of the documentation out there on how
+  // orientation works is seriously wrong. Even worse the Chrome
+  // device orientation simulator is completely wrong and should
+  // never be used. OMG it is so messed up.
+  //
+  // how it seems to work on iOS is that the device orientation
+  // is specified in extrinsic angles with a alpha, beta, gamma
+  // convention with axes of Z, X, Y (the code below substitutes
+  // the physical coordinate system for these axes to get the right
+  // modified coordinate system.
+
+
+  publicAPI.setDeviceAngles = function (alpha, beta, gamma, screen) {
+    var physVRight = [3];
+    cross(model.physicalViewNorth, model.physicalViewUp, physVRight); // phone to physical coordinates
+
+    var rotmat = mat4_identity(new Float64Array(16));
+    mat4_rotate(rotmat, rotmat, radiansFromDegrees(alpha), model.physicalViewUp);
+    mat4_rotate(rotmat, rotmat, radiansFromDegrees(beta), physVRight);
+    mat4_rotate(rotmat, rotmat, radiansFromDegrees(gamma), model.physicalViewNorth);
+    mat4_rotate(rotmat, rotmat, radiansFromDegrees(-screen), model.physicalViewUp);
+    var dop = new Float64Array([-model.physicalViewUp[0], -model.physicalViewUp[1], -model.physicalViewUp[2]]);
+    var vup = new Float64Array(model.physicalViewNorth);
+    transformMat4(dop, dop, rotmat);
+    transformMat4(vup, vup, rotmat);
+    publicAPI.setDirectionOfProjection(dop[0], dop[1], dop[2]);
+    publicAPI.setViewUp(vup[0], vup[1], vup[2]);
+    publicAPI.modified();
+  };
+
+  publicAPI.setOrientationWXYZ = function (degrees, x, y, z) {
+    var quatMat = mat4_identity(new Float64Array(16));
+
+    if (degrees !== 0.0 && (x !== 0.0 || y !== 0.0 || z !== 0.0)) {
+      // convert to radians
+      var angle = radiansFromDegrees(degrees);
+      var q = quat_create();
+      setAxisAngle(q, [x, y, z], angle);
+      fromQuat(quatMat, q);
+    }
+
+    var newdop = new Float64Array(3);
+    transformMat4(newdop, [0.0, 0.0, -1.0], quatMat);
+    var newvup = new Float64Array(3);
+    transformMat4(newvup, [0.0, 1.0, 0.0], quatMat);
+    publicAPI.setDirectionOfProjection.apply(publicAPI, _toConsumableArray(newdop));
+    publicAPI.setViewUp.apply(publicAPI, _toConsumableArray(newvup));
+    publicAPI.modified();
+  };
+
+  publicAPI.computeClippingRange = function (bounds) {
+    var vn = null;
+    var position = null;
+    vn = model.viewPlaneNormal;
+    position = model.position;
+    var a = -vn[0];
+    var b = -vn[1];
+    var c = -vn[2];
+    var d = -(a * position[0] + b * position[1] + c * position[2]); // Set the max near clipping plane and the min far clipping plane
+
+    var range = [a * bounds[0] + b * bounds[2] + c * bounds[4] + d, 1e-18]; // Find the closest / farthest bounding box vertex
+
+    for (var k = 0; k < 2; k++) {
+      for (var j = 0; j < 2; j++) {
+        for (var i = 0; i < 2; i++) {
+          var dist = a * bounds[i] + b * bounds[2 + j] + c * bounds[4 + k] + d;
+          range[0] = dist < range[0] ? dist : range[0];
+          range[1] = dist > range[1] ? dist : range[1];
+        }
+      }
+    }
+
+    return range;
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var Camera_DEFAULT_VALUES = {
+  position: [0, 0, 1],
+  focalPoint: [0, 0, 0],
+  viewUp: [0, 1, 0],
+  directionOfProjection: [0, 0, -1],
+  parallelProjection: false,
+  useHorizontalViewAngle: false,
+  viewAngle: 30,
+  parallelScale: 1,
+  clippingRange: [0.01, 1000.01],
+  windowCenter: [0, 0],
+  viewPlaneNormal: [0, 0, 1],
+  useOffAxisProjection: false,
+  screenBottomLeft: [-0.5, -0.5, -0.5],
+  screenBottomRight: [0.5, -0.5, -0.5],
+  screenTopRight: [0.5, 0.5, -0.5],
+  freezeFocalPoint: false,
+  projectionMatrix: null,
+  viewMatrix: null,
+  // used for world to physical transformations
+  physicalTranslation: [0, 0, 0],
+  physicalScale: 1.0,
+  physicalViewUp: [0, 1, 0],
+  physicalViewNorth: [0, 0, -1]
+}; // ----------------------------------------------------------------------------
+
+function Camera_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, Camera_DEFAULT_VALUES, initialValues); // Build VTK API
+
+  macro.obj(publicAPI, model);
+  macro.get(publicAPI, model, ['distance']);
+  macro.setGet(publicAPI, model, ['parallelProjection', 'useHorizontalViewAngle', 'viewAngle', 'parallelScale', 'useOffAxisProjection', 'freezeFocalPoint', 'physicalScale']);
+  macro.getArray(publicAPI, model, ['directionOfProjection', 'viewPlaneNormal', 'position', 'focalPoint']);
+  macro.setGetArray(publicAPI, model, ['clippingRange', 'windowCenter'], 2);
+  macro.setGetArray(publicAPI, model, ['viewUp', 'screenBottomLeft', 'screenBottomRight', 'screenTopRight', 'physicalTranslation', 'physicalViewUp', 'physicalViewNorth'], 3); // Object methods
+
+  vtkCamera(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var Camera_newInstance = macro.newInstance(Camera_extend, 'vtkCamera'); // ----------------------------------------------------------------------------
+
+var vtkCamera$1 = {
+  newInstance: Camera_newInstance,
+  extend: Camera_extend
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/Light.js
+
+
+
+var LIGHT_TYPES = ['HeadLight', 'CameraLight', 'SceneLight']; // ----------------------------------------------------------------------------
+// vtkLight methods
+// ----------------------------------------------------------------------------
+
+function vtkLight(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkLight');
+
+  publicAPI.getTransformedPosition = function () {
+    if (model.transformMatrix) {
+      return []; // FIXME !!!!
+    }
+
+    return [].concat(model.position);
+  };
+
+  publicAPI.getTransformedFocalPoint = function () {
+    if (model.transformMatrix) {
+      return []; // FIXME !!!!
+    }
+
+    return [].concat(model.focalPoint);
+  };
+
+  publicAPI.getDirection = function () {
+    if (model.directionMTime < model.mtime) {
+      model.direction[0] = model.focalPoint[0] - model.position[0];
+      model.direction[1] = model.focalPoint[1] - model.position[1];
+      model.direction[2] = model.focalPoint[2] - model.position[2];
+      normalize(model.direction);
+      model.directionMTime = model.mtime;
+    }
+
+    return model.direction;
+  };
+
+  publicAPI.setDirectionAngle = function (elevation, azimuth) {
+    var elevationRadians = radiansFromDegrees(elevation);
+    var azimuthRadians = radiansFromDegrees(azimuth);
+    publicAPI.setPosition(Math.cos(elevationRadians) * Math.sin(azimuthRadians), Math.sin(elevationRadians), Math.cos(elevationRadians) * Math.cos(azimuthRadians));
+    publicAPI.setFocalPoint(0, 0, 0);
+    publicAPI.setPositional(0);
+  };
+
+  publicAPI.setLightTypeToHeadLight = function () {
+    publicAPI.setLightType('HeadLight');
+  };
+
+  publicAPI.setLightTypeToCameraLight = function () {
+    publicAPI.setLightType('CameraLight');
+  };
+
+  publicAPI.setLightTypeToSceneLight = function () {
+    publicAPI.setTransformMatrix(null);
+    publicAPI.setLightType('SceneLight');
+  };
+
+  publicAPI.lightTypeIsHeadLight = function () {
+    return model.lightType === 'HeadLight';
+  };
+
+  publicAPI.lightTypeIsSceneLight = function () {
+    return model.lightType === 'SceneLight';
+  };
+
+  publicAPI.lightTypeIsCameraLight = function () {
+    return model.lightType === 'CameraLight';
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var Light_DEFAULT_VALUES = {
+  switch: true,
+  intensity: 1,
+  color: [1, 1, 1],
+  position: [0, 0, 1],
+  focalPoint: [0, 0, 0],
+  positional: false,
+  exponent: 1,
+  coneAngle: 30,
+  attenuationValues: [1, 0, 0],
+  transformMatrix: null,
+  lightType: 'SceneLight',
+  shadowAttenuation: 1,
+  direction: [0, 0, 0],
+  directionMTime: 0
+}; // ----------------------------------------------------------------------------
+
+function Light_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, Light_DEFAULT_VALUES, initialValues); // Build VTK API
+
+  macro.obj(publicAPI, model);
+  macro.setGet(publicAPI, model, ['intensity', 'switch', 'positional', 'exponent', 'coneAngle', 'transformMatrix', 'lightType', 'shadowAttenuation']);
+  macro.setGetArray(publicAPI, model, ['color', 'position', 'focalPoint', 'attenuationValues'], 3); // Object methods
+
+  vtkLight(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var Light_newInstance = macro.newInstance(Light_extend, 'vtkLight'); // ----------------------------------------------------------------------------
+
+var vtkLight$1 = {
+  newInstance: Light_newInstance,
+  extend: Light_extend,
+  LIGHT_TYPES: LIGHT_TYPES
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/Viewport.js
+
+
+var Viewport_vtkErrorMacro = macro.vtkErrorMacro;
+
+function Viewport_notImplemented(method) {
+  return function () {
+    return Viewport_vtkErrorMacro("vtkViewport::".concat(method, " - NOT IMPLEMENTED"));
+  };
+} // ----------------------------------------------------------------------------
+// vtkViewport methods
+// ----------------------------------------------------------------------------
+
+
+function vtkViewport(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkViewport'); // Public API methods
+
+  publicAPI.getViewProps = function () {
+    return model.props;
+  };
+
+  publicAPI.hasViewProp = function (prop) {
+    return !!model.props.filter(function (item) {
+      return item === prop;
+    }).length;
+  };
+
+  publicAPI.addViewProp = function (prop) {
+    if (prop && !publicAPI.hasViewProp(prop)) {
+      model.props = model.props.concat(prop);
+    }
+  };
+
+  publicAPI.removeViewProp = function (prop) {
+    var newPropList = model.props.filter(function (item) {
+      return item !== prop;
+    });
+
+    if (model.props.length !== newPropList.length) {
+      model.props = newPropList;
+    }
+  };
+
+  publicAPI.removeAllViewProps = function () {
+    model.props = [];
+  }; // this method get all the props including any nested props
+
+
+  function gatherProps(prop) {
+    var allProps = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
+    allProps.push(prop);
+    var children = prop.getNestedProps();
+
+    if (children && children.length) {
+      for (var i = 0; i < children.length; i++) {
+        gatherProps(children[i], allProps);
+      }
+    }
+
+    return allProps;
+  }
+
+  publicAPI.getViewPropsWithNestedProps = function () {
+    var allPropsArray = [];
+
+    for (var i = 0; i < model.props.length; i++) {
+      gatherProps(model.props[i], allPropsArray);
+    }
+
+    return allPropsArray;
+  };
+
+  publicAPI.addActor2D = publicAPI.addViewProp;
+
+  publicAPI.removeActor2D = function (prop) {
+    // VTK way: model.actors2D.RemoveItem(prop);
+    publicAPI.removeViewProp(prop);
+  };
+
+  publicAPI.getActors2D = function () {
+    model.actors2D = [];
+    model.props.forEach(function (prop) {
+      model.actors2D = model.actors2D.concat(prop.getActors2D());
+    });
+    return model.actors2D;
+  };
+
+  publicAPI.displayToView = function () {
+    return Viewport_vtkErrorMacro('call displayToView on your view instead');
+  };
+
+  publicAPI.viewToDisplay = function () {
+    return Viewport_vtkErrorMacro('callviewtodisplay on your view instead');
+  };
+
+  publicAPI.getSize = function () {
+    return Viewport_vtkErrorMacro('call getSize on your View instead');
+  };
+
+  publicAPI.normalizedDisplayToProjection = function (x, y, z) {
+    // first to normalized viewport
+    var nvp = publicAPI.normalizedDisplayToNormalizedViewport(x, y, z); // then to view
+
+    return publicAPI.normalizedViewportToProjection(nvp[0], nvp[1], nvp[2]);
+  };
+
+  publicAPI.normalizedDisplayToNormalizedViewport = function (x, y, z) {
+    var scale = [model.viewport[2] - model.viewport[0], model.viewport[3] - model.viewport[1]];
+    return [(x - model.viewport[0]) / scale[0], (y - model.viewport[1]) / scale[1], z];
+  };
+
+  publicAPI.normalizedViewportToProjection = function (x, y, z) {
+    return [x * 2.0 - 1.0, y * 2.0 - 1.0, z * 2.0 - 1.0];
+  };
+
+  publicAPI.projectionToNormalizedDisplay = function (x, y, z) {
+    // first to nvp
+    var nvp = publicAPI.projectionToNormalizedViewport(x, y, z); // then to ndp
+
+    return publicAPI.normalizedViewportToNormalizedDisplay(nvp[0], nvp[1], nvp[2]);
+  };
+
+  publicAPI.normalizedViewportToNormalizedDisplay = function (x, y, z) {
+    var scale = [model.viewport[2] - model.viewport[0], model.viewport[3] - model.viewport[1]];
+    return [x * scale[0] + model.viewport[0], y * scale[1] + model.viewport[1], z];
+  };
+
+  publicAPI.projectionToNormalizedViewport = function (x, y, z) {
+    return [(x + 1.0) * 0.5, (y + 1.0) * 0.5, (z + 1.0) * 0.5];
+  };
+
+  publicAPI.PickPropFrom = Viewport_notImplemented('PickPropFrom');
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var Viewport_DEFAULT_VALUES = {
+  vtkWindow: null,
+  background: [0, 0, 0],
+  background2: [0.2, 0.2, 0.2],
+  gradientBackground: false,
+  viewport: [0, 0, 1, 1],
+  aspect: [1, 1],
+  pixelAspect: [1, 1],
+  props: [],
+  actors2D: []
+}; // ----------------------------------------------------------------------------
+
+function Viewport_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, Viewport_DEFAULT_VALUES, initialValues); // Build VTK API
+
+  macro.obj(publicAPI, model);
+  macro.event(publicAPI, model, 'event');
+  macro.setGetArray(publicAPI, model, ['viewport'], 4);
+  macro.setGetArray(publicAPI, model, ['background', 'background2'], 3);
+  vtkViewport(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var Viewport_newInstance = macro.newInstance(Viewport_extend, 'vtkViewport'); // ----------------------------------------------------------------------------
+
+var vtkViewport$1 = {
+  newInstance: Viewport_newInstance,
+  extend: Viewport_extend
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/Renderer.js
+
+
+
+
+
+
+
+
+var Renderer_vtkDebugMacro = vtkDebugMacro,
+    Renderer_vtkErrorMacro = vtkErrorMacro,
+    Renderer_vtkWarningMacro = vtkWarningMacro;
+
+function Renderer_notImplemented(method) {
+  return function () {
+    return Renderer_vtkErrorMacro("vtkRenderer::".concat(method, " - NOT IMPLEMENTED"));
+  };
+} // ----------------------------------------------------------------------------
+// vtkRenderer methods
+// ----------------------------------------------------------------------------
+
+
+function vtkRenderer(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkRenderer'); // Events
+
+  var COMPUTE_VISIBLE_PROP_BOUNDS_EVENT = {
+    type: 'ComputeVisiblePropBoundsEvent',
+    renderer: publicAPI
+  };
+  var RESET_CAMERA_CLIPPING_RANGE_EVENT = {
+    type: 'ResetCameraClippingRangeEvent',
+    renderer: publicAPI
+  };
+  var RESET_CAMERA_EVENT = {
+    type: 'ResetCameraEvent',
+    renderer: publicAPI
+  };
+
+  publicAPI.updateCamera = function () {
+    if (!model.activeCamera) {
+      Renderer_vtkDebugMacro('No cameras are on, creating one.'); // the get method will automagically create a camera
+      // and reset it since one hasn't been specified yet.
+
+      publicAPI.getActiveCameraAndResetIfCreated();
+    } // update the viewing transformation
+
+
+    model.activeCamera.render(publicAPI);
+    return true;
+  };
+
+  publicAPI.updateLightsGeometryToFollowCamera = function () {
+    // only update the light's geometry if this Renderer is tracking
+    // this lights.  That allows one renderer to view the lights that
+    // another renderer is setting up.
+    var camera = publicAPI.getActiveCameraAndResetIfCreated();
+    model.lights.forEach(function (light) {
+      if (light.lightTypeIsSceneLight() || light.lightTypeIsCameraLight()) ; else if (light.lightTypeIsHeadLight()) {
+        // update position and orientation of light to match camera.
+        light.setPositionFrom(camera.getPositionByReference());
+        light.setFocalPointFrom(camera.getFocalPointByReference());
+        light.modified(camera.getMTime());
+      } else {
+        Renderer_vtkErrorMacro('light has unknown light type', light.get());
+      }
+    });
+  };
+
+  publicAPI.updateLightGeometry = function () {
+    if (model.lightFollowCamera) {
+      // only update the light's geometry if this Renderer is tracking
+      // this lights.  That allows one renderer to view the lights that
+      // another renderer is setting up.
+      return publicAPI.updateLightsGeometryToFollowCamera();
+    }
+
+    return true;
+  };
+
+  publicAPI.allocateTime = Renderer_notImplemented('allocateTime');
+  publicAPI.updateGeometry = Renderer_notImplemented('updateGeometry');
+
+  publicAPI.getVTKWindow = function () {
+    return model.renderWindow;
+  };
+
+  publicAPI.setLayer = function (layer) {
+    Renderer_vtkDebugMacro(publicAPI.getClassName(), publicAPI, 'setting Layer to ', layer);
+
+    if (model.layer !== layer) {
+      model.layer = layer;
+      publicAPI.modified();
+    }
+
+    publicAPI.setPreserveColorBuffer(!!layer);
+  };
+
+  publicAPI.setActiveCamera = function (camera) {
+    if (model.activeCamera === camera) {
+      return false;
+    }
+
+    model.activeCamera = camera;
+    publicAPI.modified();
+    publicAPI.invokeEvent({
+      type: 'ActiveCameraEvent',
+      camera: camera
+    });
+    return true;
+  };
+
+  publicAPI.makeCamera = function () {
+    var camera = vtkCamera$1.newInstance();
+    publicAPI.invokeEvent({
+      type: 'CreateCameraEvent',
+      camera: camera
+    });
+    return camera;
+  }; // Replace the set/get macro method
+
+
+  publicAPI.getActiveCamera = function () {
+    if (!model.activeCamera) {
+      model.activeCamera = publicAPI.makeCamera();
+    }
+
+    return model.activeCamera;
+  };
+
+  publicAPI.getActiveCameraAndResetIfCreated = function () {
+    if (!model.activeCamera) {
+      publicAPI.getActiveCamera();
+      publicAPI.resetCamera();
+    }
+
+    return model.activeCamera;
+  };
+
+  publicAPI.getActors = function () {
+    model.actors = [];
+    model.props.forEach(function (prop) {
+      model.actors = model.actors.concat(prop.getActors());
+    });
+    return model.actors;
+  };
+
+  publicAPI.addActor = publicAPI.addViewProp;
+
+  publicAPI.removeActor = function (actor) {
+    model.actors = model.actors.filter(function (a) {
+      return a !== actor;
+    });
+    publicAPI.removeViewProp(actor);
+    publicAPI.modified();
+  };
+
+  publicAPI.removeAllActors = function () {
+    var actors = publicAPI.getActors();
+    actors.forEach(function (actor) {
+      publicAPI.removeViewProp(actor);
+    });
+    model.actors = [];
+    publicAPI.modified();
+  };
+
+  publicAPI.getVolumes = function () {
+    model.volumes = [];
+    model.props.forEach(function (prop) {
+      model.volumes = model.volumes.concat(prop.getVolumes());
+    });
+    return model.volumes;
+  };
+
+  publicAPI.addVolume = publicAPI.addViewProp;
+
+  publicAPI.removeVolume = function (volume) {
+    model.volumes = model.volumes.filter(function (v) {
+      return v !== volume;
+    });
+    publicAPI.removeViewProp(volume);
+    publicAPI.modified();
+  };
+
+  publicAPI.removeAllVolumes = function () {
+    var volumes = publicAPI.getVolumes();
+    volumes.forEach(function (volume) {
+      publicAPI.removeViewProp(volume);
+    });
+    model.volumes = [];
+    publicAPI.modified();
+  };
+
+  publicAPI.addLight = function (light) {
+    model.lights = [].concat(model.lights, light);
+    publicAPI.modified();
+  };
+
+  publicAPI.removeLight = function (light) {
+    model.lights = model.lights.filter(function (l) {
+      return l !== light;
+    });
+    publicAPI.modified();
+  };
+
+  publicAPI.removeAllLights = function () {
+    model.lights = [];
+    publicAPI.modified();
+  };
+
+  publicAPI.setLightCollection = function (lights) {
+    model.lights = lights;
+    publicAPI.modified();
+  };
+
+  publicAPI.makeLight = vtkLight$1.newInstance;
+
+  publicAPI.createLight = function () {
+    if (!model.automaticLightCreation) {
+      return;
+    }
+
+    if (model.createdLight) {
+      publicAPI.removeLight(model.createdLight);
+      model.createdLight.delete();
+      model.createdLight = null;
+    }
+
+    model.createdLight = publicAPI.makeLight();
+    publicAPI.addLight(model.createdLight);
+    model.createdLight.setLightTypeToHeadLight(); // set these values just to have a good default should LightFollowCamera
+    // be turned off.
+
+    model.createdLight.setPosition(publicAPI.getActiveCamera().getPosition());
+    model.createdLight.setFocalPoint(publicAPI.getActiveCamera().getFocalPoint());
+  }; // requires the aspect ratio of the viewport as X/Y
+
+
+  publicAPI.normalizedDisplayToWorld = function (x, y, z, aspect) {
+    var vpd = publicAPI.normalizedDisplayToProjection(x, y, z);
+    vpd = publicAPI.projectionToView(vpd[0], vpd[1], vpd[2], aspect);
+    return publicAPI.viewToWorld(vpd[0], vpd[1], vpd[2]);
+  }; // requires the aspect ratio of the viewport as X/Y
+
+
+  publicAPI.worldToNormalizedDisplay = function (x, y, z, aspect) {
+    var vpd = publicAPI.worldToView(x, y, z);
+    vpd = publicAPI.viewToProjection(vpd[0], vpd[1], vpd[2], aspect);
+    return publicAPI.projectionToNormalizedDisplay(vpd[0], vpd[1], vpd[2]);
+  }; // requires the aspect ratio of the viewport as X/Y
+
+
+  publicAPI.viewToWorld = function (x, y, z) {
+    if (model.activeCamera === null) {
+      Renderer_vtkErrorMacro('ViewToWorld: no active camera, cannot compute view to world, returning 0,0,0');
+      return [0, 0, 0];
+    } // get the view matrix from the active camera
+
+
+    var matrix = model.activeCamera.getViewMatrix();
+    invert(matrix, matrix);
+    transpose(matrix, matrix); // Transform point to world coordinates
+
+    var result = new Float64Array([x, y, z]);
+    transformMat4(result, result, matrix);
+    return result;
+  };
+
+  publicAPI.projectionToView = function (x, y, z, aspect) {
+    if (model.activeCamera === null) {
+      Renderer_vtkErrorMacro('ProjectionToView: no active camera, cannot compute projection to view, returning 0,0,0');
+      return [0, 0, 0];
+    } // get the projection transformation from the active camera
+
+
+    var matrix = model.activeCamera.getProjectionMatrix(aspect, -1.0, 1.0);
+    invert(matrix, matrix);
+    transpose(matrix, matrix); // Transform point to world coordinates
+
+    var result = new Float64Array([x, y, z]);
+    transformMat4(result, result, matrix);
+    return result;
+  }; // Convert world point coordinates to view coordinates.
+
+
+  publicAPI.worldToView = function (x, y, z) {
+    if (model.activeCamera === null) {
+      Renderer_vtkErrorMacro('WorldToView: no active camera, cannot compute view to world, returning 0,0,0');
+      return [0, 0, 0];
+    } // get the view transformation from the active camera
+
+
+    var matrix = model.activeCamera.getViewMatrix();
+    transpose(matrix, matrix);
+    var result = new Float64Array([x, y, z]);
+    transformMat4(result, result, matrix);
+    return result;
+  }; // Convert world point coordinates to view coordinates.
+  // requires the aspect ratio of the viewport as X/Y
+
+
+  publicAPI.viewToProjection = function (x, y, z, aspect) {
+    if (model.activeCamera === null) {
+      Renderer_vtkErrorMacro('ViewToProjection: no active camera, cannot compute view to projection, returning 0,0,0');
+      return [0, 0, 0];
+    } // get the projeciton transformation from the active camera
+
+
+    var matrix = model.activeCamera.getProjectionMatrix(aspect, -1.0, 1.0);
+    transpose(matrix, matrix);
+    var result = new Float64Array([x, y, z]);
+    transformMat4(result, result, matrix);
+    return result;
+  };
+
+  publicAPI.computeVisiblePropBounds = function () {
+    model.allBounds[0] = vtkBoundingBox.INIT_BOUNDS[0];
+    model.allBounds[1] = vtkBoundingBox.INIT_BOUNDS[1];
+    model.allBounds[2] = vtkBoundingBox.INIT_BOUNDS[2];
+    model.allBounds[3] = vtkBoundingBox.INIT_BOUNDS[3];
+    model.allBounds[4] = vtkBoundingBox.INIT_BOUNDS[4];
+    model.allBounds[5] = vtkBoundingBox.INIT_BOUNDS[5];
+    var nothingVisible = true;
+    publicAPI.invokeEvent(COMPUTE_VISIBLE_PROP_BOUNDS_EVENT); // loop through all props
+
+    for (var index = 0; index < model.props.length; ++index) {
+      var prop = model.props[index];
+
+      if (prop.getVisibility() && prop.getUseBounds()) {
+        var bounds = prop.getBounds();
+
+        if (bounds && areBoundsInitialized(bounds)) {
+          nothingVisible = false;
+
+          if (bounds[0] < model.allBounds[0]) {
+            model.allBounds[0] = bounds[0];
+          }
+
+          if (bounds[1] > model.allBounds[1]) {
+            model.allBounds[1] = bounds[1];
+          }
+
+          if (bounds[2] < model.allBounds[2]) {
+            model.allBounds[2] = bounds[2];
+          }
+
+          if (bounds[3] > model.allBounds[3]) {
+            model.allBounds[3] = bounds[3];
+          }
+
+          if (bounds[4] < model.allBounds[4]) {
+            model.allBounds[4] = bounds[4];
+          }
+
+          if (bounds[5] > model.allBounds[5]) {
+            model.allBounds[5] = bounds[5];
+          }
+        }
+      }
+    }
+
+    if (nothingVisible) {
+      uninitializeBounds(model.allBounds);
+      Renderer_vtkDebugMacro("Can't compute bounds, no 3D props are visible");
+    }
+
+    return model.allBounds;
+  };
+
+  publicAPI.resetCamera = function () {
+    var bounds = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : null;
+    var boundsToUse = bounds || publicAPI.computeVisiblePropBounds();
+    var center = [0, 0, 0];
+
+    if (!areBoundsInitialized(boundsToUse)) {
+      Renderer_vtkDebugMacro('Cannot reset camera!');
+      return false;
+    }
+
+    var vn = null;
+
+    if (publicAPI.getActiveCamera()) {
+      vn = model.activeCamera.getViewPlaneNormal();
+    } else {
+      Renderer_vtkErrorMacro('Trying to reset non-existent camera');
+      return false;
+    } // Reset the perspective zoom factors, otherwise subsequent zooms will cause
+    // the view angle to become very small and cause bad depth sorting.
+
+
+    model.activeCamera.setViewAngle(30.0);
+    center[0] = (boundsToUse[0] + boundsToUse[1]) / 2.0;
+    center[1] = (boundsToUse[2] + boundsToUse[3]) / 2.0;
+    center[2] = (boundsToUse[4] + boundsToUse[5]) / 2.0;
+    var w1 = boundsToUse[1] - boundsToUse[0];
+    var w2 = boundsToUse[3] - boundsToUse[2];
+    var w3 = boundsToUse[5] - boundsToUse[4];
+    w1 *= w1;
+    w2 *= w2;
+    w3 *= w3;
+    var radius = w1 + w2 + w3; // If we have just a single point, pick a radius of 1.0
+
+    radius = radius === 0 ? 1.0 : radius; // compute the radius of the enclosing sphere
+
+    radius = Math.sqrt(radius) * 0.5; // default so that the bounding sphere fits within the view fustrum
+    // compute the distance from the intersection of the view frustum with the
+    // bounding sphere. Basically in 2D draw a circle representing the bounding
+    // sphere in 2D then draw a horizontal line going out from the center of
+    // the circle. That is the camera view. Then draw a line from the camera
+    // position to the point where it intersects the circle. (it will be tangent
+    // to the circle at this point, this is important, only go to the tangent
+    // point, do not draw all the way to the view plane). Then draw the radius
+    // from the tangent point to the center of the circle. You will note that
+    // this forms a right triangle with one side being the radius, another being
+    // the target distance for the camera, then just find the target dist using
+    // a sin.
+
+    var angle = radiansFromDegrees(model.activeCamera.getViewAngle());
+    var parallelScale = radius;
+    var distance = radius / Math.sin(angle * 0.5); // check view-up vector against view plane normal
+
+    var vup = model.activeCamera.getViewUp();
+
+    if (Math.abs(dot(vup, vn)) > 0.999) {
+      Renderer_vtkWarningMacro('Resetting view-up since view plane normal is parallel');
+      model.activeCamera.setViewUp(-vup[2], vup[0], vup[1]);
+    } // update the camera
+
+
+    model.activeCamera.setFocalPoint(center[0], center[1], center[2]);
+    model.activeCamera.setPosition(center[0] + distance * vn[0], center[1] + distance * vn[1], center[2] + distance * vn[2]);
+    publicAPI.resetCameraClippingRange(boundsToUse); // setup default parallel scale
+
+    model.activeCamera.setParallelScale(parallelScale); // update reasonable world to physical values
+
+    model.activeCamera.setPhysicalScale(radius);
+    model.activeCamera.setPhysicalTranslation(-center[0], -center[1], -center[2]); // Here to let parallel/distributed compositing intercept
+    // and do the right thing.
+
+    publicAPI.invokeEvent(RESET_CAMERA_EVENT);
+    return true;
+  };
+
+  publicAPI.resetCameraClippingRange = function () {
+    var bounds = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : null;
+    var boundsToUse = bounds || publicAPI.computeVisiblePropBounds();
+
+    if (!areBoundsInitialized(boundsToUse)) {
+      Renderer_vtkDebugMacro('Cannot reset camera clipping range!');
+      return false;
+    } // Make sure we have an active camera
+
+
+    publicAPI.getActiveCameraAndResetIfCreated();
+
+    if (!model.activeCamera) {
+      Renderer_vtkErrorMacro('Trying to reset clipping range of non-existent camera');
+      return false;
+    } // Get the exact range for the bounds
+
+
+    var range = model.activeCamera.computeClippingRange(boundsToUse); // do not let far - near be less than 0.1 of the window height
+    // this is for cases such as 2D images which may have zero range
+
+    var minGap = 0.0;
+
+    if (model.activeCamera.getParallelProjection()) {
+      minGap = 0.2 * model.activeCamera.getParallelScale();
+    } else {
+      var angle = radiansFromDegrees(model.activeCamera.getViewAngle());
+      minGap = 0.2 * Math.tan(angle / 2.0) * range[1];
+    }
+
+    if (range[1] - range[0] < minGap) {
+      minGap = minGap - range[1] + range[0];
+      range[1] += minGap / 2.0;
+      range[0] -= minGap / 2.0;
+    } // Do not let the range behind the camera throw off the calculation.
+
+
+    if (range[0] < 0.0) {
+      range[0] = 0.0;
+    } // Give ourselves a little breathing room
+
+
+    range[0] = 0.99 * range[0] - (range[1] - range[0]) * model.clippingRangeExpansion;
+    range[1] = 1.01 * range[1] + (range[1] - range[0]) * model.clippingRangeExpansion; // Make sure near is not bigger than far
+
+    range[0] = range[0] >= range[1] ? 0.01 * range[1] : range[0]; // Make sure near is at least some fraction of far - this prevents near
+    // from being behind the camera or too close in front. How close is too
+    // close depends on the resolution of the depth buffer
+
+    if (!model.nearClippingPlaneTolerance) {
+      model.nearClippingPlaneTolerance = 0.01;
+    } // make sure the front clipping range is not too far from the far clippnig
+    // range, this is to make sure that the zbuffer resolution is effectively
+    // used
+
+
+    if (range[0] < model.nearClippingPlaneTolerance * range[1]) {
+      range[0] = model.nearClippingPlaneTolerance * range[1];
+    }
+
+    model.activeCamera.setClippingRange(range[0], range[1]); // Here to let parallel/distributed compositing intercept
+    // and do the right thing.
+
+    publicAPI.invokeEvent(RESET_CAMERA_CLIPPING_RANGE_EVENT);
+    return false;
+  };
+
+  publicAPI.setRenderWindow = function (renderWindow) {
+    if (renderWindow !== model.renderWindow) {
+      model.vtkWindow = renderWindow;
+      model.renderWindow = renderWindow;
+    }
+  };
+
+  publicAPI.visibleActorCount = function () {
+    return model.props.filter(function (prop) {
+      return prop.getVisibility();
+    }).length;
+  };
+
+  publicAPI.visibleVolumeCount = publicAPI.visibleActorCount;
+
+  publicAPI.getMTime = function () {
+    var m1 = model.mtime;
+    var m2 = model.activeCamera ? model.activeCamera.getMTime() : 0;
+
+    if (m2 > m1) {
+      m1 = m2;
+    }
+
+    var m3 = model.createdLight ? model.createdLight.getMTime() : 0;
+
+    if (m3 > m1) {
+      m1 = m3;
+    }
+
+    return m1;
+  };
+
+  publicAPI.getTransparent = function () {
+    return !!model.preserveColorBuffer;
+  };
+
+  publicAPI.isActiveCameraCreated = function () {
+    return !!model.activeCamera;
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var Renderer_DEFAULT_VALUES = {
+  pickedProp: null,
+  activeCamera: null,
+  allBounds: [],
+  ambient: [1, 1, 1],
+  allocatedRenderTime: 100,
+  timeFactor: 1,
+  createdLight: null,
+  automaticLightCreation: true,
+  twoSidedLighting: true,
+  lastRenderTimeInSeconds: -1,
+  renderWindow: null,
+  lights: [],
+  actors: [],
+  volumes: [],
+  lightFollowCamera: true,
+  numberOfPropsRendered: 0,
+  propArray: null,
+  pathArray: null,
+  layer: 0,
+  preserveColorBuffer: false,
+  preserveDepthBuffer: false,
+  computeVisiblePropBounds: createUninitializedBounds(),
+  interactive: true,
+  nearClippingPlaneTolerance: 0,
+  clippingRangeExpansion: 0.05,
+  erase: true,
+  draw: true,
+  useShadows: false,
+  useDepthPeeling: false,
+  occlusionRatio: 0,
+  maximumNumberOfPeels: 4,
+  selector: null,
+  delegate: null,
+  texturedBackground: false,
+  backgroundTexture: null,
+  pass: 0
+}; // ----------------------------------------------------------------------------
+
+function Renderer_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, Renderer_DEFAULT_VALUES, initialValues); // Inheritance
+
+  vtkViewport$1.extend(publicAPI, model, initialValues); // make sure background has 4 entries. Default to opaque black
+
+  if (!model.background) model.background = [0, 0, 0, 1];
+
+  while (model.background.length < 3) {
+    model.background.push(0);
+  }
+
+  if (model.background.length === 3) model.background.push(1); // Build VTK API
+
+  get(publicAPI, model, ['renderWindow', 'allocatedRenderTime', 'timeFactor', 'lastRenderTimeInSeconds', 'numberOfPropsRendered', 'lastRenderingUsedDepthPeeling', 'selector']);
+  setGet(publicAPI, model, ['twoSidedLighting', 'lightFollowCamera', 'automaticLightCreation', 'erase', 'draw', 'nearClippingPlaneTolerance', 'clippingRangeExpansion', 'backingStore', 'interactive', 'layer', 'preserveColorBuffer', 'preserveDepthBuffer', 'useDepthPeeling', 'occlusionRatio', 'maximumNumberOfPeels', 'delegate', 'backgroundTexture', 'texturedBackground', 'useShadows', 'pass']);
+  getArray(publicAPI, model, ['actors', 'volumes', 'lights']);
+  setGetArray(publicAPI, model, ['background'], 4, 1.0); // Object methods
+
+  vtkRenderer(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var Renderer_newInstance = newInstance(Renderer_extend, 'vtkRenderer'); // ----------------------------------------------------------------------------
+
+var vtkRenderer$1 = {
+  newInstance: Renderer_newInstance,
+  extend: Renderer_extend
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/InteractorStyle/Constants.js
+var States = {
+  IS_START: 0,
+  IS_NONE: 0,
+  IS_ROTATE: 1,
+  IS_PAN: 2,
+  IS_SPIN: 3,
+  IS_DOLLY: 4,
+  IS_CAMERA_POSE: 11,
+  IS_WINDOW_LEVEL: 1024,
+  IS_SLICE: 1025
+};
+var vtkInteractorStyleConstants = {
+  States: States
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/InteractorStyle.js
+
+
+
+
+
+function InteractorStyle_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); enumerableOnly && (symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; })), keys.push.apply(keys, symbols); } return keys; }
+
+function InteractorStyle_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = null != arguments[i] ? arguments[i] : {}; i % 2 ? InteractorStyle_ownKeys(Object(source), !0).forEach(function (key) { _defineProperty(target, key, source[key]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : InteractorStyle_ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } return target; }
+var InteractorStyle_States = vtkInteractorStyleConstants.States; // ----------------------------------------------------------------------------
+// Global methods
+// ----------------------------------------------------------------------------
+// Add module-level functions or api that you want to expose statically via
+// the next section...
+
+var stateNames = {
+  Rotate: InteractorStyle_States.IS_ROTATE,
+  Pan: InteractorStyle_States.IS_PAN,
+  Spin: InteractorStyle_States.IS_SPIN,
+  Dolly: InteractorStyle_States.IS_DOLLY,
+  CameraPose: InteractorStyle_States.IS_CAMERA_POSE,
+  WindowLevel: InteractorStyle_States.IS_WINDOW_LEVEL,
+  Slice: InteractorStyle_States.IS_SLICE
+}; // ----------------------------------------------------------------------------
+// vtkInteractorStyle methods
+// ----------------------------------------------------------------------------
+
+function vtkInteractorStyle(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkInteractorStyle'); // Public API methods
+  // create bunch of Start/EndState methods
+
+  Object.keys(stateNames).forEach(function (key) {
+    macro.event(publicAPI, model, "Start".concat(key, "Event"));
+
+    publicAPI["start".concat(key)] = function () {
+      if (model.state !== InteractorStyle_States.IS_NONE) {
+        return;
+      }
+
+      model.state = stateNames[key];
+      model.interactor.requestAnimation(publicAPI);
+      publicAPI.invokeStartInteractionEvent({
+        type: 'StartInteractionEvent'
+      });
+      publicAPI["invokeStart".concat(key, "Event")]({
+        type: "Start".concat(key, "Event")
+      });
+    };
+
+    macro.event(publicAPI, model, "End".concat(key, "Event"));
+
+    publicAPI["end".concat(key)] = function () {
+      if (model.state !== stateNames[key]) {
+        return;
+      }
+
+      model.state = InteractorStyle_States.IS_NONE;
+      model.interactor.cancelAnimation(publicAPI);
+      publicAPI.invokeEndInteractionEvent({
+        type: 'EndInteractionEvent'
+      });
+      publicAPI["invokeEnd".concat(key, "Event")]({
+        type: "End".concat(key, "Event")
+      });
+      model.interactor.render();
+    };
+  }); //----------------------------------------------------------------------------
+
+  publicAPI.handleKeyPress = function (callData) {
+    var rwi = model.interactor;
+    var ac = null;
+
+    switch (callData.key) {
+      case 'r':
+      case 'R':
+        callData.pokedRenderer.resetCamera();
+        rwi.render();
+        break;
+
+      case 'w':
+      case 'W':
+        ac = callData.pokedRenderer.getActors();
+        ac.forEach(function (anActor) {
+          var prop = anActor.getProperty();
+
+          if (prop.setRepresentationToWireframe) {
+            prop.setRepresentationToWireframe();
+          }
+        });
+        rwi.render();
+        break;
+
+      case 's':
+      case 'S':
+        ac = callData.pokedRenderer.getActors();
+        ac.forEach(function (anActor) {
+          var prop = anActor.getProperty();
+
+          if (prop.setRepresentationToSurface) {
+            prop.setRepresentationToSurface();
+          }
+        });
+        rwi.render();
+        break;
+
+      case 'v':
+      case 'V':
+        ac = callData.pokedRenderer.getActors();
+        ac.forEach(function (anActor) {
+          var prop = anActor.getProperty();
+
+          if (prop.setRepresentationToPoints) {
+            prop.setRepresentationToPoints();
+          }
+        });
+        rwi.render();
+        break;
+    }
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var InteractorStyle_DEFAULT_VALUES = {
+  state: InteractorStyle_States.IS_NONE,
+  handleObservers: 1,
+  autoAdjustCameraClippingRange: 1
+}; // ----------------------------------------------------------------------------
+
+function InteractorStyle_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, InteractorStyle_DEFAULT_VALUES, initialValues); // Inheritance
+
+  vtkInteractorObserver$1.extend(publicAPI, model, initialValues); // Object specific methods
+
+  vtkInteractorStyle(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var InteractorStyle_newInstance = macro.newInstance(InteractorStyle_extend, 'vtkInteractorStyle'); // ----------------------------------------------------------------------------
+
+var vtkInteractorStyle$1 = InteractorStyle_objectSpread({
+  newInstance: InteractorStyle_newInstance,
+  extend: InteractorStyle_extend
+}, vtkInteractorStyleConstants);
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Interaction/Style/InteractorStyleTrackballCamera.js
+
+
+
+
+
+
+var InteractorStyleTrackballCamera_States = vtkInteractorStyleConstants.States;
+/* eslint-disable no-lonely-if */
+// ----------------------------------------------------------------------------
+// vtkInteractorStyleTrackballCamera methods
+// ----------------------------------------------------------------------------
+
+function vtkInteractorStyleTrackballCamera(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkInteractorStyleTrackballCamera'); // Public API methods
+
+  publicAPI.handleMouseMove = function (callData) {
+    var pos = callData.position;
+    var renderer = callData.pokedRenderer;
+
+    switch (model.state) {
+      case InteractorStyleTrackballCamera_States.IS_ROTATE:
+        publicAPI.handleMouseRotate(renderer, pos);
+        publicAPI.invokeInteractionEvent({
+          type: 'InteractionEvent'
+        });
+        break;
+
+      case InteractorStyleTrackballCamera_States.IS_PAN:
+        publicAPI.handleMousePan(renderer, pos);
+        publicAPI.invokeInteractionEvent({
+          type: 'InteractionEvent'
+        });
+        break;
+
+      case InteractorStyleTrackballCamera_States.IS_DOLLY:
+        publicAPI.handleMouseDolly(renderer, pos);
+        publicAPI.invokeInteractionEvent({
+          type: 'InteractionEvent'
+        });
+        break;
+
+      case InteractorStyleTrackballCamera_States.IS_SPIN:
+        publicAPI.handleMouseSpin(renderer, pos);
+        publicAPI.invokeInteractionEvent({
+          type: 'InteractionEvent'
+        });
+        break;
+    }
+
+    model.previousPosition = pos;
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.handleButton3D = function (ed) {
+    if (ed && ed.pressed && ed.device === Device.RightController && (ed.input === Input.Trigger || ed.input === Input.TrackPad)) {
+      publicAPI.startCameraPose();
+      return;
+    }
+
+    if (ed && !ed.pressed && ed.device === Device.RightController && (ed.input === Input.Trigger || ed.input === Input.TrackPad) && model.state === InteractorStyleTrackballCamera_States.IS_CAMERA_POSE) {
+      publicAPI.endCameraPose(); // return;
+    }
+  };
+
+  publicAPI.handleMove3D = function (ed) {
+    switch (model.state) {
+      case InteractorStyleTrackballCamera_States.IS_CAMERA_POSE:
+        publicAPI.updateCameraPose(ed);
+        break;
+    }
+  };
+
+  publicAPI.updateCameraPose = function (ed) {
+    // move the world in the direction of the
+    // controller
+    var camera = ed.pokedRenderer.getActiveCamera();
+    var oldTrans = camera.getPhysicalTranslation(); // look at the y axis to determine how fast / what direction to move
+
+    var speed = 0.5; // ed.gamepad.axes[1];
+    // 0.05 meters / frame movement
+
+    var pscale = speed * 0.05 * camera.getPhysicalScale(); // convert orientation to world coordinate direction
+
+    var dir = camera.physicalOrientationToWorldDirection([ed.orientation.x, ed.orientation.y, ed.orientation.z, ed.orientation.w]);
+    camera.setPhysicalTranslation(oldTrans[0] + dir[0] * pscale, oldTrans[1] + dir[1] * pscale, oldTrans[2] + dir[2] * pscale);
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.handleLeftButtonPress = function (callData) {
+    var pos = callData.position;
+    model.previousPosition = pos;
+
+    if (callData.shiftKey) {
+      if (callData.controlKey || callData.altKey) {
+        publicAPI.startDolly();
+      } else {
+        publicAPI.startPan();
+      }
+    } else {
+      if (callData.controlKey || callData.altKey) {
+        publicAPI.startSpin();
+      } else {
+        publicAPI.startRotate();
+      }
+    }
+  }; //--------------------------------------------------------------------------
+
+
+  publicAPI.handleLeftButtonRelease = function () {
+    switch (model.state) {
+      case InteractorStyleTrackballCamera_States.IS_DOLLY:
+        publicAPI.endDolly();
+        break;
+
+      case InteractorStyleTrackballCamera_States.IS_PAN:
+        publicAPI.endPan();
+        break;
+
+      case InteractorStyleTrackballCamera_States.IS_SPIN:
+        publicAPI.endSpin();
+        break;
+
+      case InteractorStyleTrackballCamera_States.IS_ROTATE:
+        publicAPI.endRotate();
+        break;
+    }
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.handleStartMouseWheel = function (callData) {
+    publicAPI.startDolly();
+    publicAPI.handleMouseWheel(callData);
+  }; //--------------------------------------------------------------------------
+
+
+  publicAPI.handleEndMouseWheel = function () {
+    publicAPI.endDolly();
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.handleStartPinch = function (callData) {
+    model.previousScale = callData.scale;
+    publicAPI.startDolly();
+  }; //--------------------------------------------------------------------------
+
+
+  publicAPI.handleEndPinch = function () {
+    publicAPI.endDolly();
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.handleStartRotate = function (callData) {
+    model.previousRotation = callData.rotation;
+    publicAPI.startRotate();
+  }; //--------------------------------------------------------------------------
+
+
+  publicAPI.handleEndRotate = function () {
+    publicAPI.endRotate();
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.handleStartPan = function (callData) {
+    model.previousTranslation = callData.translation;
+    publicAPI.startPan();
+  }; //--------------------------------------------------------------------------
+
+
+  publicAPI.handleEndPan = function () {
+    publicAPI.endPan();
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.handlePinch = function (callData) {
+    publicAPI.dollyByFactor(callData.pokedRenderer, callData.scale / model.previousScale);
+    model.previousScale = callData.scale;
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.handlePan = function (callData) {
+    var camera = callData.pokedRenderer.getActiveCamera(); // Calculate the focal depth since we'll be using it a lot
+
+    var viewFocus = camera.getFocalPoint();
+    viewFocus = publicAPI.computeWorldToDisplay(callData.pokedRenderer, viewFocus[0], viewFocus[1], viewFocus[2]);
+    var focalDepth = viewFocus[2];
+    var trans = callData.translation;
+    var lastTrans = model.previousTranslation;
+    var newPickPoint = publicAPI.computeDisplayToWorld(callData.pokedRenderer, viewFocus[0] + trans[0] - lastTrans[0], viewFocus[1] + trans[1] - lastTrans[1], focalDepth); // Has to recalc old mouse point since the viewport has moved,
+    // so can't move it outside the loop
+
+    var oldPickPoint = publicAPI.computeDisplayToWorld(callData.pokedRenderer, viewFocus[0], viewFocus[1], focalDepth); // Camera motion is reversed
+
+    var motionVector = [];
+    motionVector[0] = oldPickPoint[0] - newPickPoint[0];
+    motionVector[1] = oldPickPoint[1] - newPickPoint[1];
+    motionVector[2] = oldPickPoint[2] - newPickPoint[2];
+    viewFocus = camera.getFocalPoint();
+    var viewPoint = camera.getPosition();
+    camera.setFocalPoint(motionVector[0] + viewFocus[0], motionVector[1] + viewFocus[1], motionVector[2] + viewFocus[2]);
+    camera.setPosition(motionVector[0] + viewPoint[0], motionVector[1] + viewPoint[1], motionVector[2] + viewPoint[2]);
+
+    if (model.interactor.getLightFollowCamera()) {
+      callData.pokedRenderer.updateLightsGeometryToFollowCamera();
+    }
+
+    camera.orthogonalizeViewUp();
+    model.previousTranslation = callData.translation;
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.handleRotate = function (callData) {
+    var camera = callData.pokedRenderer.getActiveCamera();
+    camera.roll(callData.rotation - model.previousRotation);
+    camera.orthogonalizeViewUp();
+    model.previousRotation = callData.rotation;
+  }; //--------------------------------------------------------------------------
+
+
+  publicAPI.handleMouseRotate = function (renderer, position) {
+    var rwi = model.interactor;
+    var dx = position.x - model.previousPosition.x;
+    var dy = position.y - model.previousPosition.y;
+    var size = rwi.getView().getViewportSize(renderer);
+    var deltaElevation = -0.1;
+    var deltaAzimuth = -0.1;
+
+    if (size[0] && size[1]) {
+      deltaElevation = -20.0 / size[1];
+      deltaAzimuth = -20.0 / size[0];
+    }
+
+    var rxf = dx * deltaAzimuth * model.motionFactor;
+    var ryf = dy * deltaElevation * model.motionFactor;
+    var camera = renderer.getActiveCamera();
+
+    if (!Number.isNaN(rxf) && !Number.isNaN(ryf)) {
+      camera.azimuth(rxf);
+      camera.elevation(ryf);
+      camera.orthogonalizeViewUp();
+    }
+
+    if (model.autoAdjustCameraClippingRange) {
+      renderer.resetCameraClippingRange();
+    }
+
+    if (rwi.getLightFollowCamera()) {
+      renderer.updateLightsGeometryToFollowCamera();
+    }
+  }; //--------------------------------------------------------------------------
+
+
+  publicAPI.handleMouseSpin = function (renderer, position) {
+    var rwi = model.interactor;
+    var camera = renderer.getActiveCamera();
+    var center = rwi.getView().getViewportCenter(renderer);
+    var oldAngle = degreesFromRadians(Math.atan2(model.previousPosition.y - center[1], model.previousPosition.x - center[0]));
+    var newAngle = degreesFromRadians(Math.atan2(position.y - center[1], position.x - center[0])) - oldAngle;
+
+    if (!Number.isNaN(newAngle)) {
+      camera.roll(newAngle);
+      camera.orthogonalizeViewUp();
+    }
+  }; //--------------------------------------------------------------------------
+
+
+  publicAPI.handleMousePan = function (renderer, position) {
+    var camera = renderer.getActiveCamera(); // Calculate the focal depth since we'll be using it a lot
+
+    var viewFocus = camera.getFocalPoint();
+    viewFocus = publicAPI.computeWorldToDisplay(renderer, viewFocus[0], viewFocus[1], viewFocus[2]);
+    var focalDepth = viewFocus[2];
+    var newPickPoint = publicAPI.computeDisplayToWorld(renderer, position.x, position.y, focalDepth); // Has to recalc old mouse point since the viewport has moved,
+    // so can't move it outside the loop
+
+    var oldPickPoint = publicAPI.computeDisplayToWorld(renderer, model.previousPosition.x, model.previousPosition.y, focalDepth); // Camera motion is reversed
+
+    var motionVector = [];
+    motionVector[0] = oldPickPoint[0] - newPickPoint[0];
+    motionVector[1] = oldPickPoint[1] - newPickPoint[1];
+    motionVector[2] = oldPickPoint[2] - newPickPoint[2];
+    viewFocus = camera.getFocalPoint();
+    var viewPoint = camera.getPosition();
+    camera.setFocalPoint(motionVector[0] + viewFocus[0], motionVector[1] + viewFocus[1], motionVector[2] + viewFocus[2]);
+    camera.setPosition(motionVector[0] + viewPoint[0], motionVector[1] + viewPoint[1], motionVector[2] + viewPoint[2]);
+
+    if (model.interactor.getLightFollowCamera()) {
+      renderer.updateLightsGeometryToFollowCamera();
+    }
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.handleMouseDolly = function (renderer, position) {
+    var dy = position.y - model.previousPosition.y;
+    var rwi = model.interactor;
+    var center = rwi.getView().getViewportCenter(renderer);
+    var dyf = model.motionFactor * dy / center[1];
+    publicAPI.dollyByFactor(renderer, Math.pow(1.1, dyf));
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.handleMouseWheel = function (callData) {
+    var dyf = 1 - callData.spinY / model.zoomFactor;
+    publicAPI.dollyByFactor(callData.pokedRenderer, dyf);
+  }; //----------------------------------------------------------------------------
+
+
+  publicAPI.dollyByFactor = function (renderer, factor) {
+    if (Number.isNaN(factor)) {
+      return;
+    }
+
+    var camera = renderer.getActiveCamera();
+
+    if (camera.getParallelProjection()) {
+      camera.setParallelScale(camera.getParallelScale() / factor);
+    } else {
+      camera.dolly(factor);
+
+      if (model.autoAdjustCameraClippingRange) {
+        renderer.resetCameraClippingRange();
+      }
+    }
+
+    if (model.interactor.getLightFollowCamera()) {
+      renderer.updateLightsGeometryToFollowCamera();
+    }
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var InteractorStyleTrackballCamera_DEFAULT_VALUES = {
+  motionFactor: 10.0,
+  zoomFactor: 10.0
+}; // ----------------------------------------------------------------------------
+
+function InteractorStyleTrackballCamera_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, InteractorStyleTrackballCamera_DEFAULT_VALUES, initialValues); // Inheritance
+
+  vtkInteractorStyle$1.extend(publicAPI, model, initialValues); // Create get-set macros
+
+  macro.setGet(publicAPI, model, ['motionFactor', 'zoomFactor']); // For more macro methods, see "Sources/macros.js"
+  // Object specific methods
+
+  vtkInteractorStyleTrackballCamera(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var InteractorStyleTrackballCamera_newInstance = macro.newInstance(InteractorStyleTrackballCamera_extend, 'vtkInteractorStyleTrackballCamera'); // ----------------------------------------------------------------------------
+
+var vtkInteractorStyleTrackballCamera$1 = {
+  newInstance: InteractorStyleTrackballCamera_newInstance,
+  extend: InteractorStyleTrackballCamera_extend
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Misc/GenericRenderWindow.js
+
+
+
+
+
+
+
+
+
+
+
+
+
+function vtkGenericRenderWindow(publicAPI, model) {
+  // Capture resize trigger method to remove from publicAPI
+  var invokeResize = publicAPI.invokeResize;
+  delete publicAPI.invokeResize; // VTK renderWindow/renderer
+
+  model.renderWindow = vtkRenderWindow$1.newInstance();
+  model.renderer = vtkRenderer$1.newInstance();
+  model.renderWindow.addRenderer(model.renderer); // OpenGLRenderWindow
+
+  model.openGLRenderWindow = RenderWindow_vtkRenderWindow.newInstance();
+  model.renderWindow.addView(model.openGLRenderWindow); // Interactor
+
+  model.interactor = vtkRenderWindowInteractor$1.newInstance();
+  model.interactor.setInteractorStyle(vtkInteractorStyleTrackballCamera$1.newInstance());
+  model.interactor.setView(model.openGLRenderWindow);
+  model.interactor.initialize(); // Expose background
+
+  publicAPI.setBackground = model.renderer.setBackground; // Update BG color
+
+  publicAPI.setBackground.apply(publicAPI, _toConsumableArray(model.background)); // Handle window resize
+
+  publicAPI.resize = function () {
+    if (model.container) {
+      var dims = model.container.getBoundingClientRect();
+      var devicePixelRatio = window.devicePixelRatio || 1;
+      model.openGLRenderWindow.setSize(Math.floor(dims.width * devicePixelRatio), Math.floor(dims.height * devicePixelRatio));
+      invokeResize();
+      model.renderWindow.render();
+    }
+  }; // Handle DOM container relocation
+
+
+  publicAPI.setContainer = function (el) {
+    if (model.container) {
+      model.interactor.unbindEvents(model.container);
+    } // Switch container
+
+
+    model.container = el;
+    model.openGLRenderWindow.setContainer(model.container); // Bind to new container
+
+    if (model.container) {
+      model.interactor.bindEvents(model.container);
+    }
+  }; // Properly release GL context
+
+
+  publicAPI.delete = macro.chain(publicAPI.setContainer, model.openGLRenderWindow.delete, publicAPI.delete); // Handle size
+
+  if (model.listenWindowResize) {
+    window.addEventListener('resize', publicAPI.resize);
+  }
+
+  publicAPI.resize();
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var GenericRenderWindow_DEFAULT_VALUES = {
+  background: [0.32, 0.34, 0.43],
+  listenWindowResize: true,
+  container: null
+}; // ----------------------------------------------------------------------------
+
+function GenericRenderWindow_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, GenericRenderWindow_DEFAULT_VALUES, initialValues); // Object methods
+
+  macro.obj(publicAPI, model);
+  macro.get(publicAPI, model, ['renderWindow', 'renderer', 'openGLRenderWindow', 'interactor', 'container']);
+  macro.event(publicAPI, model, 'resize'); // Object specific methods
+
+  vtkGenericRenderWindow(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var GenericRenderWindow_newInstance = macro.newInstance(GenericRenderWindow_extend); // ----------------------------------------------------------------------------
+
+var vtkGenericRenderWindow$1 = {
+  newInstance: GenericRenderWindow_newInstance,
+  extend: GenericRenderWindow_extend
+};
+
+
+
+;// CONCATENATED MODULE: ./src/utils/utils.js
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * Build vtk volume (vtkImageData)
+ * @param {Object} header
+ * @param {TypedArray} data
+ * @returns {vtkImageData}
+ */
+function buildVtkVolume(header, data) {
+  const dims = [
+    header.volume.cols,
+    header.volume.rows,
+    header.volume.imageIds.length
+  ];
+  const numScalars = dims[0] * dims[1] * dims[2];
+
+  if (numScalars < 1 || dims[1] < 2 || dims[1] < 2 || dims[2] < 2) {
+    return;
+  }
+
+  const volume = vtkImageData$1.newInstance();
+  const origin = header.volume.imagePosition;
+  const spacing = header.volume.pixelSpacing.concat(
+    header.volume.sliceThickness // TODO check
+  );
+
+  volume.setDimensions(dims);
+  volume.setOrigin(origin);
+  volume.setSpacing(spacing);
+
+  const scalars = vtkDataArray$1.newInstance({
+    name: "Scalars",
+    values: data,
+    numberOfComponents: 1
+  });
+
+  volume.getPointData().setScalars(scalars);
+
+  volume.modified();
+
+  return volume;
+}
+
+/**
+ * Fit camera to window
+ * @param {vtkGenericRenderWindow} genericRenderWindow
+ * @param {"x" | "y" | "z"} dir
+ */
+function fitToWindow(genericRenderWindow, dir) {
+  const bounds = genericRenderWindow.getRenderer().computeVisiblePropBounds();
+  const dim = [
+    (bounds[1] - bounds[0]) / 2,
+    (bounds[3] - bounds[2]) / 2,
+    (bounds[5] - bounds[4]) / 2
+  ];
+  const w = genericRenderWindow.getContainer().clientWidth;
+  const h = genericRenderWindow.getContainer().clientHeight;
+  const r = w / h;
+
+  let x;
+  let y;
+  if (dir === "x") {
+    x = dim[1];
+    y = dim[2];
+  } else if (dir === "y") {
+    x = dim[0];
+    y = dim[2];
+  } else if (dir === "z") {
+    x = dim[0];
+    y = dim[1];
+  }
+  if (r >= x / y) {
+    // use width
+    genericRenderWindow
+      .getRenderer()
+      .getActiveCamera()
+      .setParallelScale(y + 1);
+  } else {
+    // use height
+    genericRenderWindow
+      .getRenderer()
+      .getActiveCamera()
+      .setParallelScale(x / r + 1);
+  }
+}
+
+/**
+ * Utility function to read, parse, load and render a dcm serie with larvitar (tested with larvitar 1.2.7)
+ */
+let larvitarInitialized = false;
+function loadDemoSerieWithLarvitar(name, lrv, cb) {
+  let demoFiles = [];
+  let counter = 0;
+  let demoFileList = getDemoFileNames();
+
+  function getDemoFileNames() {
+    let NOF = {
+      knee: 24,
+      thorax: 364,
+      abdomen: 147
+    };
+    let numberOfFiles = NOF[name];
+    let demoFileList = [];
+    for (let i = 1; i < numberOfFiles; i++) {
+      let filename = `${name} (${i})`;
+      if (name == "abdomen") filename += ".dcm";
+      demoFileList.push(filename);
+    }
+    return demoFileList;
+  }
+
+  async function createFile(fileName, cb) {
+    let response = await fetch("./demo/" + fileName);
+    let data = await response.blob();
+    let file = new File([data], fileName);
+    demoFiles.push(file);
+    counter++;
+    if (counter == demoFileList.length) {
+      cb();
+    }
+  }
+
+  if (!larvitarInitialized) {
+    // init all larvitar
+    lrv.initLarvitarStore();
+    lrv.initializeImageLoader();
+    lrv.initializeCSTools();
+    lrv.larvitar_store.addViewport("viewer");
+    larvitarInitialized = true;
+  }
+
+  // load dicom and render
+  demoFileList.forEach(function (demoFile) {
+    createFile(demoFile, () => {
+      larvitar.resetLarvitarManager();
+      larvitar.readFiles(demoFiles).then(seriesStack => {
+        // return the first series of the study
+        let seriesId = Object.keys(seriesStack)[0];
+        let serie = seriesStack[seriesId];
+
+        // hack to avoid load and cache (render + timeout)
+        lrv.renderImage(serie, "viewer");
+        cb(serie);
+      });
+    });
+  });
+}
+
+/**
+ * Function to create synthetic image data with correct dimensions
+ * Can be use for debug
+ * @private
+ * @param {Array} dims - Array[int]
+ */
+// eslint-disable-next-line no-unused-vars
+function createSyntheticImageData(dims) {
+  const imageData = vtkImageData.newInstance();
+  const newArray = new Uint8Array(dims[0] * dims[1] * dims[2]);
+  const s = 0.1;
+  imageData.setSpacing(s, s, s);
+  imageData.setExtent(0, 127, 0, 127, 0, 127);
+  let i = 0;
+  for (let z = 0; z < dims[2]; z++) {
+    for (let y = 0; y < dims[1]; y++) {
+      for (let x = 0; x < dims[0]; x++) {
+        newArray[i++] = (256 * (i % (dims[0] * dims[1]))) / (dims[0] * dims[1]);
+      }
+    }
+  }
+
+  const da = vtkDataArray.newInstance({
+    numberOfComponents: 1,
+    values: newArray
+  });
+  da.setName("scalars");
+
+  imageData.getPointData().setScalars(da);
+
+  return imageData;
+}
+
+/**
+ * RGB string from RGB numeric values
+ * @param {*} rgb
+ * @returns {string} In the form rgb(128, 128, 128)
+ */
+function createRGBStringFromRGBValues(rgb) {
+  if (rgb.length !== 3) {
+    return "rgb(0, 0, 0)";
+  }
+  return `rgb(${(rgb[0] * 255).toString()}, ${(rgb[1] * 255).toString()}, ${(
+    rgb[2] * 255
+  ).toString()})`;
+}
+
+/**
+ * Convert angles DEG to RAD
+ * @param {Number} degrees
+ * @returns {Number}
+ */
+function degrees2radians(degrees) {
+  return (degrees * Math.PI) / 180;
+}
+
+/**
+ * Compute the volume center
+ * @param {vtkVolumeMapper} volumeMapper
+ * @returns {Array} In the form [x,y,z]
+ */
+function getVolumeCenter(volumeMapper) {
+  const bounds = volumeMapper.getBounds();
+  return [
+    (bounds[0] + bounds[1]) / 2.0,
+    (bounds[2] + bounds[3]) / 2.0,
+    (bounds[4] + bounds[5]) / 2.0
+  ];
+}
+
+/**
+ * Compute image center and width (wwwl)
+ * @param {vtkImageData} volume
+ * @returns {Object} {windowCenter, windowWidth}
+ */
+function getVOI(volume) {
+  // Note: This controls window/level
+
+  // TODO: Make this work reactively with onModified...
+  const rgbTransferFunction = volume.getProperty().getRGBTransferFunction(0);
+  const range = rgbTransferFunction.getMappingRange();
+  const windowWidth = range[0] + range[1];
+  const windowCenter = range[0] + windowWidth / 2;
+
+  return {
+    windowCenter,
+    windowWidth
+  };
+}
+
+/**
+ * Planes are of type `{position:[x,y,z], normal:[x,y,z]}`
+ * returns an [x,y,z] array, or NaN if they do not intersect.
+ * @private
+ */
+const getPlaneIntersection = (plane1, plane2, plane3) => {
+  try {
+    let line = vtkPlane$1.intersectWithPlane(
+      plane1.position,
+      plane1.normal,
+      plane2.position,
+      plane2.normal
+    );
+    if (line.intersection) {
+      const { l0, l1 } = line;
+      const intersectionLocation = vtkPlane$1.intersectWithLine(
+        l0,
+        l1,
+        plane3.position,
+        plane3.normal
+      );
+      if (intersectionLocation.intersection) {
+        return intersectionLocation.x;
+      }
+    }
+  } catch (err) {
+    console.log("some issue calculating the plane intersection", err);
+  }
+  return NaN;
+};
+
+/**
+ *
+ * @param {*} contentData
+ * @returns {vtkVolume} the volume actor
+ */
+function createVolumeActor(contentData) {
+  const volumeActor = vtkVolume$1.newInstance();
+  const volumeMapper = vtkVolumeMapper$1.newInstance();
+  volumeMapper.setSampleDistance(1);
+  volumeActor.setMapper(volumeMapper);
+
+  volumeMapper.setInputData(contentData);
+
+  // set a default wwwl
+  const dataRange = contentData.getPointData().getScalars().getRange();
+
+  // FIXME: custom range mapping
+  const rgbTransferFunction = volumeActor
+    .getProperty()
+    .getRGBTransferFunction(0);
+  rgbTransferFunction.setMappingRange(dataRange[0], dataRange[1]);
+
+  // update slice min/max values for interface
+  // Crate imageMapper for I,J,K planes
+  // const dataRange = data
+  //   .getPointData()
+  //   .getScalars()
+  //   .getRange();
+  // const extent = data.getExtent();
+  // this.window = {
+  //   min: 0,
+  //   max: dataRange[1] * 2,
+  //   value: dataRange[1]
+  // };
+  // this.level = {
+  //   min: -dataRange[1],
+  //   max: dataRange[1],
+  //   value: (dataRange[0] + dataRange[1]) / 2
+  // };
+  // this.updateColorLevel();
+  // this.updateColorWindow();
+
+  // TODO: find the volume center and set that as the slice intersection point.
+  // TODO: Refactor the MPR slice to set the focal point instead of defaulting to volume center
+
+  return volumeActor;
+}
+
+/**
+ * Get info about webgl context (GPU)
+ * @returns {Object} - {vendor, renderer} or {error}
+ */
+function getVideoCardInfo() {
+  const gl = document.createElement("canvas").getContext("webgl");
+  if (!gl) {
+    return {
+      error: "no webgl"
+    };
+  }
+  const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
+  return debugInfo
+    ? {
+        vendor: gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
+        renderer: gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
+      }
+    : {
+        error: "no WEBGL_debug_renderer_info"
+      };
+}
+
+/**
+ *
+ * @param {*} imageData
+ * @param {*} ijkPlanes
+ * @returns {Array} array of vtkPlanes
+ */
+function getCroppingPlanes(imageData, ijkPlanes) {
+  const rotation = quat_create();
+  getRotation(rotation, imageData.getIndexToWorld());
+
+  const rotateVec = vec => {
+    const out = [0, 0, 0];
+    transformQuat(out, vec, rotation);
+    return out;
+  };
+
+  const [iMin, iMax, jMin, jMax, kMin, kMax] = ijkPlanes;
+  const origin = imageData.indexToWorld([iMin, jMin, kMin]);
+  // opposite corner from origin
+  const corner = imageData.indexToWorld([iMax, jMax, kMax]);
+  return [
+    // X min/max
+    vtkPlane$1.newInstance({ normal: rotateVec([1, 0, 0]), origin }),
+    vtkPlane$1.newInstance({ normal: rotateVec([-1, 0, 0]), origin: corner }),
+    // Y min/max
+    vtkPlane$1.newInstance({ normal: rotateVec([0, 1, 0]), origin }),
+    vtkPlane$1.newInstance({ normal: rotateVec([0, -1, 0]), origin: corner }),
+    // X min/max
+    vtkPlane$1.newInstance({ normal: rotateVec([0, 0, 1]), origin }),
+    vtkPlane$1.newInstance({ normal: rotateVec([0, 0, -1]), origin: corner })
+  ];
+}
+
+/**
+ * Rescale abs range to relative range values (eg 0-1)
+ * @param {*} actor
+ * @param {*} absoluteRange
+ * @returns {*} wwwl object
+ */
+function getRelativeRange(actor, absoluteRange) {
+  const dataArray = actor
+    .getMapper()
+    .getInputData()
+    .getPointData()
+    .getScalars();
+  const range = dataArray.getRange();
+  let rel_ww = absoluteRange[0] / (range[1] - range[0]);
+  let rel_wl = (absoluteRange[1] - range[0]) / range[1];
+
+  return { ww: rel_ww, wl: rel_wl };
+}
+
+/**
+ * Rescale relative range to abs range values (eg hist min-max)
+ * @param {*} actor
+ * @param {*} relativeRange
+ * @returns {*} wwwl object
+ */
+function utils_getAbsoluteRange(actor, relativeRange) {
+  const dataArray = actor
+    .getMapper()
+    .getInputData()
+    .getPointData()
+    .getScalars();
+  const range = dataArray.getRange();
+  let abs_ww = relativeRange[0] * (range[1] - range[0]);
+  let abs_wl = relativeRange[1] * range[1] + range[0];
+  return { ww: abs_ww, wl: abs_wl };
+}
+
+/**
+ * Set camera lookat point
+ * @param {Array} center - As [x,y,z]
+ */
+function setCamera(camera, center) {
+  camera.zoom(1.5);
+  camera.elevation(70);
+  camera.setViewUp(0, 0, 1);
+  camera.setFocalPoint(center[0], center[1], center[2]);
+  camera.setPosition(center[0], center[1] - 2000, center[2]);
+  camera.setThickness(10000);
+  camera.setParallelProjection(true);
+}
+
+/**
+ * Set actor appearance properties
+ * @param {*} actor
+ */
+function setActorProperties(actor) {
+  actor.getProperty().setScalarOpacityUnitDistance(0, 30.0);
+  actor.getProperty().setInterpolationTypeToLinear();
+  actor.getProperty().setUseGradientOpacity(0, true);
+  actor.getProperty().setGradientOpacityMinimumValue(0, 2);
+  actor.getProperty().setGradientOpacityMinimumOpacity(0, 0.0);
+  actor.getProperty().setGradientOpacityMaximumValue(0, 20);
+  actor.getProperty().setGradientOpacityMaximumOpacity(0, 2.0);
+  actor.getProperty().setShade(true);
+  actor.getProperty().setAmbient(0.3);
+  actor.getProperty().setDiffuse(0.7);
+  actor.getProperty().setSpecular(0.3);
+  actor.getProperty().setSpecularPower(0.8);
+}
+
+/**
+ * Append a vtkPiecewiseGaussianWidget into the target element
+ * @private
+ * @param {HTMLElement} widgetContainer - The target element to place the widget
+ * @returns {vtkPiecewiseGaussianWidget}
+ */
+function setupPGwidget(PGwidgetElement) {
+  let containerWidth = PGwidgetElement ? PGwidgetElement.offsetWidth - 5 : 300;
+  let containerHeight = PGwidgetElement
+    ? PGwidgetElement.offsetHeight - 5
+    : 100;
+
+  const PGwidget = vtkPiecewiseGaussianWidget$1.newInstance({
+    numberOfBins: 256,
+    size: [containerWidth, containerHeight]
+  });
+  // TODO expose style
+  PGwidget.updateStyle({
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    histogramColor: "rgba(50, 50, 50, 0.8)",
+    strokeColor: "rgb(0, 0, 0)",
+    activeColor: "rgb(255, 255, 255)",
+    handleColor: "rgb(50, 150, 50)",
+    buttonDisableFillColor: "rgba(255, 255, 255, 0.5)",
+    buttonDisableStrokeColor: "rgba(0, 0, 0, 0.5)",
+    buttonStrokeColor: "rgba(0, 0, 0, 1)",
+    buttonFillColor: "rgba(255, 255, 255, 1)",
+    strokeWidth: 1,
+    activeStrokeWidth: 1.5,
+    buttonStrokeWidth: 1,
+    handleWidth: 1,
+    iconSize: 0, // Can be 0 if you want to remove buttons (dblClick for (+) / rightClick for (-))
+    padding: 1
+  });
+
+  // to hide widget
+  PGwidget.setContainer(PGwidgetElement); // Set to null to hide
+
+  // resize callback
+  window.addEventListener("resize", evt => {
+    PGwidget.setSize(
+      PGwidgetElement.offsetWidth - 5,
+      PGwidgetElement.offsetHeight - 5
+    );
+    PGwidget.render();
+  });
+
+  return PGwidget;
+}
+
+/**
+ * Initialize a crop widget
+ */
+function setupCropWidget(renderer, volumeMapper) {
+  let image = volumeMapper.getInputData();
+  console.log(image.getBounds());
+
+  // setup widget manager and widget
+  const widgetManager = vtkWidgetManager$1.newInstance();
+  widgetManager.setRenderer(renderer);
+
+  const widget = vtkImageCroppingWidget$1.newInstance();
+  widget.copyImageDataDescription(image);
+
+  const viewWidget = widgetManager.addWidget(widget);
+  widgetManager.enablePicking();
+
+  const cropState = widget.getWidgetState().getCroppingPlanes();
+  cropState.onModified(e => {
+    const planes = getCroppingPlanes(image, cropState.getPlanes());
+    volumeMapper.removeAllClippingPlanes();
+    planes.forEach(plane => {
+      volumeMapper.addClippingPlane(plane);
+    });
+    volumeMapper.modified();
+  });
+
+  widget.set({
+    faceHandlesEnabled: true,
+    edgeHandlesEnabled: true,
+    cornerHandlesEnabled: true
+  });
+
+  return { widget, widgetManager }; // or viewWidget ?
+}
+
+/**
+ * Create a plane to perform picking
+ * @param {*} camera
+ * @param {*} actor
+ * @returns {Object} - {plane: vtkPlane, planeActor: vtkActor}
+ */
+function setupPickingPlane(camera, actor) {
+  const plane = vtkPlaneSource$1.newInstance({
+    xResolution: 1000,
+    yResolution: 1000
+  });
+  plane.setPoint1(0, 0, 1000);
+  plane.setPoint2(1000, 0, 0);
+  plane.setCenter(actor.getCenter());
+  plane.setNormal(camera.getDirectionOfProjection());
+
+  const mapper = vtkMapper$1.newInstance();
+  mapper.setInputConnection(plane.getOutputPort());
+  const planeActor = vtkActor$1.newInstance();
+  planeActor.setMapper(mapper);
+  planeActor.getProperty().setOpacity(0.01); // with opacity = 0 it is ignored by picking
+
+  return { plane, planeActor };
+}
+
+/**
+ * Add a sphere in a specific point (useful for debugging)
+ */
+function addSphereInPoint(point, renderer) {
+  const sphere = vtkSphereSource.newInstance();
+  sphere.setCenter(point);
+  sphere.setRadius(0.01);
+  const sphereMapper = vtkMapper.newInstance();
+  sphereMapper.setInputData(sphere.getOutputData());
+  const sphereActor = vtkActor.newInstance();
+  sphereActor.setMapper(sphereMapper);
+  sphereActor.getProperty().setColor(1.0, 0.0, 0.0);
+  renderer.addActor(sphereActor);
+}
+
+// EXTERNAL MODULE: ./node_modules/regenerator-runtime/runtime.js
+var runtime = __webpack_require__("./node_modules/regenerator-runtime/runtime.js");
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/Camera.js
+
+
+
+
+
+// vtkOpenGLCamera methods
+// ----------------------------------------------------------------------------
+
+function vtkOpenGLCamera(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkOpenGLCamera');
+
+  publicAPI.buildPass = function (prepass) {
+    if (prepass) {
+      model.openGLRenderer = publicAPI.getFirstAncestorOfType('vtkOpenGLRenderer');
+      model.openGLRenderWindow = model.openGLRenderer.getParent();
+      model.context = model.openGLRenderWindow.getContext();
+    }
+  }; // Renders myself
+
+
+  publicAPI.opaquePass = function (prepass) {
+    if (prepass) {
+      var tsize = model.openGLRenderer.getTiledSizeAndOrigin();
+      model.context.viewport(tsize.lowerLeftU, tsize.lowerLeftV, tsize.usize, tsize.vsize);
+      model.context.scissor(tsize.lowerLeftU, tsize.lowerLeftV, tsize.usize, tsize.vsize);
+    }
+  };
+
+  publicAPI.translucentPass = publicAPI.opaquePass;
+  publicAPI.opaqueZBufferPass = publicAPI.opaquePass;
+  publicAPI.volumePass = publicAPI.opaquePass;
+
+  publicAPI.getKeyMatrices = function (ren) {
+    // has the camera changed?
+    if (ren !== model.lastRenderer || model.openGLRenderWindow.getMTime() > model.keyMatrixTime.getMTime() || publicAPI.getMTime() > model.keyMatrixTime.getMTime() || ren.getMTime() > model.keyMatrixTime.getMTime() || model.renderable.getMTime() > model.keyMatrixTime.getMTime()) {
+      mat4_copy(model.keyMatrices.wcvc, model.renderable.getViewMatrix());
+      fromMat4(model.keyMatrices.normalMatrix, model.keyMatrices.wcvc);
+      mat3_invert(model.keyMatrices.normalMatrix, model.keyMatrices.normalMatrix);
+      transpose(model.keyMatrices.wcvc, model.keyMatrices.wcvc);
+      var aspectRatio = model.openGLRenderer.getAspectRatio();
+      mat4_copy(model.keyMatrices.vcpc, model.renderable.getProjectionMatrix(aspectRatio, -1, 1));
+      transpose(model.keyMatrices.vcpc, model.keyMatrices.vcpc);
+      mat4_multiply(model.keyMatrices.wcpc, model.keyMatrices.vcpc, model.keyMatrices.wcvc);
+      model.keyMatrixTime.modified();
+      model.lastRenderer = ren;
+    }
+
+    return model.keyMatrices;
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var OpenGL_Camera_DEFAULT_VALUES = {
+  context: null,
+  lastRenderer: null,
+  keyMatrixTime: null,
+  keyMatrices: null
+}; // ----------------------------------------------------------------------------
+
+function OpenGL_Camera_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, OpenGL_Camera_DEFAULT_VALUES, initialValues); // Inheritance
+
+  vtkViewNode$1.extend(publicAPI, model, initialValues);
+  model.keyMatrixTime = {};
+  obj(model.keyMatrixTime); // values always get set by the get method
+
+  model.keyMatrices = {
+    normalMatrix: new Float64Array(9),
+    vcpc: new Float64Array(16),
+    wcvc: new Float64Array(16),
+    wcpc: new Float64Array(16)
+  }; // Build VTK API
+
+  setGet(publicAPI, model, ['context', 'keyMatrixTime']); // Object methods
+
+  vtkOpenGLCamera(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var OpenGL_Camera_newInstance = newInstance(OpenGL_Camera_extend); // ----------------------------------------------------------------------------
+
+var Camera_vtkCamera = {
+  newInstance: OpenGL_Camera_newInstance,
+  extend: OpenGL_Camera_extend
+}; // Register ourself to OpenGL backend if imported
+
+registerOverride('vtkCamera', OpenGL_Camera_newInstance);
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/Renderer.js
+
+
+
+
+var OpenGL_Renderer_vtkDebugMacro = vtkDebugMacro; // ----------------------------------------------------------------------------
+// vtkOpenGLRenderer methods
+// ----------------------------------------------------------------------------
+
+/* eslint-disable no-bitwise */
+
+function vtkOpenGLRenderer(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkOpenGLRenderer'); // Builds myself.
+
+  publicAPI.buildPass = function (prepass) {
+    if (prepass) {
+      if (!model.renderable) {
+        return;
+      }
+
+      publicAPI.updateLights();
+      publicAPI.prepareNodes();
+      publicAPI.addMissingNode(model.renderable.getActiveCamera());
+      publicAPI.addMissingNodes(model.renderable.getViewPropsWithNestedProps());
+      publicAPI.removeUnusedNodes();
+    }
+  };
+
+  publicAPI.updateLights = function () {
+    var count = 0;
+    var lights = model.renderable.getLightsByReference();
+
+    for (var index = 0; index < lights.length; ++index) {
+      if (lights[index].getSwitch() > 0.0) {
+        count++;
+      }
+    }
+
+    if (!count) {
+      OpenGL_Renderer_vtkDebugMacro('No lights are on, creating one.');
+      model.renderable.createLight();
+    }
+
+    return count;
+  };
+
+  publicAPI.opaqueZBufferPass = function (prepass) {
+    if (prepass) {
+      var clearMask = 0;
+      var gl = model.context;
+
+      if (!model.renderable.getTransparent()) {
+        model.context.clearColor(1.0, 0.0, 0.0, 1.0);
+        clearMask |= gl.COLOR_BUFFER_BIT;
+      }
+
+      if (!model.renderable.getPreserveDepthBuffer()) {
+        gl.clearDepth(1.0);
+        clearMask |= gl.DEPTH_BUFFER_BIT;
+        model.context.depthMask(true);
+      }
+
+      var ts = publicAPI.getTiledSizeAndOrigin();
+      gl.enable(gl.SCISSOR_TEST);
+      gl.scissor(ts.lowerLeftU, ts.lowerLeftV, ts.usize, ts.vsize);
+      gl.viewport(ts.lowerLeftU, ts.lowerLeftV, ts.usize, ts.vsize);
+      gl.colorMask(true, true, true, true);
+      gl.clear(clearMask);
+      gl.enable(gl.DEPTH_TEST);
+    }
+  }; // Renders myself
+
+
+  publicAPI.cameraPass = function (prepass) {
+    if (prepass) {
+      publicAPI.clear();
+    }
+  };
+
+  publicAPI.getAspectRatio = function () {
+    var size = model.parent.getSizeByReference();
+    var viewport = model.renderable.getViewportByReference();
+    return size[0] * (viewport[2] - viewport[0]) / ((viewport[3] - viewport[1]) * size[1]);
+  };
+
+  publicAPI.getTiledSizeAndOrigin = function () {
+    var vport = model.renderable.getViewportByReference(); // if there is no window assume 0 1
+
+    var tileViewPort = [0.0, 0.0, 1.0, 1.0]; // find the lower left corner of the viewport, taking into account the
+    // lower left boundary of this tile
+
+    var vpu = vport[0] - tileViewPort[0];
+    var vpv = vport[1] - tileViewPort[1]; // store the result as a pixel value
+
+    var ndvp = model.parent.normalizedDisplayToDisplay(vpu, vpv);
+    var lowerLeftU = Math.round(ndvp[0]);
+    var lowerLeftV = Math.round(ndvp[1]); // find the upper right corner of the viewport, taking into account the
+    // lower left boundary of this tile
+
+    var vpu2 = vport[2] - tileViewPort[0];
+    var vpv2 = vport[3] - tileViewPort[1];
+    var ndvp2 = model.parent.normalizedDisplayToDisplay(vpu2, vpv2); // now compute the size of the intersection of the viewport with the
+    // current tile
+
+    var usize = Math.round(ndvp2[0]) - lowerLeftU;
+    var vsize = Math.round(ndvp2[1]) - lowerLeftV;
+
+    if (usize < 0) {
+      usize = 0;
+    }
+
+    if (vsize < 0) {
+      vsize = 0;
+    }
+
+    return {
+      usize: usize,
+      vsize: vsize,
+      lowerLeftU: lowerLeftU,
+      lowerLeftV: lowerLeftV
+    };
+  };
+
+  publicAPI.clear = function () {
+    var clearMask = 0;
+    var gl = model.context;
+
+    if (!model.renderable.getTransparent()) {
+      var background = model.renderable.getBackgroundByReference(); // renderable ensures that background has 4 entries.
+
+      model.context.clearColor(background[0], background[1], background[2], background[3]);
+      clearMask |= gl.COLOR_BUFFER_BIT;
+    }
+
+    if (!model.renderable.getPreserveDepthBuffer()) {
+      gl.clearDepth(1.0);
+      clearMask |= gl.DEPTH_BUFFER_BIT;
+      model.context.depthMask(true);
+    }
+
+    gl.colorMask(true, true, true, true);
+    var ts = publicAPI.getTiledSizeAndOrigin();
+    gl.enable(gl.SCISSOR_TEST);
+    gl.scissor(ts.lowerLeftU, ts.lowerLeftV, ts.usize, ts.vsize);
+    gl.viewport(ts.lowerLeftU, ts.lowerLeftV, ts.usize, ts.vsize);
+    gl.clear(clearMask);
+    gl.enable(gl.DEPTH_TEST);
+    /* eslint-enable no-bitwise */
+  };
+
+  publicAPI.releaseGraphicsResources = function () {
+    if (model.selector !== null) {
+      model.selector.releaseGraphicsResources();
+    }
+  };
+
+  publicAPI.setOpenGLRenderWindow = function (rw) {
+    if (model.openGLRenderWindow === rw) {
+      return;
+    }
+
+    publicAPI.releaseGraphicsResources();
+    model.openGLRenderWindow = rw;
+    model.context = null;
+
+    if (rw) {
+      model.context = model.openGLRenderWindow.getContext();
+    }
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var OpenGL_Renderer_DEFAULT_VALUES = {
+  context: null,
+  openGLRenderWindow: null,
+  selector: null
+}; // ----------------------------------------------------------------------------
+
+function OpenGL_Renderer_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, OpenGL_Renderer_DEFAULT_VALUES, initialValues); // Inheritance
+
+  vtkViewNode$1.extend(publicAPI, model, initialValues); // Build VTK API
+
+  get(publicAPI, model, ['shaderCache']);
+  setGet(publicAPI, model, ['selector']); // Object methods
+
+  vtkOpenGLRenderer(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var OpenGL_Renderer_newInstance = newInstance(OpenGL_Renderer_extend, 'vtkOpenGLRenderer'); // ----------------------------------------------------------------------------
+
+var Renderer_vtkRenderer = {
+  newInstance: OpenGL_Renderer_newInstance,
+  extend: OpenGL_Renderer_extend
+}; // Register ourself to OpenGL backend if imported
+
+registerOverride('vtkRenderer', OpenGL_Renderer_newInstance);
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/ImageMapper/Constants.js
+var SlicingMode = {
+  NONE: -1,
+  I: 0,
+  J: 1,
+  K: 2,
+  X: 3,
+  Y: 4,
+  Z: 5
+};
+var ImageMapper_Constants_Constants = {
+  SlicingMode: SlicingMode
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/BufferObject/Constants.js
+var ObjectType = {
+  ARRAY_BUFFER: 0,
+  ELEMENT_ARRAY_BUFFER: 1,
+  TEXTURE_BUFFER: 2
+};
+var BufferObject_Constants_Constants = {
+  ObjectType: ObjectType
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/BufferObject.js
+
+
+
+
+function BufferObject_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); enumerableOnly && (symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; })), keys.push.apply(keys, symbols); } return keys; }
+
+function BufferObject_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = null != arguments[i] ? arguments[i] : {}; i % 2 ? BufferObject_ownKeys(Object(source), !0).forEach(function (key) { _defineProperty(target, key, source[key]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : BufferObject_ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } return target; }
+var BufferObject_ObjectType = BufferObject_Constants_Constants.ObjectType; // ----------------------------------------------------------------------------
+// Global methods
+// ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+// Static API
+// ----------------------------------------------------------------------------
+
+var BufferObject_STATIC = {}; // ----------------------------------------------------------------------------
+// vtkOpenGLBufferObject methods
+// ----------------------------------------------------------------------------
+
+function vtkOpenGLBufferObject(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkOpenGLBufferObject'); // Class-specific private functions
+
+  function convertType(type) {
+    switch (type) {
+      case BufferObject_ObjectType.ELEMENT_ARRAY_BUFFER:
+        return model.context.ELEMENT_ARRAY_BUFFER;
+
+      case BufferObject_ObjectType.TEXTURE_BUFFER:
+        if ('TEXTURE_BUFFER' in model.context) {
+          return model.context.TEXTURE_BUFFER;
+        }
+
+      /* eslint-disable no-fallthrough */
+      // Intentional fallthrough in case there is no TEXTURE_BUFFER in WebGL
+
+      case BufferObject_ObjectType.ARRAY_BUFFER:
+      default:
+        return model.context.ARRAY_BUFFER;
+
+      /* eslint-enable no-fallthrough */
+    }
+  }
+
+  var internalType = null;
+  var internalHandle = null;
+  var dirty = true;
+  var error = ''; // Public API methods
+
+  publicAPI.getType = function () {
+    return internalType;
+  };
+
+  publicAPI.setType = function (value) {
+    internalType = value;
+  };
+
+  publicAPI.getHandle = function () {
+    return internalHandle;
+  };
+
+  publicAPI.isReady = function () {
+    return dirty === false;
+  };
+
+  publicAPI.generateBuffer = function (type) {
+    var objectTypeGL = convertType(type);
+
+    if (internalHandle === null) {
+      internalHandle = model.context.createBuffer();
+      internalType = type;
+    }
+
+    return convertType(internalType) === objectTypeGL;
+  };
+
+  publicAPI.upload = function (data, type) {
+    // buffer, size, type
+    var alreadyGenerated = publicAPI.generateBuffer(type);
+
+    if (!alreadyGenerated) {
+      error = 'Trying to upload array buffer to incompatible buffer.';
+      return false;
+    }
+
+    model.context.bindBuffer(convertType(internalType), internalHandle);
+    model.context.bufferData(convertType(internalType), data, model.context.STATIC_DRAW);
+    dirty = false;
+    return true;
+  };
+
+  publicAPI.bind = function () {
+    if (!internalHandle) {
+      return false;
+    }
+
+    model.context.bindBuffer(convertType(internalType), internalHandle);
+    return true;
+  };
+
+  publicAPI.release = function () {
+    if (!internalHandle) {
+      return false;
+    }
+
+    model.context.bindBuffer(convertType(internalType), null);
+    return true;
+  };
+
+  publicAPI.releaseGraphicsResources = function () {
+    if (internalHandle !== null) {
+      model.context.bindBuffer(convertType(internalType), null);
+      model.context.deleteBuffer(internalHandle);
+      internalHandle = null;
+    }
+  };
+
+  publicAPI.setOpenGLRenderWindow = function (rw) {
+    if (model.openGLRenderWindow === rw) {
+      return;
+    }
+
+    publicAPI.releaseGraphicsResources();
+    model.openGLRenderWindow = rw;
+    model.context = null;
+
+    if (rw) {
+      model.context = model.openGLRenderWindow.getContext();
+    }
+  };
+
+  publicAPI.getError = function () {
+    return error;
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var BufferObject_DEFAULT_VALUES = {
+  objectType: BufferObject_ObjectType.ARRAY_BUFFER,
+  openGLRenderWindow: null,
+  context: null
+}; // ----------------------------------------------------------------------------
+
+function BufferObject_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, BufferObject_DEFAULT_VALUES, initialValues); // Object methods
+
+  macro.obj(publicAPI, model);
+  macro.get(publicAPI, model, ['openGLRenderWindow']);
+  vtkOpenGLBufferObject(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var BufferObject_newInstance = macro.newInstance(BufferObject_extend); // ----------------------------------------------------------------------------
+
+var vtkBufferObject = BufferObject_objectSpread(BufferObject_objectSpread({
+  newInstance: BufferObject_newInstance,
+  extend: BufferObject_extend
+}, BufferObject_STATIC), BufferObject_Constants_Constants);
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/CellArrayBufferObject.js
+
+
+
+
+
+
+var CellArrayBufferObject_vtkErrorMacro = macro.vtkErrorMacro; // ----------------------------------------------------------------------------
+// Static functions
+// ----------------------------------------------------------------------------
+
+function computeInverseShiftAndScaleMatrix(coordShift, coordScale) {
+  var inverseScale = new Float64Array(3);
+  inverse(inverseScale, coordScale);
+  var matrix = new Float64Array(16);
+  fromRotationTranslationScale(matrix, quat_create(), coordShift, inverseScale);
+  return matrix;
+}
+
+function shouldApplyCoordShiftAndScale(coordShift, coordScale) {
+  if (coordShift === null || coordScale === null) {
+    return false;
+  }
+
+  return !(exactEquals(coordShift, [0, 0, 0]) && exactEquals(coordScale, [1, 1, 1]));
+} // ----------------------------------------------------------------------------
+// vtkOpenGLCellArrayBufferObject methods
+// ----------------------------------------------------------------------------
+
+
+function vtkOpenGLCellArrayBufferObject(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkOpenGLCellArrayBufferObject');
+  publicAPI.setType(ObjectType.ARRAY_BUFFER);
+
+  publicAPI.createVBO = function (cellArray, inRep, outRep, options) {
+    if (!cellArray.getData() || !cellArray.getData().length) {
+      model.elementCount = 0;
+      return 0;
+    } // Figure out how big each block will be, currently 6 or 7 floats.
+
+
+    model.blockSize = 3;
+    model.vertexOffset = 0;
+    model.normalOffset = 0;
+    model.tCoordOffset = 0;
+    model.tCoordComponents = 0;
+    model.colorComponents = 0;
+    model.colorOffset = 0;
+    model.customData = [];
+    var pointData = options.points.getData();
+    var normalData = null;
+    var tcoordData = null;
+    var colorData = null;
+    var colorComponents = options.colors ? options.colors.getNumberOfComponents() : 0;
+    var textureComponents = options.tcoords ? options.tcoords.getNumberOfComponents() : 0; // the values of 4 below are because floats are 4 bytes
+
+    if (options.normals) {
+      model.normalOffset = 4 * model.blockSize;
+      model.blockSize += 3;
+      normalData = options.normals.getData();
+    }
+
+    if (options.customAttributes) {
+      options.customAttributes.forEach(function (a) {
+        if (a) {
+          model.customData.push({
+            data: a.getData(),
+            offset: 4 * model.blockSize,
+            components: a.getNumberOfComponents(),
+            name: a.getName()
+          });
+          model.blockSize += a.getNumberOfComponents();
+        }
+      });
+    }
+
+    if (options.tcoords) {
+      model.tCoordOffset = 4 * model.blockSize;
+      model.tCoordComponents = textureComponents;
+      model.blockSize += textureComponents;
+      tcoordData = options.tcoords.getData();
+    }
+
+    if (options.colors) {
+      model.colorComponents = options.colors.getNumberOfComponents();
+      model.colorOffset = 0;
+      colorData = options.colors.getData();
+
+      if (!model.colorBO) {
+        model.colorBO = vtkBufferObject.newInstance();
+      }
+
+      model.colorBO.setOpenGLRenderWindow(model.openGLRenderWindow);
+    } else {
+      model.colorBO = null;
+    }
+
+    model.stride = 4 * model.blockSize;
+    var pointIdx = 0;
+    var normalIdx = 0;
+    var tcoordIdx = 0;
+    var colorIdx = 0;
+    var custIdx = 0;
+    var cellCount = 0;
+    var addAPoint;
+    var cellBuilders = {
+      // easy, every input point becomes an output point
+      anythingToPoints: function anythingToPoints(numPoints, cellPts, offset) {
+        for (var i = 0; i < numPoints; ++i) {
+          addAPoint(cellPts[offset + i]);
+        }
+      },
+      linesToWireframe: function linesToWireframe(numPoints, cellPts, offset) {
+        // for lines we add a bunch of segments
+        for (var i = 0; i < numPoints - 1; ++i) {
+          addAPoint(cellPts[offset + i]);
+          addAPoint(cellPts[offset + i + 1]);
+        }
+      },
+      polysToWireframe: function polysToWireframe(numPoints, cellPts, offset) {
+        // for polys we add a bunch of segments and close it
+        if (numPoints > 2) {
+          for (var i = 0; i < numPoints; ++i) {
+            addAPoint(cellPts[offset + i]);
+            addAPoint(cellPts[offset + (i + 1) % numPoints]);
+          }
+        }
+      },
+      stripsToWireframe: function stripsToWireframe(numPoints, cellPts, offset) {
+        if (numPoints > 2) {
+          // for strips we add a bunch of segments and close it
+          for (var i = 0; i < numPoints - 1; ++i) {
+            addAPoint(cellPts[offset + i]);
+            addAPoint(cellPts[offset + i + 1]);
+          }
+
+          for (var _i = 0; _i < numPoints - 2; _i++) {
+            addAPoint(cellPts[offset + _i]);
+            addAPoint(cellPts[offset + _i + 2]);
+          }
+        }
+      },
+      polysToSurface: function polysToSurface(npts, cellPts, offset) {
+        for (var i = 0; i < npts - 2; i++) {
+          addAPoint(cellPts[offset + 0]);
+          addAPoint(cellPts[offset + i + 1]);
+          addAPoint(cellPts[offset + i + 2]);
+        }
+      },
+      stripsToSurface: function stripsToSurface(npts, cellPts, offset) {
+        for (var i = 0; i < npts - 2; i++) {
+          addAPoint(cellPts[offset + i]);
+          addAPoint(cellPts[offset + i + 1 + i % 2]);
+          addAPoint(cellPts[offset + i + 1 + (i + 1) % 2]);
+        }
+      }
+    };
+    var cellCounters = {
+      // easy, every input point becomes an output point
+      anythingToPoints: function anythingToPoints(numPoints, cellPts) {
+        return numPoints;
+      },
+      linesToWireframe: function linesToWireframe(numPoints, cellPts) {
+        if (numPoints > 1) {
+          return (numPoints - 1) * 2;
+        }
+
+        return 0;
+      },
+      polysToWireframe: function polysToWireframe(numPoints, cellPts) {
+        if (numPoints > 2) {
+          return numPoints * 2;
+        }
+
+        return 0;
+      },
+      stripsToWireframe: function stripsToWireframe(numPoints, cellPts) {
+        if (numPoints > 2) {
+          return numPoints * 4 - 6;
+        }
+
+        return 0;
+      },
+      polysToSurface: function polysToSurface(npts, cellPts) {
+        if (npts > 2) {
+          return (npts - 2) * 3;
+        }
+
+        return 0;
+      },
+      stripsToSurface: function stripsToSurface(npts, cellPts, offset) {
+        if (npts > 2) {
+          return (npts - 2) * 3;
+        }
+
+        return 0;
+      }
+    };
+    var func = null;
+    var countFunc = null;
+
+    if (outRep === Representation.POINTS || inRep === 'verts') {
+      func = cellBuilders.anythingToPoints;
+      countFunc = cellCounters.anythingToPoints;
+    } else if (outRep === Representation.WIREFRAME || inRep === 'lines') {
+      func = cellBuilders["".concat(inRep, "ToWireframe")];
+      countFunc = cellCounters["".concat(inRep, "ToWireframe")];
+    } else {
+      func = cellBuilders["".concat(inRep, "ToSurface")];
+      countFunc = cellCounters["".concat(inRep, "ToSurface")];
+    }
+
+    var array = cellArray.getData();
+    var size = array.length;
+    var caboCount = 0;
+
+    for (var index = 0; index < size;) {
+      caboCount += countFunc(array[index], array);
+      index += array[index] + 1;
+    }
+
+    var packedUCVBO = null;
+    var packedVBO = new Float32Array(caboCount * model.blockSize);
+
+    if (colorData) {
+      packedUCVBO = new Uint8Array(caboCount * 4);
+    }
+
+    var vboidx = 0;
+    var ucidx = 0; // Find out if shift scale should be used
+    // Compute squares of diagonal size and distance from the origin
+
+    var diagSq = 0.0;
+    var distSq = 0.0;
+
+    for (var i = 0; i < 3; ++i) {
+      var range = options.points.getRange(i);
+      var delta = range[1] - range[0];
+      diagSq += delta * delta;
+      var distShift = 0.5 * (range[1] + range[0]);
+      distSq += distShift * distShift;
+    }
+
+    var useShiftAndScale = diagSq > 0 && (Math.abs(distSq) / diagSq > 1.0e6 || // If data is far from the origin relative to its size
+    Math.abs(Math.log10(diagSq)) > 3.0 || // If the size is huge when not far from the origin
+    diagSq === 0 && distSq > 1.0e6); // If data is a point, but far from the origin
+
+    if (useShiftAndScale) {
+      // Compute shift and scale vectors
+      var coordShift = new Float64Array(3);
+      var coordScale = new Float64Array(3);
+
+      for (var _i2 = 0; _i2 < 3; ++_i2) {
+        var _range = options.points.getRange(_i2);
+
+        var _delta = _range[1] - _range[0];
+
+        coordShift[_i2] = 0.5 * (_range[1] + _range[0]);
+        coordScale[_i2] = _delta > 0 ? 1.0 / _delta : 1.0;
+      }
+
+      publicAPI.setCoordShiftAndScale(coordShift, coordScale);
+    } else if (model.coordShiftAndScaleEnabled === true) {
+      // Make sure to reset
+      publicAPI.setCoordShiftAndScale(null, null);
+    }
+
+    addAPoint = function addAPointFunc(i) {
+      // Vertices
+      pointIdx = i * 3;
+
+      if (!model.coordShiftAndScaleEnabled) {
+        packedVBO[vboidx++] = pointData[pointIdx++];
+        packedVBO[vboidx++] = pointData[pointIdx++];
+        packedVBO[vboidx++] = pointData[pointIdx++];
+      } else {
+        // Apply shift and scale
+        packedVBO[vboidx++] = (pointData[pointIdx++] - model.coordShift[0]) * model.coordScale[0];
+        packedVBO[vboidx++] = (pointData[pointIdx++] - model.coordShift[1]) * model.coordScale[1];
+        packedVBO[vboidx++] = (pointData[pointIdx++] - model.coordShift[2]) * model.coordScale[2];
+      }
+
+      if (normalData !== null) {
+        if (options.haveCellNormals) {
+          normalIdx = (cellCount + options.cellOffset) * 3;
+        } else {
+          normalIdx = i * 3;
+        }
+
+        packedVBO[vboidx++] = normalData[normalIdx++];
+        packedVBO[vboidx++] = normalData[normalIdx++];
+        packedVBO[vboidx++] = normalData[normalIdx++];
+      }
+
+      model.customData.forEach(function (attr) {
+        custIdx = i * attr.components;
+
+        for (var j = 0; j < attr.components; ++j) {
+          packedVBO[vboidx++] = attr.data[custIdx++];
+        }
+      });
+
+      if (tcoordData !== null) {
+        tcoordIdx = i * textureComponents;
+
+        for (var j = 0; j < textureComponents; ++j) {
+          packedVBO[vboidx++] = tcoordData[tcoordIdx++];
+        }
+      }
+
+      if (colorData !== null) {
+        if (options.haveCellScalars) {
+          colorIdx = (cellCount + options.cellOffset) * colorComponents;
+        } else {
+          colorIdx = i * colorComponents;
+        }
+
+        packedUCVBO[ucidx++] = colorData[colorIdx++];
+        packedUCVBO[ucidx++] = colorData[colorIdx++];
+        packedUCVBO[ucidx++] = colorData[colorIdx++];
+        packedUCVBO[ucidx++] = colorComponents === 4 ? colorData[colorIdx++] : 255;
+      }
+    };
+
+    for (var _index = 0; _index < size;) {
+      func(array[_index], array, _index + 1);
+      _index += array[_index] + 1;
+      cellCount++;
+    }
+
+    model.elementCount = caboCount;
+    publicAPI.upload(packedVBO, ObjectType.ARRAY_BUFFER);
+
+    if (model.colorBO) {
+      model.colorBOStride = 4;
+      model.colorBO.upload(packedUCVBO, ObjectType.ARRAY_BUFFER);
+    }
+
+    return cellCount;
+  };
+
+  publicAPI.setCoordShiftAndScale = function (coordShift, coordScale) {
+    if (coordShift !== null && (coordShift.constructor !== Float64Array || coordShift.length !== 3)) {
+      CellArrayBufferObject_vtkErrorMacro('Wrong type for coordShift, expected vec3 or null');
+      return;
+    }
+
+    if (coordScale !== null && (coordScale.constructor !== Float64Array || coordScale.length !== 3)) {
+      CellArrayBufferObject_vtkErrorMacro('Wrong type for coordScale, expected vec3 or null');
+      return;
+    }
+
+    if (model.coordShift === null || coordShift === null || !vec3_equals(coordShift, model.coordShift)) {
+      model.coordShift = coordShift;
+    }
+
+    if (model.coordScale === null || coordScale === null || !vec3_equals(coordScale, model.coordScale)) {
+      model.coordScale = coordScale;
+    }
+
+    model.coordShiftAndScaleEnabled = shouldApplyCoordShiftAndScale(model.coordShift, model.coordScale);
+
+    if (model.coordShiftAndScaleEnabled) {
+      model.inverseShiftAndScaleMatrix = computeInverseShiftAndScaleMatrix(model.coordShift, model.coordScale);
+    } else {
+      model.inverseShiftAndScaleMatrix = null;
+    }
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var CellArrayBufferObject_DEFAULT_VALUES = {
+  elementCount: 0,
+  stride: 0,
+  colorBOStride: 0,
+  vertexOffset: 0,
+  normalOffset: 0,
+  tCoordOffset: 0,
+  tCoordComponents: 0,
+  colorOffset: 0,
+  colorComponents: 0,
+  tcoordBO: null,
+  customData: [],
+  coordShift: null,
+  coordScale: null,
+  coordShiftAndScaleEnabled: false,
+  inverseShiftAndScaleMatrix: null
+}; // ----------------------------------------------------------------------------
+
+function CellArrayBufferObject_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, CellArrayBufferObject_DEFAULT_VALUES, initialValues); // Inheritance
+
+  vtkBufferObject.extend(publicAPI, model, initialValues);
+  macro.setGet(publicAPI, model, ['colorBO', 'elementCount', 'stride', 'colorBOStride', 'vertexOffset', 'normalOffset', 'tCoordOffset', 'tCoordComponents', 'colorOffset', 'colorComponents', 'customData']);
+  macro.get(publicAPI, model, ['coordShift', 'coordScale', 'coordShiftAndScaleEnabled', 'inverseShiftAndScaleMatrix']); // Object specific methods
+
+  vtkOpenGLCellArrayBufferObject(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var CellArrayBufferObject_newInstance = macro.newInstance(CellArrayBufferObject_extend); // ----------------------------------------------------------------------------
+
+var vtkCellArrayBufferObject = {
+  newInstance: CellArrayBufferObject_newInstance,
+  extend: CellArrayBufferObject_extend
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/VertexArrayObject.js
+
+
+
+// vtkOpenGLVertexArrayObject methods
+// ----------------------------------------------------------------------------
+
+function vtkOpenGLVertexArrayObject(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkOpenGLVertexArrayObject'); // Public API methods
+
+  publicAPI.exposedMethod = function () {// This is a publicly exposed method of this object
+  };
+
+  publicAPI.initialize = function () {
+    model.instancingExtension = null;
+
+    if (!model.openGLRenderWindow.getWebgl2()) {
+      model.instancingExtension = model.context.getExtension('ANGLE_instanced_arrays');
+    }
+
+    if (!model.forceEmulation && model.openGLRenderWindow && model.openGLRenderWindow.getWebgl2()) {
+      model.extension = null;
+      model.supported = true;
+      model.handleVAO = model.context.createVertexArray();
+    } else {
+      model.extension = model.context.getExtension('OES_vertex_array_object'); // Start setting up VAO
+
+      if (!model.forceEmulation && model.extension) {
+        model.supported = true;
+        model.handleVAO = model.extension.createVertexArrayOES();
+      } else {
+        model.supported = false;
+      }
+    }
+  };
+
+  publicAPI.isReady = function () {
+    return (// We either probed and allocated a VAO, or are falling back as the current
+      // hardware does not support VAOs.
+      model.handleVAO !== 0 || model.supported === false
+    );
+  };
+
+  publicAPI.bind = function () {
+    // Either simply bind the VAO, or emulate behavior by binding all attributes.
+    if (!publicAPI.isReady()) {
+      publicAPI.initialize();
+    }
+
+    if (publicAPI.isReady() && model.supported) {
+      if (model.extension) {
+        model.extension.bindVertexArrayOES(model.handleVAO);
+      } else {
+        model.context.bindVertexArray(model.handleVAO);
+      }
+    } else if (publicAPI.isReady()) {
+      var gl = model.context;
+
+      for (var ibuff = 0; ibuff < model.buffers.length; ++ibuff) {
+        var buff = model.buffers[ibuff];
+        model.context.bindBuffer(gl.ARRAY_BUFFER, buff.buffer);
+
+        for (var iatt = 0; iatt < buff.attributes.length; ++iatt) {
+          var attrIt = buff.attributes[iatt];
+          var matrixCount = attrIt.isMatrix ? attrIt.size : 1;
+
+          for (var i = 0; i < matrixCount; ++i) {
+            gl.enableVertexAttribArray(attrIt.index + i);
+            gl.vertexAttribPointer(attrIt.index + i, attrIt.size, attrIt.type, attrIt.normalize, attrIt.stride, attrIt.offset + attrIt.stride * i / attrIt.size);
+
+            if (attrIt.divisor > 0) {
+              if (model.instancingExtension) {
+                model.instancingExtension.vertexAttribDivisorANGLE(attrIt.index + i, 1);
+              } else {
+                gl.vertexAttribDivisor(attrIt.index + i, 1);
+              }
+            }
+          }
+        }
+      }
+    }
+  };
+
+  publicAPI.release = function () {
+    // Either simply release the VAO, or emulate behavior by releasing all attributes.
+    if (publicAPI.isReady() && model.supported) {
+      if (model.extension) {
+        model.extension.bindVertexArrayOES(null);
+      } else {
+        model.context.bindVertexArray(null);
+      }
+    } else if (publicAPI.isReady()) {
+      var gl = model.context;
+
+      for (var ibuff = 0; ibuff < model.buffers.length; ++ibuff) {
+        var buff = model.buffers[ibuff];
+        model.context.bindBuffer(gl.ARRAY_BUFFER, buff.buffer);
+
+        for (var iatt = 0; iatt < buff.attributes.length; ++iatt) {
+          var attrIt = buff.attributes[iatt];
+          var matrixCount = attrIt.isMatrix ? attrIt.size : 1;
+
+          for (var i = 0; i < matrixCount; ++i) {
+            gl.enableVertexAttribArray(attrIt.index + i);
+            gl.vertexAttribPointer(attrIt.index + i, attrIt.size, attrIt.type, attrIt.normalize, attrIt.stride, attrIt.offset + attrIt.stride * i / attrIt.size);
+
+            if (attrIt.divisor > 0) {
+              if (model.instancingExtension) {
+                model.instancingExtension.vertexAttribDivisorANGLE(attrIt.index + i, 0);
+              } else {
+                gl.vertexAttribDivisor(attrIt.index + i, 0);
+              }
+            }
+
+            gl.disableVertexAttribArray(attrIt.index + i);
+          }
+        }
+      }
+    }
+  };
+
+  publicAPI.shaderProgramChanged = function () {
+    publicAPI.release();
+
+    if (model.handleVAO) {
+      if (model.extension) {
+        model.extension.deleteVertexArrayOES(model.handleVAO);
+      } else {
+        model.context.deleteVertexArray(model.handleVAO);
+      }
+    }
+
+    model.handleVAO = 0;
+    model.handleProgram = 0;
+  };
+
+  publicAPI.releaseGraphicsResources = function () {
+    publicAPI.shaderProgramChanged();
+
+    if (model.handleVAO) {
+      if (model.extension) {
+        model.extension.deleteVertexArrayOES(model.handleVAO);
+      } else {
+        model.context.deleteVertexArray(model.handleVAO);
+      }
+    }
+
+    model.handleVAO = 0;
+    model.supported = true;
+    model.handleProgram = 0;
+  };
+
+  publicAPI.addAttributeArray = function (program, buffer, name, offset, stride, elementType, elementTupleSize, normalize) {
+    return publicAPI.addAttributeArrayWithDivisor(program, buffer, name, offset, stride, elementType, elementTupleSize, normalize, 0, false);
+  };
+
+  publicAPI.addAttributeArrayWithDivisor = function (program, buffer, name, offset, stride, elementType, elementTupleSize, normalize, divisor, isMatrix) {
+    if (!program) {
+      return false;
+    } // Check the program is bound, and the buffer is valid.
+
+
+    if (!program.isBound() || buffer.getHandle() === 0 || buffer.getType() !== ObjectType.ARRAY_BUFFER) {
+      return false;
+    } // Perform initialization if necessary, ensure program matches VAOs.
+
+
+    if (model.handleProgram === 0) {
+      model.handleProgram = program.getHandle();
+    }
+
+    if (!publicAPI.isReady()) {
+      publicAPI.initialize();
+    }
+
+    if (!publicAPI.isReady() || model.handleProgram !== program.getHandle()) {
+      return false;
+    }
+
+    var gl = model.context;
+    var attribs = {};
+    attribs.name = name;
+    attribs.index = gl.getAttribLocation(model.handleProgram, name);
+    attribs.offset = offset;
+    attribs.stride = stride;
+    attribs.type = elementType;
+    attribs.size = elementTupleSize;
+    attribs.normalize = normalize;
+    attribs.isMatrix = isMatrix;
+    attribs.divisor = divisor;
+
+    if (attribs.Index === -1) {
+      return false;
+    } // Always make the call as even the first use wants the attrib pointer setting
+    // up when we are emulating.
+
+
+    buffer.bind();
+    gl.enableVertexAttribArray(attribs.index);
+    gl.vertexAttribPointer(attribs.index, attribs.size, attribs.type, attribs.normalize, attribs.stride, attribs.offset);
+
+    if (divisor > 0) {
+      if (model.instancingExtension) {
+        model.instancingExtension.vertexAttribDivisorANGLE(attribs.index, 1);
+      } else {
+        gl.vertexAttribDivisor(attribs.index, 1);
+      }
+    }
+
+    attribs.buffer = buffer.getHandle(); // If vertex array objects are not supported then build up our list.
+
+    if (!model.supported) {
+      // find the buffer
+      var buffFound = false;
+
+      for (var ibuff = 0; ibuff < model.buffers.length; ++ibuff) {
+        var buff = model.buffers[ibuff];
+
+        if (buff.buffer === attribs.buffer) {
+          buffFound = true;
+          var found = false;
+
+          for (var iatt = 0; iatt < buff.attributes.length; ++iatt) {
+            var attrIt = buff.attributes[iatt];
+
+            if (attrIt.name === name) {
+              found = true;
+              buff.attributes[iatt] = attribs;
+            }
+          }
+
+          if (!found) {
+            buff.attributes.push(attribs);
+          }
+        }
+      }
+
+      if (!buffFound) {
+        model.buffers.push({
+          buffer: attribs.buffer,
+          attributes: [attribs]
+        });
+      }
+    }
+
+    return true;
+  };
+
+  publicAPI.addAttributeMatrixWithDivisor = function (program, buffer, name, offset, stride, elementType, elementTupleSize, normalize, divisor) {
+    // bind the first row of values
+    var result = publicAPI.addAttributeArrayWithDivisor(program, buffer, name, offset, stride, elementType, elementTupleSize, normalize, divisor, true);
+
+    if (!result) {
+      return result;
+    }
+
+    var gl = model.context;
+    var index = gl.getAttribLocation(model.handleProgram, name);
+
+    for (var i = 1; i < elementTupleSize; i++) {
+      gl.enableVertexAttribArray(index + i);
+      gl.vertexAttribPointer(index + i, elementTupleSize, elementType, normalize, stride, offset + stride * i / elementTupleSize);
+
+      if (divisor > 0) {
+        if (model.instancingExtension) {
+          model.instancingExtension.vertexAttribDivisorANGLE(index + i, 1);
+        } else {
+          gl.vertexAttribDivisor(index + i, 1);
+        }
+      }
+    }
+
+    return true;
+  };
+
+  publicAPI.removeAttributeArray = function (name) {
+    if (!publicAPI.isReady() || model.handleProgram === 0) {
+      return false;
+    } // If we don't have real VAOs find the entry and remove it too.
+
+
+    if (!model.supported) {
+      for (var ibuff = 0; ibuff < model.buffers.length; ++ibuff) {
+        var buff = model.buffers[ibuff];
+
+        for (var iatt = 0; iatt < buff.attributes.length; ++iatt) {
+          var attrIt = buff.attributes[iatt];
+
+          if (attrIt.name === name) {
+            buff.attributes.splice(iatt, 1);
+
+            if (!buff.attributes.length) {
+              model.buffers.splice(ibuff, 1);
+            }
+
+            return true;
+          }
+        }
+      }
+    }
+
+    return true;
+  };
+
+  publicAPI.setOpenGLRenderWindow = function (rw) {
+    if (model.openGLRenderWindow === rw) {
+      return;
+    }
+
+    publicAPI.releaseGraphicsResources();
+    model.openGLRenderWindow = rw;
+    model.context = null;
+
+    if (rw) {
+      model.context = model.openGLRenderWindow.getContext();
+    }
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var VertexArrayObject_DEFAULT_VALUES = {
+  forceEmulation: false,
+  handleVAO: 0,
+  handleProgram: 0,
+  supported: true,
+  buffers: null,
+  context: null,
+  openGLRenderWindow: null
+}; // ----------------------------------------------------------------------------
+
+function VertexArrayObject_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, VertexArrayObject_DEFAULT_VALUES, initialValues); // Internal objects initialization
+
+  model.buffers = []; // Object methods
+
+  macro.obj(publicAPI, model); // Create get-only macros
+
+  macro.get(publicAPI, model, ['supported']); // Create get-set macros
+
+  macro.setGet(publicAPI, model, ['forceEmulation']); // For more macro methods, see "Sources/macros.js"
+  // Object specific methods
+
+  vtkOpenGLVertexArrayObject(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var VertexArrayObject_newInstance = macro.newInstance(VertexArrayObject_extend, 'vtkOpenGLVertexArrayObject'); // ----------------------------------------------------------------------------
+
+var vtkVertexArrayObject = {
+  newInstance: VertexArrayObject_newInstance,
+  extend: VertexArrayObject_extend
+};
+
+
+
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/Helper.js
+
+
+
+
+
+// vtkOpenGLHelper methods
+// ----------------------------------------------------------------------------
+
+function vtkOpenGLHelper(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkOpenGLHelper');
+
+  publicAPI.setOpenGLRenderWindow = function (win) {
+    model.program.setContext(win.getContext());
+    model.VAO.setOpenGLRenderWindow(win);
+    model.CABO.setOpenGLRenderWindow(win);
+  };
+
+  publicAPI.releaseGraphicsResources = function (oglwin) {
+    model.VAO.releaseGraphicsResources();
+    model.CABO.releaseGraphicsResources();
+    model.CABO.setElementCount(0);
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var Helper_DEFAULT_VALUES = {
+  program: null,
+  shaderSourceTime: null,
+  VAO: null,
+  attributeUpdateTime: null,
+  CABO: null,
+  primitiveType: 0
+}; // ----------------------------------------------------------------------------
+
+function Helper_extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, Helper_DEFAULT_VALUES, initialValues); // Build VTK API
+
+  macro.obj(publicAPI, model);
+  model.shaderSourceTime = {};
+  macro.obj(model.shaderSourceTime);
+  model.attributeUpdateTime = {};
+  macro.obj(model.attributeUpdateTime);
+  macro.setGet(publicAPI, model, ['program', 'shaderSourceTime', 'VAO', 'attributeUpdateTime', 'CABO', 'primitiveType']);
+  model.program = vtkShaderProgram$1.newInstance();
+  model.VAO = vtkVertexArrayObject.newInstance();
+  model.CABO = vtkCellArrayBufferObject.newInstance(); // Object methods
+
+  vtkOpenGLHelper(publicAPI, model);
+} // ----------------------------------------------------------------------------
+
+var Helper_newInstance = macro.newInstance(Helper_extend); // ----------------------------------------------------------------------------
+
+var vtkHelper = {
+  newInstance: Helper_newInstance,
+  extend: Helper_extend
+};
+
+
+
 ;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/ImageProperty/Constants.js
 var Constants_InterpolationType = {
   NEAREST: 0,
@@ -35830,216 +40905,6 @@ var Volume_vtkVolume = {
 }; // Register ourself to OpenGL backend if imported
 
 registerOverride('vtkVolume', OpenGL_Volume_newInstance);
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/Framebuffer.js
-
-
-
-
-
-// vtkFramebuffer methods
-// ----------------------------------------------------------------------------
-
-function vtkFramebuffer(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkFramebuffer');
-
-  publicAPI.getBothMode = function () {
-    return model.context.FRAMEBUFFER;
-  }; // publicAPI.getDrawMode = () => model.context.DRAW_FRAMEBUFFER;
-  // publicAPI.getReadMode = () => model.context.READ_FRAMEBUFFER;
-
-
-  publicAPI.saveCurrentBindingsAndBuffers = function (modeIn) {
-    var mode = typeof modeIn !== 'undefined' ? modeIn : publicAPI.getBothMode();
-    publicAPI.saveCurrentBindings(mode);
-    publicAPI.saveCurrentBuffers(mode);
-  };
-
-  publicAPI.saveCurrentBindings = function (modeIn) {
-    var gl = model.context;
-    model.previousDrawBinding = gl.getParameter(model.context.FRAMEBUFFER_BINDING);
-    model.previousActiveFramebuffer = model.openGLRenderWindow.getActiveFramebuffer();
-  };
-
-  publicAPI.saveCurrentBuffers = function (modeIn) {// noop on webgl 1
-  };
-
-  publicAPI.restorePreviousBindingsAndBuffers = function (modeIn) {
-    var mode = typeof modeIn !== 'undefined' ? modeIn : publicAPI.getBothMode();
-    publicAPI.restorePreviousBindings(mode);
-    publicAPI.restorePreviousBuffers(mode);
-  };
-
-  publicAPI.restorePreviousBindings = function (modeIn) {
-    var gl = model.context;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, model.previousDrawBinding);
-    model.openGLRenderWindow.setActiveFramebuffer(model.previousActiveFramebuffer);
-  };
-
-  publicAPI.restorePreviousBuffers = function (modeIn) {// currently a noop on webgl1
-  };
-
-  publicAPI.bind = function () {
-    model.context.bindFramebuffer(model.context.FRAMEBUFFER, model.glFramebuffer);
-
-    if (model.colorTexture) {
-      model.colorTexture.bind();
-    }
-
-    model.openGLRenderWindow.setActiveFramebuffer(publicAPI);
-  };
-
-  publicAPI.create = function (width, height) {
-    model.glFramebuffer = model.context.createFramebuffer();
-    model.glFramebuffer.width = width;
-    model.glFramebuffer.height = height;
-  };
-
-  publicAPI.setColorBuffer = function (texture) {
-    var attachment = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
-    var gl = model.context;
-    var glAttachment = gl.COLOR_ATTACHMENT0;
-
-    if (attachment > 0) {
-      if (model.openGLRenderWindow.getWebgl2()) {
-        glAttachment += attachment;
-      } else {
-        vtkErrorMacro('Using multiple framebuffer attachments requires WebGL 2');
-        return;
-      }
-    }
-
-    model.colorTexture = texture;
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, glAttachment, gl.TEXTURE_2D, texture.getHandle(), 0);
-  };
-
-  publicAPI.removeColorBuffer = function () {
-    var attachment = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 0;
-    var gl = model.context;
-    var glAttachment = gl.COLOR_ATTACHMENT0;
-
-    if (attachment > 0) {
-      if (model.openGLRenderWindow.getWebgl2()) {
-        glAttachment += attachment;
-      } else {
-        vtkErrorMacro('Using multiple framebuffer attachments requires WebGL 2');
-        return;
-      }
-    }
-
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, glAttachment, gl.TEXTURE_2D, null, 0);
-  };
-
-  publicAPI.setDepthBuffer = function (texture) {
-    if (model.openGLRenderWindow.getWebgl2()) {
-      var gl = model.context;
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, texture.getHandle(), 0);
-    } else {
-      vtkErrorMacro('Attaching depth buffer textures to fbo requires WebGL 2');
-    }
-  };
-
-  publicAPI.removeDepthBuffer = function () {
-    if (model.openGLRenderWindow.getWebgl2()) {
-      var gl = model.context;
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, null, 0);
-    } else {
-      vtkErrorMacro('Attaching depth buffer textures to framebuffers requires WebGL 2');
-    }
-  };
-
-  publicAPI.getGLFramebuffer = function () {
-    return model.glFramebuffer;
-  };
-
-  publicAPI.setOpenGLRenderWindow = function (rw) {
-    if (model.openGLRenderWindow === rw) {
-      return;
-    }
-
-    publicAPI.releaseGraphicsResources();
-    model.openGLRenderWindow = rw;
-    model.context = null;
-
-    if (rw) {
-      model.context = model.openGLRenderWindow.getContext();
-    }
-  };
-
-  publicAPI.releaseGraphicsResources = function () {
-    if (model.glFramebuffer) {
-      model.context.deleteFramebuffer(model.glFramebuffer);
-    }
-
-    if (model.colorTexture) {
-      model.colorTexture.releaseGraphicsResources();
-    }
-  };
-
-  publicAPI.getSize = function () {
-    var size = [0, 0];
-
-    if (model.glFramebuffer !== null) {
-      size[0] = model.glFramebuffer.width;
-      size[1] = model.glFramebuffer.height;
-    }
-
-    return size;
-  };
-
-  publicAPI.populateFramebuffer = function () {
-    publicAPI.bind();
-    var gl = model.context;
-    var texture = vtkOpenGLTexture$1.newInstance();
-    texture.setOpenGLRenderWindow(model.openGLRenderWindow);
-    texture.setMinificationFilter(Filter.LINEAR);
-    texture.setMagnificationFilter(Filter.LINEAR);
-    texture.create2DFromRaw(model.glFramebuffer.width, model.glFramebuffer.height, 4, VtkDataTypes.UNSIGNED_CHAR, null);
-    publicAPI.setColorBuffer(texture); // for now do not count on having a depth buffer texture
-    // as they are not standard webgl 1
-
-    model.depthTexture = gl.createRenderbuffer();
-    gl.bindRenderbuffer(gl.RENDERBUFFER, model.depthTexture);
-    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, model.glFramebuffer.width, model.glFramebuffer.height);
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, model.depthTexture);
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var Framebuffer_DEFAULT_VALUES = {
-  openGLRenderWindow: null,
-  glFramebuffer: null,
-  colorTexture: null,
-  depthTexture: null,
-  previousDrawBinding: 0,
-  previousReadBinding: 0,
-  previousDrawBuffer: 0,
-  previousReadBuffer: 0,
-  previousActiveFramebuffer: null
-}; // ----------------------------------------------------------------------------
-
-function Framebuffer_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, Framebuffer_DEFAULT_VALUES, initialValues); // Build VTK API
-
-  obj(publicAPI, model);
-  setGet(publicAPI, model, ['colorTexture']); // For more macro methods, see "Sources/macros.js"
-  // Object specific methods
-
-  vtkFramebuffer(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var Framebuffer_newInstance = newInstance(Framebuffer_extend, 'vtkFramebuffer'); // ----------------------------------------------------------------------------
-
-var vtkOpenGLFramebuffer = {
-  newInstance: Framebuffer_newInstance,
-  extend: Framebuffer_extend
-};
 
 
 
@@ -37727,15 +42592,15 @@ function vtkWebGPUShaderCache(publicAPI, model) {
 // ----------------------------------------------------------------------------
 
 
-var ShaderCache_DEFAULT_VALUES = {
+var WebGPU_ShaderCache_DEFAULT_VALUES = {
   shaderModules: null,
   device: null,
   window: null
 }; // ----------------------------------------------------------------------------
 
-function ShaderCache_extend(publicAPI, model) {
+function WebGPU_ShaderCache_extend(publicAPI, model) {
   var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, ShaderCache_DEFAULT_VALUES, initialValues); // Internal objects
+  Object.assign(model, WebGPU_ShaderCache_DEFAULT_VALUES, initialValues); // Internal objects
 
   model._shaderModules = new Map(); // Build VTK API
 
@@ -37745,11 +42610,11 @@ function ShaderCache_extend(publicAPI, model) {
   vtkWebGPUShaderCache(publicAPI, model);
 } // ----------------------------------------------------------------------------
 
-var ShaderCache_newInstance = macro.newInstance(ShaderCache_extend, 'vtkWebGPUShaderCache'); // ----------------------------------------------------------------------------
+var WebGPU_ShaderCache_newInstance = macro.newInstance(WebGPU_ShaderCache_extend, 'vtkWebGPUShaderCache'); // ----------------------------------------------------------------------------
 
 var vtkWebGPUShaderCache$1 = {
-  newInstance: ShaderCache_newInstance,
-  extend: ShaderCache_extend,
+  newInstance: WebGPU_ShaderCache_newInstance,
+  extend: WebGPU_ShaderCache_extend,
   substitute: ShaderCache_substitute
 };
 
@@ -48944,836 +53809,6 @@ var vtkWebGPUTexture$1 = {
 
 
 
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/HardwareSelector/Constants.js
-var PassTypes = {
-  MIN_KNOWN_PASS: 0,
-  ACTOR_PASS: 0,
-  COMPOSITE_INDEX_PASS: 1,
-  ID_LOW24: 2,
-  MAX_KNOWN_PASS: 2
-};
-var HardwareSelector_Constants_Constants = {
-  PassTypes: PassTypes
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/HardwareSelector.js
-
-
-
-
-
-var HardwareSelector_FieldAssociations = vtkDataSet$1.FieldAssociations; // ----------------------------------------------------------------------------
-// vtkHardwareSelector methods
-// ----------------------------------------------------------------------------
-
-function vtkHardwareSelector(publicAPI, model) {
-  model.classHierarchy.push('vtkHardwareSelector'); // get the source data that is used for generating a selection. This
-  // must be called at least once before calling generateSelection. In
-  // raster based backends this method will capture the buffers. You can
-  // call this once and then make multiple calls to generateSelection.
-
-  publicAPI.getSourceDataAsync = /*#__PURE__*/function () {
-    var _ref = _asyncToGenerator( /*#__PURE__*/regenerator_default().mark(function _callee(renderer, fx1, fy1, fx2, fy2) {
-      return regenerator_default().wrap(function _callee$(_context) {
-        while (1) {
-          switch (_context.prev = _context.next) {
-            case 0:
-            case "end":
-              return _context.stop();
-          }
-        }
-      }, _callee);
-    }));
-
-    return function (_x, _x2, _x3, _x4, _x5) {
-      return _ref.apply(this, arguments);
-    };
-  }();
-
-  publicAPI.selectAsync = /*#__PURE__*/function () {
-    var _ref2 = _asyncToGenerator( /*#__PURE__*/regenerator_default().mark(function _callee2(renderer, fx1, fy1, fx2, fy2) {
-      var srcData;
-      return regenerator_default().wrap(function _callee2$(_context2) {
-        while (1) {
-          switch (_context2.prev = _context2.next) {
-            case 0:
-              _context2.next = 2;
-              return publicAPI.getSourceDataAsync(renderer, fx1, fy1, fx2, fy2);
-
-            case 2:
-              srcData = _context2.sent;
-
-              if (!srcData) {
-                _context2.next = 5;
-                break;
-              }
-
-              return _context2.abrupt("return", srcData.generateSelection(fx1, fy1, fx2, fy2));
-
-            case 5:
-              return _context2.abrupt("return", []);
-
-            case 6:
-            case "end":
-              return _context2.stop();
-          }
-        }
-      }, _callee2);
-    }));
-
-    return function (_x6, _x7, _x8, _x9, _x10) {
-      return _ref2.apply(this, arguments);
-    };
-  }();
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var HardwareSelector_DEFAULT_VALUES = {
-  fieldAssociation: HardwareSelector_FieldAssociations.FIELD_ASSOCIATION_CELLS,
-  captureZValues: false
-}; // ----------------------------------------------------------------------------
-
-function HardwareSelector_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, HardwareSelector_DEFAULT_VALUES, initialValues); // Inheritance
-
-  macro.obj(publicAPI, model);
-  macro.setGet(publicAPI, model, ['fieldAssociation', 'captureZValues']); // Object methods
-
-  vtkHardwareSelector(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var HardwareSelector_newInstance = macro.newInstance(HardwareSelector_extend, 'vtkHardwareSelector'); // ----------------------------------------------------------------------------
-
-var vtkHardwareSelector$1 = {
-  newInstance: HardwareSelector_newInstance,
-  extend: HardwareSelector_extend
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/HardwareSelector.js
-
-
-
-
-
-
-
-
-
-
-
-function HardwareSelector_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); enumerableOnly && (symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; })), keys.push.apply(keys, symbols); } return keys; }
-
-function HardwareSelector_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = null != arguments[i] ? arguments[i] : {}; i % 2 ? HardwareSelector_ownKeys(Object(source), !0).forEach(function (key) { _defineProperty(target, key, source[key]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : HardwareSelector_ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } return target; }
-var HardwareSelector_PassTypes = HardwareSelector_Constants_Constants.PassTypes;
-var HardwareSelector_SelectionContent = vtkSelectionNode$1.SelectionContent,
-    HardwareSelector_SelectionField = vtkSelectionNode$1.SelectionField;
-var OpenGL_HardwareSelector_FieldAssociations = vtkDataSet$1.FieldAssociations;
-var HardwareSelector_vtkErrorMacro = macro.vtkErrorMacro;
-var idOffset = 1;
-
-function getInfoHash(info) {
-  return "".concat(info.propID, " ").concat(info.compositeID);
-}
-
-function convert(xx, yy, pb, area) {
-  if (!pb) {
-    return 0;
-  }
-
-  var offset = (yy * (area[2] - area[0] + 1) + xx) * 4;
-  var rgb = [];
-  rgb[0] = pb[offset];
-  rgb[1] = pb[offset + 1];
-  rgb[2] = pb[offset + 2];
-  var val = rgb[2];
-  val *= 256;
-  val += rgb[1];
-  val *= 256;
-  val += rgb[0];
-  return val;
-}
-
-function getPixelInformationWithData(buffdata, inDisplayPosition, maxDistance, outSelectedPosition) {
-  // Base case
-  var maxDist = maxDistance < 0 ? 0 : maxDistance;
-
-  if (maxDist === 0) {
-    outSelectedPosition[0] = inDisplayPosition[0];
-    outSelectedPosition[1] = inDisplayPosition[1];
-
-    if (inDisplayPosition[0] < buffdata.area[0] || inDisplayPosition[0] > buffdata.area[2] || inDisplayPosition[1] < buffdata.area[1] || inDisplayPosition[1] > buffdata.area[3]) {
-      return null;
-    } // offset inDisplayPosition based on the lower-left-corner of the Area.
-
-
-    var displayPosition = [inDisplayPosition[0] - buffdata.area[0], inDisplayPosition[1] - buffdata.area[1]];
-    var actorid = convert(displayPosition[0], displayPosition[1], buffdata.pixBuffer[HardwareSelector_PassTypes.ACTOR_PASS], buffdata.area);
-
-    if (actorid <= 0 || actorid - idOffset >= buffdata.props.length) {
-      // the pixel did not hit any actor.
-      return null;
-    }
-
-    var _info = {};
-    _info.valid = true;
-    _info.propID = actorid - idOffset;
-    _info.prop = buffdata.props[_info.propID];
-    var compositeID = convert(displayPosition[0], displayPosition[1], buffdata.pixBuffer[HardwareSelector_PassTypes.COMPOSITE_INDEX_PASS], buffdata.area);
-
-    if (compositeID < 0 || compositeID > 0xffffff) {
-      compositeID = 0;
-    }
-
-    _info.compositeID = compositeID - idOffset;
-
-    if (buffdata.captureZValues) {
-      var offset = (displayPosition[1] * (buffdata.area[2] - buffdata.area[0] + 1) + displayPosition[0]) * 4;
-      _info.zValue = (256 * buffdata.zBuffer[offset] + buffdata.zBuffer[offset + 1]) / 65535.0;
-      _info.displayPosition = inDisplayPosition;
-    }
-
-    return _info;
-  } // Iterate over successively growing boxes.
-  // They recursively call the base case to handle single pixels.
-
-
-  var dispPos = [inDisplayPosition[0], inDisplayPosition[1]];
-  var curPos = [0, 0];
-  var info = getPixelInformationWithData(buffdata, inDisplayPosition, 0, outSelectedPosition);
-
-  if (info && info.valid) {
-    return info;
-  }
-
-  for (var dist = 1; dist < maxDist; ++dist) {
-    // Vertical sides of box.
-    for (var y = dispPos[1] > dist ? dispPos[1] - dist : 0; y <= dispPos[1] + dist; ++y) {
-      curPos[1] = y;
-
-      if (dispPos[0] >= dist) {
-        curPos[0] = dispPos[0] - dist;
-        info = getPixelInformationWithData(buffdata, curPos, 0, outSelectedPosition);
-
-        if (info && info.valid) {
-          return info;
-        }
-      }
-
-      curPos[0] = dispPos[0] + dist;
-      info = getPixelInformationWithData(buffdata, curPos, 0, outSelectedPosition);
-
-      if (info && info.valid) {
-        return info;
-      }
-    } // Horizontal sides of box.
-
-
-    for (var x = dispPos[0] >= dist ? dispPos[0] - (dist - 1) : 0; x <= dispPos[0] + (dist - 1); ++x) {
-      curPos[0] = x;
-
-      if (dispPos[1] >= dist) {
-        curPos[1] = dispPos[1] - dist;
-        info = getPixelInformationWithData(buffdata, curPos, 0, outSelectedPosition);
-
-        if (info && info.valid) {
-          return info;
-        }
-      }
-
-      curPos[1] = dispPos[1] + dist;
-      info = getPixelInformationWithData(buffdata, curPos, 0, outSelectedPosition);
-
-      if (info && info.valid) {
-        return info;
-      }
-    }
-  } // nothing hit.
-
-
-  outSelectedPosition[0] = inDisplayPosition[0];
-  outSelectedPosition[1] = inDisplayPosition[1];
-  return null;
-} //-----------------------------------------------------------------------------
-
-
-function convertSelection(fieldassociation, dataMap, captureZValues, renderer, openGLRenderWindow) {
-  var sel = [];
-  var count = 0;
-  dataMap.forEach(function (value, key) {
-    var child = vtkSelectionNode$1.newInstance();
-    child.setContentType(HardwareSelector_SelectionContent.INDICES);
-
-    switch (fieldassociation) {
-      case OpenGL_HardwareSelector_FieldAssociations.FIELD_ASSOCIATION_CELLS:
-        child.setFieldType(HardwareSelector_SelectionField.CELL);
-        break;
-
-      case OpenGL_HardwareSelector_FieldAssociations.FIELD_ASSOCIATION_POINTS:
-        child.setFieldType(HardwareSelector_SelectionField.POINT);
-        break;
-
-      default:
-        HardwareSelector_vtkErrorMacro('Unknown field association');
-    }
-
-    child.getProperties().propID = value.info.propID;
-    child.getProperties().prop = value.info.prop;
-    child.getProperties().compositeID = value.info.compositeID;
-    child.getProperties().pixelCount = value.pixelCount;
-
-    if (captureZValues) {
-      child.getProperties().displayPosition = [value.info.displayPosition[0], value.info.displayPosition[1], value.info.zValue];
-      child.getProperties().worldPosition = openGLRenderWindow.displayToWorld(value.info.displayPosition[0], value.info.displayPosition[1], value.info.zValue, renderer);
-    }
-
-    child.setSelectionList(value.attributeIDs);
-    sel[count] = child;
-    count++;
-  });
-  return sel;
-} //----------------------------------------------------------------------------
-
-
-function generateSelectionWithData(buffdata, fx1, fy1, fx2, fy2) {
-  var x1 = Math.floor(fx1);
-  var y1 = Math.floor(fy1);
-  var x2 = Math.floor(fx2);
-  var y2 = Math.floor(fy2);
-  var dataMap = new Map();
-  var outSelectedPosition = [0, 0];
-
-  for (var yy = y1; yy <= y2; yy++) {
-    for (var xx = x1; xx <= x2; xx++) {
-      var pos = [xx, yy];
-      var info = getPixelInformationWithData(buffdata, pos, 0, outSelectedPosition);
-
-      if (info && info.valid) {
-        var hash = getInfoHash(info);
-
-        if (!dataMap.has(hash)) {
-          dataMap.set(hash, {
-            info: info,
-            pixelCount: 1,
-            attributeIDs: [info.attributeID]
-          });
-        } else {
-          var dmv = dataMap.get(hash);
-          dmv.pixelCount++;
-
-          if (buffdata.captureZValues) {
-            if (info.zValue < dmv.info.zValue) {
-              dmv.info = info;
-            }
-          }
-
-          if (dmv.attributeIDs.indexOf(info.attributeID) === -1) {
-            dmv.attributeIDs.push(info.attributeID);
-          }
-        }
-      }
-    }
-  }
-
-  return convertSelection(buffdata.fieldAssociation, dataMap, buffdata.captureZValues, buffdata.renderer, buffdata.openGLRenderWindow);
-} // ----------------------------------------------------------------------------
-// vtkOpenGLHardwareSelector methods
-// ----------------------------------------------------------------------------
-
-
-function vtkOpenGLHardwareSelector(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkOpenGLHardwareSelector'); //----------------------------------------------------------------------------
-
-  publicAPI.releasePixBuffers = function () {
-    model.pixBuffer = [];
-    model.zBuffer = null;
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.beginSelection = function () {
-    model.openGLRenderer = model.openGLRenderWindow.getViewNodeFor(model.renderer);
-    model.maxAttributeId = 0;
-    var size = model.openGLRenderWindow.getSize();
-
-    if (!model.framebuffer) {
-      model.framebuffer = vtkOpenGLFramebuffer.newInstance();
-      model.framebuffer.setOpenGLRenderWindow(model.openGLRenderWindow);
-      model.framebuffer.saveCurrentBindingsAndBuffers();
-      model.framebuffer.create(size[0], size[1]); // this calls model.framebuffer.bind()
-
-      model.framebuffer.populateFramebuffer();
-    } else {
-      model.framebuffer.setOpenGLRenderWindow(model.openGLRenderWindow);
-      model.framebuffer.saveCurrentBindingsAndBuffers();
-      var fbSize = model.framebuffer.getSize();
-
-      if (fbSize[0] !== size[0] || fbSize[1] !== size[1]) {
-        model.framebuffer.create(size[0], size[1]); // this calls model.framebuffer.bind()
-
-        model.framebuffer.populateFramebuffer();
-      } else {
-        model.framebuffer.bind();
-      }
-    }
-
-    model.openGLRenderer.clear();
-    model.openGLRenderer.setSelector(publicAPI);
-    model.hitProps = {};
-    model.props = [];
-    publicAPI.releasePixBuffers();
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.endSelection = function () {
-    model.hitProps = {};
-    model.openGLRenderer.setSelector(null);
-    model.framebuffer.restorePreviousBindingsAndBuffers();
-  };
-
-  publicAPI.preCapturePass = function () {};
-
-  publicAPI.postCapturePass = function () {}; //----------------------------------------------------------------------------
-
-
-  publicAPI.select = function () {
-    var sel = null;
-
-    if (publicAPI.captureBuffers()) {
-      sel = publicAPI.generateSelection(model.area[0], model.area[1], model.area[2], model.area[3]);
-      publicAPI.releasePixBuffers();
-    }
-
-    return sel;
-  };
-
-  publicAPI.getSourceDataAsync = /*#__PURE__*/function () {
-    var _ref = _asyncToGenerator( /*#__PURE__*/regenerator_default().mark(function _callee(renderer, fx1, fy1, fx2, fy2) {
-      var size, result;
-      return regenerator_default().wrap(function _callee$(_context) {
-        while (1) {
-          switch (_context.prev = _context.next) {
-            case 0:
-              // assign the renderer
-              model.renderer = renderer; // set area to all if no arguments provided
-
-              if (fx1 === undefined) {
-                size = model.openGLRenderWindow.getSize();
-                publicAPI.setArea(0, 0, size[0] - 1, size[1] - 1);
-              } else {
-                publicAPI.setArea(fx1, fy1, fx2, fy2);
-              } // just do capture buffers and package up the result
-
-
-              if (publicAPI.captureBuffers()) {
-                _context.next = 4;
-                break;
-              }
-
-              return _context.abrupt("return", false);
-
-            case 4:
-              result = {
-                area: _toConsumableArray(model.area),
-                pixBuffer: _toConsumableArray(model.pixBuffer),
-                captureZValues: model.captureZValues,
-                zBuffer: model.zBuffer,
-                props: _toConsumableArray(model.props),
-                fieldAssociation: model.fieldAssociation,
-                renderer: renderer,
-                openGLRenderWindow: model.openGLRenderWindow
-              };
-
-              result.generateSelection = function () {
-                for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-                  args[_key] = arguments[_key];
-                }
-
-                return generateSelectionWithData.apply(void 0, [result].concat(args));
-              };
-
-              return _context.abrupt("return", result);
-
-            case 7:
-            case "end":
-              return _context.stop();
-          }
-        }
-      }, _callee);
-    }));
-
-    return function (_x, _x2, _x3, _x4, _x5) {
-      return _ref.apply(this, arguments);
-    };
-  }(); //----------------------------------------------------------------------------
-
-
-  publicAPI.captureBuffers = function () {
-    if (!model.renderer || !model.openGLRenderWindow) {
-      HardwareSelector_vtkErrorMacro('Renderer and view must be set before calling Select.');
-      return false;
-    }
-
-    model.openGLRenderer = model.openGLRenderWindow.getViewNodeFor(model.renderer); // todo revisit making selection part of core
-    // then we can do this in core
-
-    model.openGLRenderWindow.getRenderable().preRender(); // int rgba[4];
-    // rwin.getColorBufferSizes(rgba);
-    // if (rgba[0] < 8 || rgba[1] < 8 || rgba[2] < 8) {
-    //   vtkErrorMacro("Color buffer depth must be at least 8 bit. "
-    //     "Currently: " << rgba[0] << ", " << rgba[1] << ", " <<rgba[2]);
-    //   return false;
-    // }
-
-    publicAPI.invokeEvent({
-      type: 'StartEvent'
-    }); // Initialize renderer for selection.
-    // change the renderer's background to black, which will indicate a miss
-
-    model.originalBackground = model.renderer.getBackgroundByReference();
-    model.renderer.setBackground(0.0, 0.0, 0.0);
-    var rpasses = model.openGLRenderWindow.getRenderPasses();
-    publicAPI.beginSelection();
-
-    for (model.currentPass = HardwareSelector_PassTypes.MIN_KNOWN_PASS; model.currentPass <= HardwareSelector_PassTypes.COMPOSITE_INDEX_PASS; model.currentPass++) {
-      if (publicAPI.passRequired(model.currentPass)) {
-        publicAPI.preCapturePass(model.currentPass);
-
-        if (model.captureZValues && model.currentPass === HardwareSelector_PassTypes.ACTOR_PASS && typeof rpasses[0].requestDepth === 'function' && typeof rpasses[0].getFramebuffer === 'function') {
-          rpasses[0].requestDepth();
-          model.openGLRenderWindow.traverseAllPasses();
-        } else {
-          model.openGLRenderWindow.traverseAllPasses();
-        }
-
-        publicAPI.postCapturePass(model.currentPass);
-        publicAPI.savePixelBuffer(model.currentPass);
-      }
-    }
-
-    publicAPI.endSelection(); // restore original background
-
-    model.renderer.setBackground(model.originalBackground);
-    publicAPI.invokeEvent({
-      type: 'EndEvent'
-    }); // restore image, not needed?
-    // model.openGLRenderWindow.traverseAllPasses();
-
-    return true;
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.passRequired = function (pass) {
-    return true;
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.savePixelBuffer = function (passNo) {
-    model.pixBuffer[passNo] = model.openGLRenderWindow.getPixelData(model.area[0], model.area[1], model.area[2], model.area[3]);
-
-    if (passNo === HardwareSelector_PassTypes.ACTOR_PASS) {
-      if (model.captureZValues) {
-        var rpasses = model.openGLRenderWindow.getRenderPasses();
-
-        if (typeof rpasses[0].requestDepth === 'function' && typeof rpasses[0].getFramebuffer === 'function') {
-          var fb = rpasses[0].getFramebuffer();
-          fb.saveCurrentBindingsAndBuffers();
-          fb.bind();
-          model.zBuffer = model.openGLRenderWindow.getPixelData(model.area[0], model.area[1], model.area[2], model.area[3]);
-          fb.restorePreviousBindingsAndBuffers();
-        }
-      }
-
-      publicAPI.buildPropHitList(model.pixBuffer[passNo]);
-    }
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.buildPropHitList = function (pixelbuffer) {
-    for (var yy = 0; yy <= model.area[3] - model.area[1]; yy++) {
-      for (var xx = 0; xx <= model.area[2] - model.area[0]; xx++) {
-        var val = convert(xx, yy, pixelbuffer, model.area);
-
-        if (val > 0) {
-          val--;
-
-          if (!(val in model.hitProps)) {
-            model.hitProps[val] = true;
-          }
-        }
-      }
-    }
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.renderProp = function (prop) {
-    if (model.currentPass === HardwareSelector_PassTypes.ACTOR_PASS) {
-      publicAPI.setPropColorValueFromInt(model.props.length + idOffset);
-      model.props.push(prop);
-    }
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.renderCompositeIndex = function (index) {
-    if (model.currentPass === HardwareSelector_PassTypes.COMPOSITE_INDEX_PASS) {
-      publicAPI.setPropColorValueFromInt(index + idOffset);
-    }
-  }; //----------------------------------------------------------------------------
-  // TODO: make inline
-
-
-  publicAPI.renderAttributeId = function (attribid) {
-    if (attribid < 0) {
-      // negative attribid is valid. It happens when rendering higher order
-      // elements where new points are added for rendering smooth surfaces.
-      return;
-    }
-
-    model.maxAttributeId = attribid > model.maxAttributeId ? attribid : model.maxAttributeId; // if (model.currentPass < PassTypes.ID_LOW24) {
-    //   return; // useless...
-    // }
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.passTypeToString = function (type) {
-    return macro.enumToString(HardwareSelector_PassTypes, type);
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.isPropHit = function (id) {
-    return Boolean(model.hitProps[id]);
-  };
-
-  publicAPI.setPropColorValueFromInt = function (val) {
-    model.propColorValue[0] = val % 256 / 255.0;
-    model.propColorValue[1] = Math.floor(val / 256) % 256 / 255.0;
-    model.propColorValue[2] = Math.floor(val / 65536) % 256 / 255.0;
-  }; // info has
-  //   valid
-  //   propId
-  //   prop
-  //   compositeID
-  //   attributeID
-  //----------------------------------------------------------------------------
-
-
-  publicAPI.getPixelInformation = function (inDisplayPosition, maxDistance, outSelectedPosition) {
-    // Base case
-    var maxDist = maxDistance < 0 ? 0 : maxDistance;
-
-    if (maxDist === 0) {
-      outSelectedPosition[0] = inDisplayPosition[0];
-      outSelectedPosition[1] = inDisplayPosition[1];
-
-      if (inDisplayPosition[0] < model.area[0] || inDisplayPosition[0] > model.area[2] || inDisplayPosition[1] < model.area[1] || inDisplayPosition[1] > model.area[3]) {
-        return null;
-      } // offset inDisplayPosition based on the lower-left-corner of the Area.
-
-
-      var displayPosition = [inDisplayPosition[0] - model.area[0], inDisplayPosition[1] - model.area[1]];
-      var actorid = convert(displayPosition[0], displayPosition[1], model.pixBuffer[HardwareSelector_PassTypes.ACTOR_PASS], model.area);
-
-      if (actorid <= 0 || actorid - idOffset >= model.props.length) {
-        // the pixel did not hit any actor.
-        return null;
-      }
-
-      var _info2 = {};
-      _info2.valid = true;
-      _info2.propID = actorid - idOffset;
-      _info2.prop = model.props[_info2.propID];
-      var compositeID = convert(displayPosition[0], displayPosition[1], model.pixBuffer[HardwareSelector_PassTypes.COMPOSITE_INDEX_PASS], model.area);
-
-      if (compositeID < 0 || compositeID > 0xffffff) {
-        compositeID = 0;
-      }
-
-      _info2.compositeID = compositeID - idOffset;
-
-      if (model.captureZValues) {
-        var offset = (displayPosition[1] * (model.area[2] - model.area[0] + 1) + displayPosition[0]) * 4;
-        _info2.zValue = (256 * model.zBuffer[offset] + model.zBuffer[offset + 1]) / 65535.0;
-        _info2.displayPosition = inDisplayPosition;
-      }
-
-      return _info2;
-    } // Iterate over successively growing boxes.
-    // They recursively call the base case to handle single pixels.
-
-
-    var dispPos = [inDisplayPosition[0], inDisplayPosition[1]];
-    var curPos = [0, 0];
-    var info = publicAPI.getPixelInformation(inDisplayPosition, 0, outSelectedPosition);
-
-    if (info && info.valid) {
-      return info;
-    }
-
-    for (var dist = 1; dist < maxDist; ++dist) {
-      // Vertical sides of box.
-      for (var y = dispPos[1] > dist ? dispPos[1] - dist : 0; y <= dispPos[1] + dist; ++y) {
-        curPos[1] = y;
-
-        if (dispPos[0] >= dist) {
-          curPos[0] = dispPos[0] - dist;
-          info = publicAPI.getPixelInformation(curPos, 0, outSelectedPosition);
-
-          if (info && info.valid) {
-            return info;
-          }
-        }
-
-        curPos[0] = dispPos[0] + dist;
-        info = publicAPI.getPixelInformation(curPos, 0, outSelectedPosition);
-
-        if (info && info.valid) {
-          return info;
-        }
-      } // Horizontal sides of box.
-
-
-      for (var x = dispPos[0] >= dist ? dispPos[0] - (dist - 1) : 0; x <= dispPos[0] + (dist - 1); ++x) {
-        curPos[0] = x;
-
-        if (dispPos[1] >= dist) {
-          curPos[1] = dispPos[1] - dist;
-          info = publicAPI.getPixelInformation(curPos, 0, outSelectedPosition);
-
-          if (info && info.valid) {
-            return info;
-          }
-        }
-
-        curPos[1] = dispPos[1] + dist;
-        info = publicAPI.getPixelInformation(curPos, 0, outSelectedPosition);
-
-        if (info && info.valid) {
-          return info;
-        }
-      }
-    } // nothing hit.
-
-
-    outSelectedPosition[0] = inDisplayPosition[0];
-    outSelectedPosition[1] = inDisplayPosition[1];
-    return null;
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.generateSelection = function (fx1, fy1, fx2, fy2) {
-    var x1 = Math.floor(fx1);
-    var y1 = Math.floor(fy1);
-    var x2 = Math.floor(fx2);
-    var y2 = Math.floor(fy2);
-    var dataMap = new Map();
-    var outSelectedPosition = [0, 0];
-
-    for (var yy = y1; yy <= y2; yy++) {
-      for (var xx = x1; xx <= x2; xx++) {
-        var pos = [xx, yy];
-        var info = publicAPI.getPixelInformation(pos, 0, outSelectedPosition);
-
-        if (info && info.valid) {
-          var hash = getInfoHash(info);
-
-          if (!dataMap.has(hash)) {
-            dataMap.set(hash, {
-              info: info,
-              pixelCount: 1,
-              attributeIDs: [info.attributeID]
-            });
-          } else {
-            var dmv = dataMap.get(hash);
-            dmv.pixelCount++;
-
-            if (model.captureZValues) {
-              if (info.zValue < dmv.info.zValue) {
-                dmv.info = info;
-              }
-            }
-
-            if (dmv.attributeIDs.indexOf(info.attributeID) === -1) {
-              dmv.attributeIDs.push(info.attributeID);
-            }
-          }
-        }
-      }
-    }
-
-    return convertSelection(model.fieldAssociation, dataMap, model.captureZValues, model.renderer, model.openGLRenderWindow);
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.attach = function (w, r) {
-    model.openGLRenderWindow = w;
-    model.renderer = r;
-  }; // override
-
-
-  var superSetArea = publicAPI.setArea;
-
-  publicAPI.setArea = function () {
-    if (superSetArea.apply(void 0, arguments)) {
-      model.area[0] = Math.floor(model.area[0]);
-      model.area[1] = Math.floor(model.area[1]);
-      model.area[2] = Math.floor(model.area[2]);
-      model.area[3] = Math.floor(model.area[3]);
-      return true;
-    }
-
-    return false;
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var OpenGL_HardwareSelector_DEFAULT_VALUES = {
-  area: undefined,
-  renderer: null,
-  openGLRenderWindow: null,
-  openGLRenderer: null,
-  currentPass: -1,
-  propColorValue: null,
-  props: null,
-  idOffset: 1
-}; // ----------------------------------------------------------------------------
-
-function OpenGL_HardwareSelector_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, OpenGL_HardwareSelector_DEFAULT_VALUES, initialValues); // Build VTK API
-
-  vtkHardwareSelector$1.extend(publicAPI, model, initialValues);
-  model.propColorValue = [0, 0, 0];
-  model.props = [];
-
-  if (!model.area) {
-    model.area = [0, 0, 0, 0];
-  }
-
-  macro.setGetArray(publicAPI, model, ['area'], 4);
-  macro.setGet(publicAPI, model, ['renderer', 'currentPass', 'openGLRenderWindow']);
-  macro.setGetArray(publicAPI, model, ['propColorValue'], 3);
-  macro.event(publicAPI, model, 'event'); // Object methods
-
-  vtkOpenGLHardwareSelector(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var OpenGL_HardwareSelector_newInstance = macro.newInstance(OpenGL_HardwareSelector_extend, 'vtkOpenGLHardwareSelector'); // ----------------------------------------------------------------------------
-
-var HardwareSelector_vtkHardwareSelector = HardwareSelector_objectSpread({
-  newInstance: OpenGL_HardwareSelector_newInstance,
-  extend: OpenGL_HardwareSelector_extend
-}, HardwareSelector_Constants_Constants);
-
-
-
 ;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/Glyph3DMapper.js
 
 
@@ -50436,3993 +54471,6 @@ ViewNodeFactory_registerOverride('vtkGlyph3DMapper', WebGPU_Glyph3DMapper_newIns
 
 
 ;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Profiles/Glyph.js
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/RenderWindow.js
-
-
-var DEFAULT_VIEW_API = navigator.gpu ? 'WebGPU' : 'WebGL';
-var VIEW_CONSTRUCTORS = Object.create(null); // ----------------------------------------------------------------------------
-// static methods
-// ----------------------------------------------------------------------------
-
-function registerViewConstructor(name, constructor) {
-  VIEW_CONSTRUCTORS[name] = constructor;
-}
-function listViewAPIs() {
-  return Object.keys(VIEW_CONSTRUCTORS);
-}
-function newAPISpecificView(name) {
-  var initialValues = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
-  return VIEW_CONSTRUCTORS[name] && VIEW_CONSTRUCTORS[name](initialValues);
-} // ----------------------------------------------------------------------------
-// vtkRenderWindow methods
-// ----------------------------------------------------------------------------
-
-function vtkRenderWindow(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkRenderWindow'); // Add renderer
-
-  publicAPI.addRenderer = function (renderer) {
-    if (publicAPI.hasRenderer(renderer)) {
-      return;
-    }
-
-    renderer.setRenderWindow(publicAPI);
-    model.renderers.push(renderer); // for (this->Renderers->InitTraversal(rsit);
-    //      (aren = this->Renderers->GetNextRenderer(rsit)); )
-    //   {
-    //   aren->SetAllocatedRenderTime
-    //     (1.0/(this->DesiredUpdateRate*this->Renderers->GetNumberOfItems()));
-    //   }
-
-    publicAPI.modified();
-  }; // Remove renderer
-
-
-  publicAPI.removeRenderer = function (renderer) {
-    model.renderers = model.renderers.filter(function (r) {
-      return r !== renderer;
-    });
-    publicAPI.modified();
-  };
-
-  publicAPI.hasRenderer = function (ren) {
-    return model.renderers.indexOf(ren) !== -1;
-  }; // get an API specific view of this data
-
-
-  publicAPI.newAPISpecificView = function (name) {
-    var initialValues = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
-    return newAPISpecificView(name || model.defaultViewAPI, initialValues);
-  }; // Add renderer
-
-
-  publicAPI.addView = function (view) {
-    if (publicAPI.hasView(view)) {
-      return;
-    }
-
-    view.setRenderable(publicAPI);
-    model.views.push(view);
-    publicAPI.modified();
-  }; // Remove renderer
-
-
-  publicAPI.removeView = function (view) {
-    model.views = model.views.filter(function (r) {
-      return r !== view;
-    });
-    publicAPI.modified();
-  };
-
-  publicAPI.hasView = function (view) {
-    return model.views.indexOf(view) !== -1;
-  }; // handle any pre render initializations
-
-
-  publicAPI.preRender = function () {
-    model.renderers.forEach(function (ren) {
-      // make sure we have a camera
-      if (!ren.isActiveCameraCreated()) {
-        ren.resetCamera();
-      }
-    });
-  };
-
-  publicAPI.render = function () {
-    publicAPI.preRender();
-
-    if (model.interactor) {
-      model.interactor.render();
-    } else {
-      model.views.forEach(function (view) {
-        return view.traverseAllPasses();
-      });
-    }
-  };
-
-  publicAPI.getStatistics = function () {
-    var results = {
-      propCount: 0,
-      invisiblePropCount: 0
-    };
-    model.renderers.forEach(function (ren) {
-      var props = ren.getViewProps();
-      props.forEach(function (prop) {
-        if (prop.getVisibility()) {
-          results.propCount += 1;
-          var mpr = prop.getMapper && prop.getMapper();
-
-          if (mpr && mpr.getPrimitiveCount) {
-            var pcount = mpr.getPrimitiveCount();
-            Object.keys(pcount).forEach(function (keyName) {
-              if (!results[keyName]) {
-                results[keyName] = 0;
-              }
-
-              results[keyName] += pcount[keyName];
-            });
-          }
-        } else {
-          results.invisiblePropCount += 1;
-        }
-      });
-    });
-    results.str = Object.keys(results).map(function (keyName) {
-      return "".concat(keyName, ": ").concat(results[keyName]);
-    }).join('\n');
-    return results;
-  };
-
-  publicAPI.captureImages = function () {
-    var format = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'image/png';
-    var opts = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
-    macro.setImmediate(publicAPI.render);
-    return model.views.map(function (view) {
-      return view.captureNextImage ? view.captureNextImage(format, opts) : undefined;
-    }).filter(function (i) {
-      return !!i;
-    });
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var RenderWindow_DEFAULT_VALUES = {
-  defaultViewAPI: DEFAULT_VIEW_API,
-  renderers: [],
-  views: [],
-  interactor: null,
-  neverRendered: true,
-  numberOfLayers: 1
-}; // ----------------------------------------------------------------------------
-
-function RenderWindow_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, RenderWindow_DEFAULT_VALUES, initialValues); // Build VTK API
-
-  macro.obj(publicAPI, model);
-  macro.setGet(publicAPI, model, ['interactor', 'numberOfLayers', 'views', 'defaultViewAPI']);
-  macro.get(publicAPI, model, ['neverRendered']);
-  macro.getArray(publicAPI, model, ['renderers']);
-  macro.event(publicAPI, model, 'completion'); // Object methods
-
-  vtkRenderWindow(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var RenderWindow_newInstance = macro.newInstance(RenderWindow_extend, 'vtkRenderWindow'); // ----------------------------------------------------------------------------
-
-var vtkRenderWindow$1 = {
-  newInstance: RenderWindow_newInstance,
-  extend: RenderWindow_extend,
-  registerViewConstructor: registerViewConstructor,
-  listViewAPIs: listViewAPIs,
-  newAPISpecificView: newAPISpecificView
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/SceneGraph/RenderPass.js
-
-
-function vtkRenderPass(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkRenderPass');
-
-  publicAPI.getOperation = function () {
-    return model.currentOperation;
-  };
-
-  publicAPI.setCurrentOperation = function (val) {
-    model.currentOperation = val;
-    model.currentTraverseOperation = "traverse".concat(macro.capitalize(model.currentOperation));
-  };
-
-  publicAPI.getTraverseOperation = function () {
-    return model.currentTraverseOperation;
-  }; // by default this class will traverse all of its
-  // preDelegateOperations, then call its delegate render passes
-  // the traverse all of its postDelegateOperations
-  // any of those three arrays can be empty
-
-
-  publicAPI.traverse = function (viewNode) {
-    var parent = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
-
-    if (model.deleted) {
-      return;
-    } // we just render our delegates in order
-
-
-    model.currentParent = parent;
-    model.preDelegateOperations.forEach(function (val) {
-      publicAPI.setCurrentOperation(val);
-      viewNode.traverse(publicAPI);
-    });
-    model.delegates.forEach(function (val) {
-      val.traverse(viewNode, publicAPI);
-    });
-    model.postDelegateOperations.forEach(function (val) {
-      publicAPI.setCurrentOperation(val);
-      viewNode.traverse(publicAPI);
-    });
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var RenderPass_DEFAULT_VALUES = {
-  delegates: [],
-  currentOperation: null,
-  preDelegateOperations: [],
-  postDelegateOperations: [],
-  currentParent: null
-}; // ----------------------------------------------------------------------------
-
-function RenderPass_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, RenderPass_DEFAULT_VALUES, initialValues); // Build VTK API
-
-  macro.obj(publicAPI, model);
-  macro.get(publicAPI, model, ['currentOperation']);
-  macro.setGet(publicAPI, model, ['delegates', 'currentParent', 'preDelegateOperations', 'postDelegateOperations']); // Object methods
-
-  vtkRenderPass(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var RenderPass_newInstance = macro.newInstance(RenderPass_extend, 'vtkRenderPass'); // ----------------------------------------------------------------------------
-
-var vtkRenderPass$1 = {
-  newInstance: RenderPass_newInstance,
-  extend: RenderPass_extend
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/ForwardPass.js
-
-
-
-
-function vtkForwardPass(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkForwardPass'); // this pass implements a forward rendering pipeline
-  // if both volumes and opaque geometry are present
-  // it will mix the two together by capturing a zbuffer
-  // first
-
-  publicAPI.traverse = function (viewNode) {
-    var parent = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
-
-    if (model.deleted) {
-      return;
-    } // we just render our delegates in order
-
-
-    model.currentParent = parent; // build
-
-    publicAPI.setCurrentOperation('buildPass');
-    viewNode.traverse(publicAPI);
-    var numlayers = viewNode.getRenderable().getNumberOfLayers(); // iterate over renderers
-
-    var renderers = viewNode.getChildren();
-
-    for (var i = 0; i < numlayers; i++) {
-      for (var index = 0; index < renderers.length; index++) {
-        var renNode = renderers[index];
-        var ren = viewNode.getRenderable().getRenderers()[index];
-
-        if (ren.getDraw() && ren.getLayer() === i) {
-          // check for both opaque and volume actors
-          model.opaqueActorCount = 0;
-          model.translucentActorCount = 0;
-          model.volumeCount = 0;
-          model.overlayActorCount = 0;
-          publicAPI.setCurrentOperation('queryPass');
-          renNode.traverse(publicAPI); // do we need to capture a zbuffer?
-
-          if (model.opaqueActorCount > 0 && model.volumeCount > 0 || model.depthRequested) {
-            var size = viewNode.getFramebufferSize(); // make sure the framebuffer is setup
-
-            if (model.framebuffer === null) {
-              model.framebuffer = vtkOpenGLFramebuffer.newInstance();
-            }
-
-            model.framebuffer.setOpenGLRenderWindow(viewNode);
-            model.framebuffer.saveCurrentBindingsAndBuffers();
-            var fbSize = model.framebuffer.getSize();
-
-            if (fbSize === null || fbSize[0] !== size[0] || fbSize[1] !== size[1]) {
-              model.framebuffer.create(size[0], size[1]);
-              model.framebuffer.populateFramebuffer();
-            }
-
-            model.framebuffer.bind();
-            publicAPI.setCurrentOperation('opaqueZBufferPass');
-            renNode.traverse(publicAPI);
-            model.framebuffer.restorePreviousBindingsAndBuffers(); // reset now that we have done it
-
-            model.depthRequested = false;
-          }
-
-          publicAPI.setCurrentOperation('cameraPass');
-          renNode.traverse(publicAPI);
-
-          if (model.opaqueActorCount > 0) {
-            publicAPI.setCurrentOperation('opaquePass');
-            renNode.traverse(publicAPI);
-          }
-
-          if (model.translucentActorCount > 0) {
-            publicAPI.setCurrentOperation('translucentPass');
-            renNode.traverse(publicAPI);
-          }
-
-          if (model.volumeCount > 0) {
-            publicAPI.setCurrentOperation('volumePass');
-            renNode.traverse(publicAPI);
-          }
-
-          if (model.overlayActorCount > 0) {
-            publicAPI.setCurrentOperation('overlayPass');
-            renNode.traverse(publicAPI);
-          }
-        }
-      }
-    }
-  };
-
-  publicAPI.getZBufferTexture = function () {
-    if (model.framebuffer) {
-      return model.framebuffer.getColorTexture();
-    }
-
-    return null;
-  };
-
-  publicAPI.requestDepth = function () {
-    model.depthRequested = true;
-  };
-
-  publicAPI.incrementOpaqueActorCount = function () {
-    return model.opaqueActorCount++;
-  };
-
-  publicAPI.incrementTranslucentActorCount = function () {
-    return model.translucentActorCount++;
-  };
-
-  publicAPI.incrementVolumeCount = function () {
-    return model.volumeCount++;
-  };
-
-  publicAPI.incrementOverlayActorCount = function () {
-    return model.overlayActorCount++;
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var ForwardPass_DEFAULT_VALUES = {
-  opaqueActorCount: 0,
-  translucentActorCount: 0,
-  volumeCount: 0,
-  overlayActorCount: 0,
-  framebuffer: null,
-  depthRequested: false
-}; // ----------------------------------------------------------------------------
-
-function ForwardPass_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, ForwardPass_DEFAULT_VALUES, initialValues); // Build VTK API
-
-  vtkRenderPass$1.extend(publicAPI, model, initialValues);
-  macro.get(publicAPI, model, ['framebuffer']); // Object methods
-
-  vtkForwardPass(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var ForwardPass_newInstance = macro.newInstance(ForwardPass_extend, 'vtkForwardPass'); // ----------------------------------------------------------------------------
-
-var vtkForwardPass$1 = {
-  newInstance: ForwardPass_newInstance,
-  extend: ForwardPass_extend
-};
-
-
-
-// EXTERNAL MODULE: ./node_modules/spark-md5/spark-md5.js
-var spark_md5 = __webpack_require__("./node_modules/spark-md5/spark-md5.js");
-var spark_md5_default = /*#__PURE__*/__webpack_require__.n(spark_md5);
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/ShaderCache.js
-
-
-
-
-var SET_GET_FIELDS = ['lastShaderBound', 'context', 'openGLRenderWindow']; // ----------------------------------------------------------------------------
-// vtkShaderCache methods
-// ----------------------------------------------------------------------------
-
-function vtkShaderCache(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkShaderCache');
-
-  publicAPI.replaceShaderValues = function (VSSource, FSSource, GSSource) {
-    // first handle renaming any Fragment shader inputs
-    // if we have a geometry shader. By default fragment shaders
-    // assume their inputs come from a Vertex Shader. When we
-    // have a Geometry shader we rename the frament shader inputs
-    // to come from the geometry shader
-    var nFSSource = FSSource;
-
-    if (GSSource.length > 0) {
-      nFSSource = vtkShaderProgram$1.substitute(nFSSource, 'VSOut', 'GSOut').result;
-    }
-
-    var gl2 = model.openGLRenderWindow.getWebgl2();
-    var fragDepthString = '\n';
-    var version = '#version 100\n';
-
-    if (gl2) {
-      version = '#version 300 es\n' + '#define attribute in\n' + '#define textureCube texture\n' + '#define texture2D texture\n' + '#define textureCubeLod textureLod\n' + '#define texture2DLod textureLod\n';
-    } else {
-      model.context.getExtension('OES_standard_derivatives');
-
-      if (model.context.getExtension('EXT_frag_depth')) {
-        fragDepthString = '#extension GL_EXT_frag_depth : enable\n';
-      }
-
-      if (model.context.getExtension('EXT_shader_texture_lod')) {
-        fragDepthString += '#extension GL_EXT_shader_texture_lod : enable\n' + '#define textureCubeLod textureCubeLodEXT\n' + '#define texture2DLod texture2DLodEXT';
-      }
-    }
-
-    nFSSource = vtkShaderProgram$1.substitute(nFSSource, '//VTK::System::Dec', ["".concat(version, "\n"), gl2 ? '' : '#extension GL_OES_standard_derivatives : enable\n', fragDepthString, '#ifdef GL_FRAGMENT_PRECISION_HIGH', 'precision highp float;', 'precision highp int;', '#else', 'precision mediump float;', 'precision mediump int;', '#endif']).result;
-    var nVSSource = vtkShaderProgram$1.substitute(VSSource, '//VTK::System::Dec', ["".concat(version, "\n"), '#ifdef GL_FRAGMENT_PRECISION_HIGH', 'precision highp float;', 'precision highp int;', '#else', 'precision mediump float;', 'precision mediump int;', '#endif']).result;
-
-    if (gl2) {
-      nVSSource = vtkShaderProgram$1.substitute(nVSSource, 'varying', 'out').result;
-      nFSSource = vtkShaderProgram$1.substitute(nFSSource, 'varying', 'in').result;
-      nFSSource = vtkShaderProgram$1.substitute(nFSSource, 'gl_FragData\\[0\\]', 'fragOutput0').result;
-      nFSSource = vtkShaderProgram$1.substitute(nFSSource, '//VTK::Output::Dec', 'layout(location = 0) out vec4 fragOutput0;').result;
-    } // nFSSource = ShaderProgram.substitute(nFSSource, 'gl_FragData\\[0\\]',
-    //   'gl_FragColor').result;
-
-
-    var nGSSource = vtkShaderProgram$1.substitute(GSSource, '//VTK::System::Dec', version).result;
-    return {
-      VSSource: nVSSource,
-      FSSource: nFSSource,
-      GSSource: nGSSource
-    };
-  }; // return NULL if there is an issue
-
-
-  publicAPI.readyShaderProgramArray = function (vertexCode, fragmentCode, geometryCode) {
-    var data = publicAPI.replaceShaderValues(vertexCode, fragmentCode, geometryCode);
-    var shader = publicAPI.getShaderProgram(data.VSSource, data.FSSource, data.GSSource);
-    return publicAPI.readyShaderProgram(shader);
-  };
-
-  publicAPI.readyShaderProgram = function (shader) {
-    if (!shader) {
-      return null;
-    } // compile if needed
-
-
-    if (!shader.getCompiled() && !shader.compileShader()) {
-      return null;
-    } // bind if needed
-
-
-    if (!publicAPI.bindShader(shader)) {
-      return null;
-    }
-
-    return shader;
-  };
-
-  publicAPI.getShaderProgram = function (vertexCode, fragmentCode, geometryCode) {
-    // compute the MD5 and the check the map
-    var hashInput = "".concat(vertexCode).concat(fragmentCode).concat(geometryCode);
-    var result = spark_md5_default().hash(hashInput); // does it already exist?
-
-    var loc = Object.keys(model.shaderPrograms).indexOf(result);
-
-    if (loc === -1) {
-      // create one
-      var sps = vtkShaderProgram$1.newInstance();
-      sps.setContext(model.context);
-      sps.getVertexShader().setSource(vertexCode);
-      sps.getFragmentShader().setSource(fragmentCode);
-
-      if (geometryCode) {
-        sps.getGeometryShader().setSource(geometryCode);
-      }
-
-      sps.setMd5Hash(result);
-      model.shaderPrograms[result] = sps;
-      return sps;
-    }
-
-    return model.shaderPrograms[result];
-  };
-
-  publicAPI.releaseGraphicsResources = function (win) {
-    // NOTE:
-    // In the current implementation as of October 26th, if a shader
-    // program is created by ShaderCache then it should make sure
-    // that it releases the graphics resources used by these programs.
-    // It is not wisely for callers to do that since then they would
-    // have to loop over all the programs were in use and invoke
-    // release graphics resources individually.
-    publicAPI.releaseCurrentShader();
-    Object.keys(model.shaderPrograms).map(function (key) {
-      return model.shaderPrograms[key];
-    }).forEach(function (sp) {
-      return sp.releaseGraphicsResources(win);
-    });
-  };
-
-  publicAPI.releaseGraphicsResources = function () {
-    // release prior shader
-    if (model.astShaderBound) {
-      model.lastShaderBound.release();
-      model.lastShaderBound = null;
-    }
-  };
-
-  publicAPI.bindShader = function (shader) {
-    if (model.lastShaderBound === shader) {
-      return 1;
-    } // release prior shader
-
-
-    if (model.lastShaderBound) {
-      model.lastShaderBound.release();
-    }
-
-    shader.bind();
-    model.lastShaderBound = shader;
-    return 1;
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var OpenGL_ShaderCache_DEFAULT_VALUES = {
-  lastShaderBound: null,
-  shaderPrograms: null,
-  context: null,
-  openGLRenderWindow: null
-}; // ----------------------------------------------------------------------------
-
-function OpenGL_ShaderCache_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, OpenGL_ShaderCache_DEFAULT_VALUES, initialValues); // Internal objects
-
-  model.shaderPrograms = {}; // Build VTK API
-
-  macro.obj(publicAPI, model);
-  macro.setGet(publicAPI, model, SET_GET_FIELDS); // Object methods
-
-  vtkShaderCache(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var OpenGL_ShaderCache_newInstance = macro.newInstance(OpenGL_ShaderCache_extend, 'vtkShaderCache'); // ----------------------------------------------------------------------------
-
-var vtkShaderCache$1 = {
-  newInstance: OpenGL_ShaderCache_newInstance,
-  extend: OpenGL_ShaderCache_extend
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/TextureUnitManager.js
-
-
-var TextureUnitManager_vtkErrorMacro = macro.vtkErrorMacro; // ----------------------------------------------------------------------------
-// vtkOpenGLTextureUnitManager methods
-// ----------------------------------------------------------------------------
-
-function vtkOpenGLTextureUnitManager(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkOpenGLTextureUnitManager'); // ----------------------------------------------------------------------------
-  // Description:
-  // Delete the allocation table and check if it is not called before
-  // all the texture units have been released.
-
-  publicAPI.deleteTable = function () {
-    for (var i = 0; i < model.numberOfTextureUnits; ++i) {
-      if (model.textureUnits[i] === true) {
-        TextureUnitManager_vtkErrorMacro('some texture units  were not properly released');
-      }
-    }
-
-    model.textureUnits = [];
-    model.numberOfTextureUnits = 0;
-  }; // ----------------------------------------------------------------------------
-
-
-  publicAPI.setContext = function (ctx) {
-    if (model.context !== ctx) {
-      if (model.context !== 0) {
-        publicAPI.deleteTable();
-      }
-
-      model.context = ctx;
-
-      if (model.context) {
-        model.numberOfTextureUnits = ctx.getParameter(ctx.MAX_TEXTURE_IMAGE_UNITS);
-
-        for (var i = 0; i < model.numberOfTextureUnits; ++i) {
-          model.textureUnits[i] = false;
-        }
-      }
-
-      publicAPI.modified();
-    }
-  }; // ----------------------------------------------------------------------------
-  // Description:
-  // Reserve a texture unit. It returns its number.
-  // It returns -1 if the allocation failed (because there are no more
-  // texture units left).
-  // \post valid_result: result==-1 || result>=0 && result<this->GetNumberOfTextureUnits())
-  // \post allocated: result==-1 || this->IsAllocated(result)
-
-
-  publicAPI.allocate = function () {
-    for (var i = 0; i < model.numberOfTextureUnits; i++) {
-      if (!publicAPI.isAllocated(i)) {
-        model.textureUnits[i] = true;
-        return i;
-      }
-    }
-
-    return -1;
-  };
-
-  publicAPI.allocateUnit = function (unit) {
-    if (publicAPI.isAllocated(unit)) {
-      return -1;
-    }
-
-    model.textureUnits[unit] = true;
-    return unit;
-  }; // ----------------------------------------------------------------------------
-  // Description:
-  // Tell if texture unit `textureUnitId' is already allocated.
-  // \pre valid_id_range : textureUnitId>=0 && textureUnitId<this->GetNumberOfTextureUnits()
-
-
-  publicAPI.isAllocated = function (textureUnitId) {
-    return model.textureUnits[textureUnitId];
-  }; // ----------------------------------------------------------------------------
-  // Description:
-  // Release a texture unit.
-  // \pre valid_id: textureUnitId>=0 && textureUnitId<this->GetNumberOfTextureUnits()
-  // \pre allocated_id: this->IsAllocated(textureUnitId)
-
-
-  publicAPI.free = function (val) {
-    model.textureUnits[val] = false;
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var TextureUnitManager_DEFAULT_VALUES = {
-  context: null,
-  numberOfTextureUnits: 0,
-  textureUnits: 0
-}; // ----------------------------------------------------------------------------
-
-function TextureUnitManager_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, TextureUnitManager_DEFAULT_VALUES, initialValues);
-  macro.obj(publicAPI, model);
-  model.textureUnits = []; // Build VTK API
-
-  macro.get(publicAPI, model, ['numberOfTextureUnits']);
-  macro.setGet(publicAPI, model, ['context']); // Object methods
-
-  vtkOpenGLTextureUnitManager(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var TextureUnitManager_newInstance = macro.newInstance(TextureUnitManager_extend, 'vtkOpenGLTextureUnitManager'); // ----------------------------------------------------------------------------
-
-var vtkTextureUnitManager = {
-  newInstance: TextureUnitManager_newInstance,
-  extend: TextureUnitManager_extend
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/SceneGraph/RenderWindowViewNode.js
-
-
-
-// vtkRenderWindowViewNode is intended to be a superclass for all api specific
-// RenderWindows. It is intended to define a common API that can be invoked
-// upon an api specific render window and provide some common method
-// implementations. If your application requires communicating with an api specific
-// view try to limit such interactions to methods defined in this class.
-// ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
-// vtkRenderWindowViewNode methods
-// ----------------------------------------------------------------------------
-
-function vtkRenderWindowViewNode(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkRenderWindowViewNode');
-
-  publicAPI.getViewNodeFactory = function () {
-    return null;
-  };
-
-  publicAPI.getAspectRatio = function () {
-    return model.size[0] / model.size[1];
-  };
-
-  publicAPI.getAspectRatioForRenderer = function (renderer) {
-    var viewport = renderer.getViewportByReference();
-    return model.size[0] * (viewport[2] - viewport[0]) / ((viewport[3] - viewport[1]) * model.size[1]);
-  };
-
-  publicAPI.isInViewport = function (x, y, viewport) {
-    var vCoords = viewport.getViewportByReference();
-    var size = publicAPI.getFramebufferSize();
-
-    if (vCoords[0] * size[0] <= x && vCoords[2] * size[0] >= x && vCoords[1] * size[1] <= y && vCoords[3] * size[1] >= y) {
-      return true;
-    }
-
-    return false;
-  };
-
-  publicAPI.getViewportSize = function (viewport) {
-    var vCoords = viewport.getViewportByReference();
-    var size = publicAPI.getFramebufferSize();
-    return [(vCoords[2] - vCoords[0]) * size[0], (vCoords[3] - vCoords[1]) * size[1]];
-  };
-
-  publicAPI.getViewportCenter = function (viewport) {
-    var size = publicAPI.getViewportSize(viewport);
-    return [size[0] * 0.5, size[1] * 0.5];
-  };
-
-  publicAPI.displayToNormalizedDisplay = function (x, y, z) {
-    var size = publicAPI.getFramebufferSize();
-    return [x / size[0], y / size[1], z];
-  };
-
-  publicAPI.normalizedDisplayToDisplay = function (x, y, z) {
-    var size = publicAPI.getFramebufferSize();
-    return [x * size[0], y * size[1], z];
-  };
-
-  publicAPI.worldToView = function (x, y, z, renderer) {
-    return renderer.worldToView(x, y, z);
-  };
-
-  publicAPI.viewToWorld = function (x, y, z, renderer) {
-    return renderer.viewToWorld(x, y, z);
-  };
-
-  publicAPI.worldToDisplay = function (x, y, z, renderer) {
-    var val = renderer.worldToView(x, y, z);
-    var dims = publicAPI.getViewportSize(renderer);
-    var val2 = renderer.viewToProjection(val[0], val[1], val[2], dims[0] / dims[1]);
-    var val3 = renderer.projectionToNormalizedDisplay(val2[0], val2[1], val2[2]);
-    return publicAPI.normalizedDisplayToDisplay(val3[0], val3[1], val3[2]);
-  };
-
-  publicAPI.displayToWorld = function (x, y, z, renderer) {
-    var val = publicAPI.displayToNormalizedDisplay(x, y, z);
-    var val2 = renderer.normalizedDisplayToProjection(val[0], val[1], val[2]);
-    var dims = publicAPI.getViewportSize(renderer);
-    var val3 = renderer.projectionToView(val2[0], val2[1], val2[2], dims[0] / dims[1]);
-    return renderer.viewToWorld(val3[0], val3[1], val3[2]);
-  };
-
-  publicAPI.normalizedDisplayToViewport = function (x, y, z, renderer) {
-    var vCoords = renderer.getViewportByReference();
-    vCoords = publicAPI.normalizedDisplayToDisplay(vCoords[0], vCoords[1], 0.0);
-    var coords = publicAPI.normalizedDisplayToDisplay(x, y, z);
-    return [coords[0] - vCoords[0] - 0.5, coords[1] - vCoords[1] - 0.5, z];
-  };
-
-  publicAPI.viewportToNormalizedViewport = function (x, y, z, renderer) {
-    var size = publicAPI.getViewportSize(renderer);
-
-    if (size && size[0] !== 0 && size[1] !== 0) {
-      return [x / (size[0] - 1.0), y / (size[1] - 1.0), z];
-    }
-
-    return [x, y, z];
-  };
-
-  publicAPI.normalizedViewportToViewport = function (x, y, z, renderer) {
-    var size = publicAPI.getViewportSize(renderer);
-    return [x * (size[0] - 1.0), y * (size[1] - 1.0), z];
-  };
-
-  publicAPI.displayToLocalDisplay = function (x, y, z) {
-    var size = publicAPI.getFramebufferSize();
-    return [x, size[1] - y - 1, z];
-  };
-
-  publicAPI.viewportToNormalizedDisplay = function (x, y, z, renderer) {
-    var vCoords = renderer.getViewportByReference();
-    vCoords = publicAPI.normalizedDisplayToDisplay(vCoords[0], vCoords[1], 0.0);
-    var x2 = x + vCoords[0] + 0.5;
-    var y2 = y + vCoords[1] + 0.5;
-    return publicAPI.displayToNormalizedDisplay(x2, y2, z);
-  };
-
-  publicAPI.getPixelData = function (x1, y1, x2, y2) {
-    macro.vtkErrorMacro('not implemented');
-    return undefined;
-  };
-
-  publicAPI.createSelector = function () {
-    macro.vtkErrorMacro('not implemented');
-    return undefined;
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var RenderWindowViewNode_DEFAULT_VALUES = {
-  size: undefined,
-  selector: undefined
-}; // ----------------------------------------------------------------------------
-
-function RenderWindowViewNode_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, RenderWindowViewNode_DEFAULT_VALUES, initialValues);
-
-  if (!model.size) {
-    model.size = [300, 300];
-  }
-
-  macro.getArray(publicAPI, model, ['size'], 2);
-  macro.get(publicAPI, model, ['selector']); // Inheritance
-
-  vtkViewNode$1.extend(publicAPI, model, initialValues); // Object methods
-
-  vtkRenderWindowViewNode(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var RenderWindowViewNode_newInstance = macro.newInstance(RenderWindowViewNode_extend, 'vtkRenderWindowViewNode'); // ----------------------------------------------------------------------------
-
-var vtkRenderWindowViewNode$1 = {
-  newInstance: RenderWindowViewNode_newInstance,
-  extend: RenderWindowViewNode_extend
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/OpenGL/RenderWindow.js
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-var RenderWindow_vtkDebugMacro = macro.vtkDebugMacro,
-    RenderWindow_vtkErrorMacro = macro.vtkErrorMacro;
-var SCREENSHOT_PLACEHOLDER = {
-  position: 'absolute',
-  top: 0,
-  left: 0,
-  width: '100%',
-  height: '100%'
-};
-var DEFAULT_RESET_FACTORS = {
-  vr: {
-    rescaleFactor: 1.0,
-    translateZ: -0.7 // 0.7 m forward from the camera
-
-  },
-  ar: {
-    rescaleFactor: 0.25,
-    // scale down AR for viewing comfort by default
-    translateZ: -0.5 // 0.5 m forward from the camera
-
-  }
-};
-
-function checkRenderTargetSupport(gl, format, type) {
-  // create temporary frame buffer and texture
-  var framebuffer = gl.createFramebuffer();
-  var texture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texImage2D(gl.TEXTURE_2D, 0, format, 2, 2, 0, format, type, null);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0); // check frame buffer status
-
-  var status = gl.checkFramebufferStatus(gl.FRAMEBUFFER); // clean up
-
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  gl.bindTexture(gl.TEXTURE_2D, null);
-  return status === gl.FRAMEBUFFER_COMPLETE;
-} // ----------------------------------------------------------------------------
-// Monitor the usage of GL context across vtkOpenGLRenderWindow instances
-// ----------------------------------------------------------------------------
-
-
-var GL_CONTEXT_COUNT = 0;
-var GL_CONTEXT_LISTENERS = [];
-
-function createGLContext() {
-  GL_CONTEXT_COUNT++;
-  GL_CONTEXT_LISTENERS.forEach(function (cb) {
-    return cb(GL_CONTEXT_COUNT);
-  });
-}
-
-function deleteGLContext() {
-  GL_CONTEXT_COUNT--;
-  GL_CONTEXT_LISTENERS.forEach(function (cb) {
-    return cb(GL_CONTEXT_COUNT);
-  });
-}
-
-function pushMonitorGLContextCount(cb) {
-  GL_CONTEXT_LISTENERS.push(cb);
-}
-function popMonitorGLContextCount(cb) {
-  return GL_CONTEXT_LISTENERS.pop();
-} // ----------------------------------------------------------------------------
-// vtkOpenGLRenderWindow methods
-// ----------------------------------------------------------------------------
-
-function vtkOpenGLRenderWindow(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkOpenGLRenderWindow');
-
-  publicAPI.getViewNodeFactory = function () {
-    return model.myFactory;
-  }; // Auto update style
-
-
-  var previousSize = [0, 0];
-
-  function updateWindow() {
-    // Canvas size
-    if (model.renderable) {
-      if (model.size[0] !== previousSize[0] || model.size[1] !== previousSize[1]) {
-        previousSize[0] = model.size[0];
-        previousSize[1] = model.size[1];
-        model.canvas.setAttribute('width', model.size[0]);
-        model.canvas.setAttribute('height', model.size[1]);
-      }
-    } // ImageStream size
-
-
-    if (model.viewStream) {
-      // If same size that's a NoOp
-      model.viewStream.setSize(model.size[0], model.size[1]);
-    } // Offscreen ?
-
-
-    model.canvas.style.display = model.useOffScreen ? 'none' : 'block'; // Cursor type
-
-    if (model.el) {
-      model.el.style.cursor = model.cursorVisibility ? model.cursor : 'none';
-    } // Invalidate cached DOM container size
-
-
-    model.containerSize = null;
-  }
-
-  publicAPI.onModified(updateWindow); // Builds myself.
-
-  publicAPI.buildPass = function (prepass) {
-    if (prepass) {
-      if (!model.renderable) {
-        return;
-      }
-
-      publicAPI.prepareNodes();
-      publicAPI.addMissingNodes(model.renderable.getRenderersByReference());
-      publicAPI.removeUnusedNodes();
-      publicAPI.initialize();
-      model.children.forEach(function (child) {
-        child.setOpenGLRenderWindow(publicAPI);
-      });
-    }
-  };
-
-  publicAPI.initialize = function () {
-    if (!model.initialized) {
-      model.context = publicAPI.get3DContext();
-      model.textureUnitManager = vtkTextureUnitManager.newInstance();
-      model.textureUnitManager.setContext(model.context);
-      model.shaderCache.setContext(model.context); // initialize blending for transparency
-
-      var gl = model.context;
-      gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-      gl.depthFunc(gl.LEQUAL);
-      gl.enable(gl.BLEND);
-      model.initialized = true;
-    }
-  };
-
-  publicAPI.makeCurrent = function () {
-    model.context.makeCurrent();
-  };
-
-  publicAPI.setContainer = function (el) {
-    if (model.el && model.el !== el) {
-      if (model.canvas.parentNode !== model.el) {
-        RenderWindow_vtkErrorMacro('Error: canvas parent node does not match container');
-      } // Remove canvas from previous container
-
-
-      model.el.removeChild(model.canvas); // If the renderer has previously added
-      // a background image, remove it from the DOM.
-
-      if (model.el.contains(model.bgImage)) {
-        model.el.removeChild(model.bgImage);
-      }
-    }
-
-    if (model.el !== el) {
-      model.el = el;
-
-      if (model.el) {
-        model.el.appendChild(model.canvas); // If the renderer is set to use a background
-        // image, attach it to the DOM.
-
-        if (model.useBackgroundImage) {
-          model.el.appendChild(model.bgImage);
-        }
-      } // Trigger modified()
-
-
-      publicAPI.modified();
-    }
-  };
-
-  publicAPI.getContainer = function () {
-    return model.el;
-  };
-
-  publicAPI.getContainerSize = function () {
-    if (!model.containerSize && model.el) {
-      var _model$el$getBounding = model.el.getBoundingClientRect(),
-          width = _model$el$getBounding.width,
-          height = _model$el$getBounding.height;
-
-      model.containerSize = [width, height];
-    }
-
-    return model.containerSize || model.size;
-  };
-
-  publicAPI.getFramebufferSize = function () {
-    if (model.activeFramebuffer) {
-      return model.activeFramebuffer.getSize();
-    }
-
-    return model.size;
-  };
-
-  publicAPI.getPixelData = function (x1, y1, x2, y2) {
-    var pixels = new Uint8Array((x2 - x1 + 1) * (y2 - y1 + 1) * 4);
-    model.context.readPixels(x1, y1, x2 - x1 + 1, y2 - y1 + 1, model.context.RGBA, model.context.UNSIGNED_BYTE, pixels);
-    return pixels;
-  };
-
-  publicAPI.get3DContext = function () {
-    var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {
-      preserveDrawingBuffer: false,
-      depth: true,
-      alpha: true
-    };
-    var result = null; // Do we have webxr support
-
-    if (navigator.xr !== undefined && navigator.xr.isSessionSupported('immersive-vr')) {
-      publicAPI.invokeHaveVRDisplay();
-    }
-
-    var webgl2Supported = typeof WebGL2RenderingContext !== 'undefined';
-    model.webgl2 = false;
-
-    if (model.defaultToWebgl2 && webgl2Supported) {
-      result = model.canvas.getContext('webgl2', options);
-
-      if (result) {
-        model.webgl2 = true;
-        RenderWindow_vtkDebugMacro('using webgl2');
-      }
-    }
-
-    if (!result) {
-      RenderWindow_vtkDebugMacro('using webgl1');
-      result = model.canvas.getContext('webgl', options) || model.canvas.getContext('experimental-webgl', options);
-    } // prevent default context lost handler
-
-
-    model.canvas.addEventListener('webglcontextlost', function (event) {
-      event.preventDefault();
-    }, false);
-    model.canvas.addEventListener('webglcontextrestored', publicAPI.restoreContext, false);
-    return result;
-  }; // Request an XR session on the user device with WebXR,
-  // typically in response to a user request such as a button press
-
-
-  publicAPI.startXR = function (isAR) {
-    if (navigator.xr === undefined) {
-      throw new Error('WebXR is not available');
-    }
-
-    model.xrSessionIsAR = isAR;
-    var sessionType = isAR ? 'immersive-ar' : 'immersive-vr';
-
-    if (!navigator.xr.isSessionSupported(sessionType)) {
-      if (isAR) {
-        throw new Error('Device does not support AR session');
-      } else {
-        throw new Error('VR display is not available');
-      }
-    }
-
-    if (model.xrSession === null) {
-      navigator.xr.requestSession(sessionType).then(publicAPI.enterXR, function () {
-        throw new Error('Failed to create XR session!');
-      });
-    } else {
-      throw new Error('XR Session already exists!');
-    }
-  }; // When an XR session is available, set up the XRWebGLLayer
-  // and request the first animation frame for the device
-
-
-  publicAPI.enterXR = /*#__PURE__*/function () {
-    var _ref = _asyncToGenerator( /*#__PURE__*/regenerator_default().mark(function _callee(xrSession) {
-      var gl, glLayer;
-      return regenerator_default().wrap(function _callee$(_context) {
-        while (1) {
-          switch (_context.prev = _context.next) {
-            case 0:
-              model.xrSession = xrSession;
-              model.oldCanvasSize = model.size.slice();
-
-              if (!(model.xrSession !== null)) {
-                _context.next = 15;
-                break;
-              }
-
-              gl = publicAPI.get3DContext();
-              _context.next = 6;
-              return gl.makeXRCompatible();
-
-            case 6:
-              glLayer = new __webpack_require__.g.XRWebGLLayer(model.xrSession, gl);
-              publicAPI.setSize(glLayer.framebufferWidth, glLayer.framebufferHeight);
-              model.xrSession.updateRenderState({
-                baseLayer: glLayer
-              });
-              model.xrSession.requestReferenceSpace('local').then(function (refSpace) {
-                model.xrReferenceSpace = refSpace;
-              });
-              publicAPI.resetXRScene();
-              model.renderable.getInteractor().switchToXRAnimation();
-              model.xrSceneFrame = model.xrSession.requestAnimationFrame(publicAPI.xrRender);
-              _context.next = 16;
-              break;
-
-            case 15:
-              throw new Error('Failed to enter VR with a null xrSession.');
-
-            case 16:
-            case "end":
-              return _context.stop();
-          }
-        }
-      }, _callee);
-    }));
-
-    return function (_x) {
-      return _ref.apply(this, arguments);
-    };
-  }();
-
-  publicAPI.resetXRScene = function () {
-    var inputRescaleFactor = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : DEFAULT_RESET_FACTORS.vr.rescaleFactor;
-    var inputTranslateZ = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : DEFAULT_RESET_FACTORS.vr.translateZ;
-    // Adjust world-to-physical parameters for different modalities
-    // Default parameter values are for VR (model.xrSessionIsAR == false)
-    var rescaleFactor = inputRescaleFactor;
-    var translateZ = inputTranslateZ;
-
-    if (model.xrSessionIsAR && rescaleFactor === DEFAULT_RESET_FACTORS.vr.rescaleFactor) {
-      // Scale down by default in AR
-      rescaleFactor = DEFAULT_RESET_FACTORS.ar.rescaleFactor;
-    }
-
-    if (model.xrSessionIsAR && translateZ === DEFAULT_RESET_FACTORS.vr.translateZ) {
-      // Default closer to the camera in AR
-      translateZ = DEFAULT_RESET_FACTORS.ar.translateZ;
-    }
-
-    var ren = model.renderable.getRenderers()[0];
-    ren.resetCamera();
-    var camera = ren.getActiveCamera();
-    var physicalScale = camera.getPhysicalScale();
-    var physicalTranslation = camera.getPhysicalTranslation();
-    physicalScale /= rescaleFactor;
-    translateZ *= physicalScale;
-    physicalTranslation[2] += translateZ;
-    camera.setPhysicalScale(physicalScale);
-    camera.setPhysicalTranslation(physicalTranslation);
-  };
-
-  publicAPI.stopXR = /*#__PURE__*/_asyncToGenerator( /*#__PURE__*/regenerator_default().mark(function _callee2() {
-    var gl, ren;
-    return regenerator_default().wrap(function _callee2$(_context2) {
-      while (1) {
-        switch (_context2.prev = _context2.next) {
-          case 0:
-            if (!(navigator.xr === undefined)) {
-              _context2.next = 2;
-              break;
-            }
-
-            return _context2.abrupt("return");
-
-          case 2:
-            if (!(model.xrSession !== null)) {
-              _context2.next = 10;
-              break;
-            }
-
-            model.xrSession.cancelAnimationFrame(model.xrSceneFrame);
-            model.renderable.getInteractor().returnFromXRAnimation();
-            gl = publicAPI.get3DContext();
-            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-            _context2.next = 9;
-            return model.xrSession.end().catch(function (error) {
-              if (!(error instanceof DOMException)) {
-                throw error;
-              }
-            });
-
-          case 9:
-            model.xrSession = null;
-
-          case 10:
-            if (model.oldCanvasSize !== undefined) {
-              publicAPI.setSize.apply(publicAPI, _toConsumableArray(model.oldCanvasSize));
-            } // Reset to default canvas
-
-
-            ren = model.renderable.getRenderers()[0];
-            ren.getActiveCamera().setProjectionMatrix(null);
-            ren.resetCamera();
-            ren.setViewport(0.0, 0, 1.0, 1.0);
-            publicAPI.traverseAllPasses();
-
-          case 16:
-          case "end":
-            return _context2.stop();
-        }
-      }
-    }, _callee2);
-  }));
-
-  publicAPI.xrRender = /*#__PURE__*/function () {
-    var _ref3 = _asyncToGenerator( /*#__PURE__*/regenerator_default().mark(function _callee3(t, frame) {
-      var xrSession, xrPose, gl, glLayer, ren;
-      return regenerator_default().wrap(function _callee3$(_context3) {
-        while (1) {
-          switch (_context3.prev = _context3.next) {
-            case 0:
-              xrSession = frame.session;
-              model.renderable.getInteractor().updateXRGamepads(xrSession, frame, model.xrReferenceSpace);
-              model.xrSceneFrame = model.xrSession.requestAnimationFrame(publicAPI.xrRender);
-              xrPose = frame.getViewerPose(model.xrReferenceSpace);
-
-              if (xrPose) {
-                gl = publicAPI.get3DContext();
-
-                if (model.xrSessionIsAR && model.oldCanvasSize !== undefined) {
-                  gl.canvas.width = model.oldCanvasSize[0];
-                  gl.canvas.height = model.oldCanvasSize[1];
-                }
-
-                glLayer = xrSession.renderState.baseLayer;
-                gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
-                gl.clear(gl.COLOR_BUFFER_BIT);
-                gl.clear(gl.DEPTH_BUFFER_BIT); // get the first renderer
-
-                ren = model.renderable.getRenderers()[0]; // Do a render pass for each eye
-
-                xrPose.views.forEach(function (view) {
-                  var viewport = glLayer.getViewport(view);
-                  gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height); // TODO: Appropriate handling for AR passthrough on HMDs
-                  // with two eyes will require further investigation.
-
-                  if (!model.xrSessionIsAR) {
-                    if (view.eye === 'left') {
-                      ren.setViewport(0, 0, 0.5, 1.0);
-                    } else if (view.eye === 'right') {
-                      ren.setViewport(0.5, 0, 1.0, 1.0);
-                    } else {
-                      // No handling for non-eye viewport
-                      return;
-                    }
-                  }
-
-                  ren.getActiveCamera().computeViewParametersFromPhysicalMatrix(view.transform.inverse.matrix);
-                  ren.getActiveCamera().setProjectionMatrix(view.projectionMatrix);
-                  publicAPI.traverseAllPasses();
-                });
-              }
-
-            case 5:
-            case "end":
-              return _context3.stop();
-          }
-        }
-      }, _callee3);
-    }));
-
-    return function (_x2, _x3) {
-      return _ref3.apply(this, arguments);
-    };
-  }();
-
-  publicAPI.restoreContext = function () {
-    var rp = vtkRenderPass$1.newInstance();
-    rp.setCurrentOperation('Release');
-    rp.traverse(publicAPI, null);
-  };
-
-  publicAPI.activateTexture = function (texture) {
-    // Only add if it isn't already there
-    var result = model._textureResourceIds.get(texture);
-
-    if (result !== undefined) {
-      model.context.activeTexture(model.context.TEXTURE0 + result);
-      return;
-    }
-
-    var activeUnit = publicAPI.getTextureUnitManager().allocate();
-
-    if (activeUnit < 0) {
-      RenderWindow_vtkErrorMacro('Hardware does not support the number of textures defined.');
-      return;
-    }
-
-    model._textureResourceIds.set(texture, activeUnit);
-
-    model.context.activeTexture(model.context.TEXTURE0 + activeUnit);
-  };
-
-  publicAPI.deactivateTexture = function (texture) {
-    // Only deactivate if it isn't already there
-    var result = model._textureResourceIds.get(texture);
-
-    if (result !== undefined) {
-      publicAPI.getTextureUnitManager().free(result);
-      delete model._textureResourceIds.delete(texture);
-    }
-  };
-
-  publicAPI.getTextureUnitForTexture = function (texture) {
-    var result = model._textureResourceIds.get(texture);
-
-    if (result !== undefined) {
-      return result;
-    }
-
-    return -1;
-  };
-
-  publicAPI.getDefaultTextureInternalFormat = function (vtktype, numComps, useFloat) {
-    if (model.webgl2) {
-      switch (vtktype) {
-        case VtkDataTypes.UNSIGNED_CHAR:
-          switch (numComps) {
-            case 1:
-              return model.context.R8;
-
-            case 2:
-              return model.context.RG8;
-
-            case 3:
-              return model.context.RGB8;
-
-            case 4:
-            default:
-              return model.context.RGBA8;
-          }
-
-        case VtkDataTypes.FLOAT:
-        default:
-          switch (numComps) {
-            case 1:
-              return model.context.R16F;
-
-            case 2:
-              return model.context.RG16F;
-
-            case 3:
-              return model.context.RGB16F;
-
-            case 4:
-            default:
-              return model.context.RGBA16F;
-          }
-
-      }
-    } // webgl1 only supports four types
-
-
-    switch (numComps) {
-      case 1:
-        return model.context.LUMINANCE;
-
-      case 2:
-        return model.context.LUMINANCE_ALPHA;
-
-      case 3:
-        return model.context.RGB;
-
-      case 4:
-      default:
-        return model.context.RGBA;
-    }
-  };
-
-  publicAPI.setBackgroundImage = function (img) {
-    model.bgImage.src = img.src;
-  };
-
-  publicAPI.setUseBackgroundImage = function (value) {
-    model.useBackgroundImage = value; // Add or remove the background image from the
-    // DOM as specified.
-
-    if (model.useBackgroundImage && !model.el.contains(model.bgImage)) {
-      model.el.appendChild(model.bgImage);
-    } else if (!model.useBackgroundImage && model.el.contains(model.bgImage)) {
-      model.el.removeChild(model.bgImage);
-    }
-  };
-
-  function getCanvasDataURL() {
-    var format = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : model.imageFormat;
-    // Copy current canvas to not modify the original
-    var temporaryCanvas = document.createElement('canvas');
-    var temporaryContext = temporaryCanvas.getContext('2d');
-    temporaryCanvas.width = model.canvas.width;
-    temporaryCanvas.height = model.canvas.height;
-    temporaryContext.drawImage(model.canvas, 0, 0); // Get current client rect to place canvas
-
-    var mainBoundingClientRect = model.canvas.getBoundingClientRect();
-    var renderWindow = model.renderable;
-    var renderers = renderWindow.getRenderers();
-    renderers.forEach(function (renderer) {
-      var viewProps = renderer.getViewProps();
-      viewProps.forEach(function (viewProp) {
-        // Check if the prop has a container that should have canvas
-        if (viewProp.getContainer) {
-          var container = viewProp.getContainer();
-          var canvasList = container.getElementsByTagName('canvas'); // Go throughout all canvas and copy it into temporary main canvas
-
-          for (var i = 0; i < canvasList.length; i++) {
-            var currentCanvas = canvasList[i];
-            var boundingClientRect = currentCanvas.getBoundingClientRect();
-            var newXPosition = boundingClientRect.x - mainBoundingClientRect.x;
-            var newYPosition = boundingClientRect.y - mainBoundingClientRect.y;
-            temporaryContext.drawImage(currentCanvas, newXPosition, newYPosition);
-          }
-        }
-      });
-    });
-    var screenshot = temporaryCanvas.toDataURL(format);
-    temporaryCanvas.remove();
-    publicAPI.invokeImageReady(screenshot);
-  }
-
-  publicAPI.captureNextImage = function () {
-    var format = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'image/png';
-
-    var _ref4 = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {},
-        _ref4$resetCamera = _ref4.resetCamera,
-        resetCamera = _ref4$resetCamera === void 0 ? false : _ref4$resetCamera,
-        _ref4$size = _ref4.size,
-        size = _ref4$size === void 0 ? null : _ref4$size,
-        _ref4$scale = _ref4.scale,
-        scale = _ref4$scale === void 0 ? 1 : _ref4$scale;
-
-    if (model.deleted) {
-      return null;
-    }
-
-    model.imageFormat = format;
-    var previous = model.notifyStartCaptureImage;
-    model.notifyStartCaptureImage = true;
-    model._screenshot = {
-      size: !!size || scale !== 1 ? size || model.size.map(function (val) {
-        return val * scale;
-      }) : null
-    };
-    return new Promise(function (resolve, reject) {
-      var subscription = publicAPI.onImageReady(function (imageURL) {
-        if (model._screenshot.size === null) {
-          model.notifyStartCaptureImage = previous;
-          subscription.unsubscribe();
-
-          if (model._screenshot.placeHolder) {
-            // resize the main canvas back to its original size and show it
-            model.size = model._screenshot.originalSize; // process the resize
-
-            publicAPI.modified(); // restore the saved camera parameters, if applicable
-
-            if (model._screenshot.cameras) {
-              model._screenshot.cameras.forEach(function (_ref5) {
-                var restoreParamsFn = _ref5.restoreParamsFn,
-                    arg = _ref5.arg;
-                return restoreParamsFn(arg);
-              });
-            } // Trigger a render at the original size
-
-
-            publicAPI.traverseAllPasses(); // Remove and clean up the placeholder, revealing the original
-
-            model.el.removeChild(model._screenshot.placeHolder);
-
-            model._screenshot.placeHolder.remove();
-
-            model._screenshot = null;
-          }
-
-          resolve(imageURL);
-        } else {
-          // Create a placeholder image overlay while we resize and render
-          var tmpImg = document.createElement('img');
-          tmpImg.style = SCREENSHOT_PLACEHOLDER;
-          tmpImg.src = imageURL;
-          model._screenshot.placeHolder = model.el.appendChild(tmpImg); // hide the main canvas
-
-          model.canvas.style.display = 'none'; // remember the main canvas original size, then resize it
-
-          model._screenshot.originalSize = model.size;
-          model.size = model._screenshot.size;
-          model._screenshot.size = null; // process the resize
-
-          publicAPI.modified();
-
-          if (resetCamera) {
-            var isUserResetCamera = resetCamera !== true; // If resetCamera was requested, we first save camera parameters
-            // from all the renderers, so we can restore them later
-
-            model._screenshot.cameras = model.renderable.getRenderers().map(function (renderer) {
-              var camera = renderer.getActiveCamera();
-              var params = camera.get('focalPoint', 'position', 'parallelScale');
-              return {
-                resetCameraArgs: isUserResetCamera ? {
-                  renderer: renderer
-                } : undefined,
-                resetCameraFn: isUserResetCamera ? resetCamera : renderer.resetCamera,
-                restoreParamsFn: camera.set,
-                // "clone" the params so we don't keep refs to properties
-                arg: JSON.parse(JSON.stringify(params))
-              };
-            }); // Perform the resetCamera() on each renderer only after capturing
-            // the params from all active cameras, in case there happen to be
-            // linked cameras among the renderers.
-
-            model._screenshot.cameras.forEach(function (_ref6) {
-              var resetCameraFn = _ref6.resetCameraFn,
-                  resetCameraArgs = _ref6.resetCameraArgs;
-              return resetCameraFn(resetCameraArgs);
-            });
-          } // Trigger a render at the custom size
-
-
-          publicAPI.traverseAllPasses();
-        }
-      });
-    });
-  };
-
-  publicAPI.getGLInformations = function () {
-    var gl = publicAPI.get3DContext();
-    var glTextureFloat = gl.getExtension('OES_texture_float');
-    var glTextureHalfFloat = gl.getExtension('OES_texture_half_float');
-    var glDebugRendererInfo = gl.getExtension('WEBGL_debug_renderer_info');
-    var glDrawBuffers = gl.getExtension('WEBGL_draw_buffers');
-    var glAnisotropic = gl.getExtension('EXT_texture_filter_anisotropic') || gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic');
-    var params = [['Max Vertex Attributes', 'MAX_VERTEX_ATTRIBS', gl.getParameter(gl.MAX_VERTEX_ATTRIBS)], ['Max Varying Vectors', 'MAX_VARYING_VECTORS', gl.getParameter(gl.MAX_VARYING_VECTORS)], ['Max Vertex Uniform Vectors', 'MAX_VERTEX_UNIFORM_VECTORS', gl.getParameter(gl.MAX_VERTEX_UNIFORM_VECTORS)], ['Max Fragment Uniform Vectors', 'MAX_FRAGMENT_UNIFORM_VECTORS', gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS)], ['Max Fragment Texture Image Units', 'MAX_TEXTURE_IMAGE_UNITS', gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS)], ['Max Vertex Texture Image Units', 'MAX_VERTEX_TEXTURE_IMAGE_UNITS', gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS)], ['Max Combined Texture Image Units', 'MAX_COMBINED_TEXTURE_IMAGE_UNITS', gl.getParameter(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS)], ['Max 2D Texture Size', 'MAX_TEXTURE_SIZE', gl.getParameter(gl.MAX_TEXTURE_SIZE)], ['Max Cube Texture Size', 'MAX_CUBE_MAP_TEXTURE_SIZE', gl.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE)], ['Max Texture Anisotropy', 'MAX_TEXTURE_MAX_ANISOTROPY_EXT', glAnisotropic && gl.getParameter(glAnisotropic.MAX_TEXTURE_MAX_ANISOTROPY_EXT)], ['Point Size Range', 'ALIASED_POINT_SIZE_RANGE', gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE).join(' - ')], ['Line Width Range', 'ALIASED_LINE_WIDTH_RANGE', gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE).join(' - ')], ['Max Viewport Dimensions', 'MAX_VIEWPORT_DIMS', gl.getParameter(gl.MAX_VIEWPORT_DIMS).join(' - ')], ['Max Renderbuffer Size', 'MAX_RENDERBUFFER_SIZE', gl.getParameter(gl.MAX_RENDERBUFFER_SIZE)], ['Framebuffer Red Bits', 'RED_BITS', gl.getParameter(gl.RED_BITS)], ['Framebuffer Green Bits', 'GREEN_BITS', gl.getParameter(gl.GREEN_BITS)], ['Framebuffer Blue Bits', 'BLUE_BITS', gl.getParameter(gl.BLUE_BITS)], ['Framebuffer Alpha Bits', 'ALPHA_BITS', gl.getParameter(gl.ALPHA_BITS)], ['Framebuffer Depth Bits', 'DEPTH_BITS', gl.getParameter(gl.DEPTH_BITS)], ['Framebuffer Stencil Bits', 'STENCIL_BITS', gl.getParameter(gl.STENCIL_BITS)], ['Framebuffer Subpixel Bits', 'SUBPIXEL_BITS', gl.getParameter(gl.SUBPIXEL_BITS)], ['MSAA Samples', 'SAMPLES', gl.getParameter(gl.SAMPLES)], ['MSAA Sample Buffers', 'SAMPLE_BUFFERS', gl.getParameter(gl.SAMPLE_BUFFERS)], ['Supported Formats for UByte Render Targets     ', 'UNSIGNED_BYTE RENDER TARGET FORMATS', [glTextureFloat && checkRenderTargetSupport(gl, gl.RGBA, gl.UNSIGNED_BYTE) ? 'RGBA' : '', glTextureFloat && checkRenderTargetSupport(gl, gl.RGB, gl.UNSIGNED_BYTE) ? 'RGB' : '', glTextureFloat && checkRenderTargetSupport(gl, gl.LUMINANCE, gl.UNSIGNED_BYTE) ? 'LUMINANCE' : '', glTextureFloat && checkRenderTargetSupport(gl, gl.ALPHA, gl.UNSIGNED_BYTE) ? 'ALPHA' : '', glTextureFloat && checkRenderTargetSupport(gl, gl.LUMINANCE_ALPHA, gl.UNSIGNED_BYTE) ? 'LUMINANCE_ALPHA' : ''].join(' ')], ['Supported Formats for Half Float Render Targets', 'HALF FLOAT RENDER TARGET FORMATS', [glTextureHalfFloat && checkRenderTargetSupport(gl, gl.RGBA, glTextureHalfFloat.HALF_FLOAT_OES) ? 'RGBA' : '', glTextureHalfFloat && checkRenderTargetSupport(gl, gl.RGB, glTextureHalfFloat.HALF_FLOAT_OES) ? 'RGB' : '', glTextureHalfFloat && checkRenderTargetSupport(gl, gl.LUMINANCE, glTextureHalfFloat.HALF_FLOAT_OES) ? 'LUMINANCE' : '', glTextureHalfFloat && checkRenderTargetSupport(gl, gl.ALPHA, glTextureHalfFloat.HALF_FLOAT_OES) ? 'ALPHA' : '', glTextureHalfFloat && checkRenderTargetSupport(gl, gl.LUMINANCE_ALPHA, glTextureHalfFloat.HALF_FLOAT_OES) ? 'LUMINANCE_ALPHA' : ''].join(' ')], ['Supported Formats for Full Float Render Targets', 'FLOAT RENDER TARGET FORMATS', [glTextureFloat && checkRenderTargetSupport(gl, gl.RGBA, gl.FLOAT) ? 'RGBA' : '', glTextureFloat && checkRenderTargetSupport(gl, gl.RGB, gl.FLOAT) ? 'RGB' : '', glTextureFloat && checkRenderTargetSupport(gl, gl.LUMINANCE, gl.FLOAT) ? 'LUMINANCE' : '', glTextureFloat && checkRenderTargetSupport(gl, gl.ALPHA, gl.FLOAT) ? 'ALPHA' : '', glTextureFloat && checkRenderTargetSupport(gl, gl.LUMINANCE_ALPHA, gl.FLOAT) ? 'LUMINANCE_ALPHA' : ''].join(' ')], ['Max Multiple Render Targets Buffers', 'MAX_DRAW_BUFFERS_WEBGL', glDrawBuffers ? gl.getParameter(glDrawBuffers.MAX_DRAW_BUFFERS_WEBGL) : 0], ['High Float Precision in Vertex Shader', 'HIGH_FLOAT VERTEX_SHADER', [gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.HIGH_FLOAT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.HIGH_FLOAT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.HIGH_FLOAT).rangeMax, '</sup>)'].join('')], ['Medium Float Precision in Vertex Shader', 'MEDIUM_FLOAT VERTEX_SHADER', [gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.MEDIUM_FLOAT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.MEDIUM_FLOAT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.MEDIUM_FLOAT).rangeMax, '</sup>)'].join('')], ['Low Float Precision in Vertex Shader', 'LOW_FLOAT VERTEX_SHADER', [gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.LOW_FLOAT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.LOW_FLOAT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.LOW_FLOAT).rangeMax, '</sup>)'].join('')], ['High Float Precision in Fragment Shader', 'HIGH_FLOAT FRAGMENT_SHADER', [gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT).rangeMax, '</sup>)'].join('')], ['Medium Float Precision in Fragment Shader', 'MEDIUM_FLOAT FRAGMENT_SHADER', [gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_FLOAT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_FLOAT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_FLOAT).rangeMax, '</sup>)'].join('')], ['Low Float Precision in Fragment Shader', 'LOW_FLOAT FRAGMENT_SHADER', [gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.LOW_FLOAT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.LOW_FLOAT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.LOW_FLOAT).rangeMax, '</sup>)'].join('')], ['High Int Precision in Vertex Shader', 'HIGH_INT VERTEX_SHADER', [gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.HIGH_INT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.HIGH_INT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.HIGH_INT).rangeMax, '</sup>)'].join('')], ['Medium Int Precision in Vertex Shader', 'MEDIUM_INT VERTEX_SHADER', [gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.MEDIUM_INT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.MEDIUM_INT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.MEDIUM_INT).rangeMax, '</sup>)'].join('')], ['Low Int Precision in Vertex Shader', 'LOW_INT VERTEX_SHADER', [gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.LOW_INT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.LOW_INT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.LOW_INT).rangeMax, '</sup>)'].join('')], ['High Int Precision in Fragment Shader', 'HIGH_INT FRAGMENT_SHADER', [gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_INT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_INT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_INT).rangeMax, '</sup>)'].join('')], ['Medium Int Precision in Fragment Shader', 'MEDIUM_INT FRAGMENT_SHADER', [gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_INT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_INT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_INT).rangeMax, '</sup>)'].join('')], ['Low Int Precision in Fragment Shader', 'LOW_INT FRAGMENT_SHADER', [gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.LOW_INT).precision, ' (-2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.LOW_INT).rangeMin, '</sup> - 2<sup>', gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.LOW_INT).rangeMax, '</sup>)'].join('')], ['Supported Extensions', 'EXTENSIONS', gl.getSupportedExtensions().join('<br/>\t\t\t\t\t    ')], ['WebGL Renderer', 'RENDERER', gl.getParameter(gl.RENDERER)], ['WebGL Vendor', 'VENDOR', gl.getParameter(gl.VENDOR)], ['WebGL Version', 'VERSION', gl.getParameter(gl.VERSION)], ['Shading Language Version', 'SHADING_LANGUAGE_VERSION', gl.getParameter(gl.SHADING_LANGUAGE_VERSION)], ['Unmasked Renderer', 'UNMASKED_RENDERER', glDebugRendererInfo && gl.getParameter(glDebugRendererInfo.UNMASKED_RENDERER_WEBGL)], ['Unmasked Vendor', 'UNMASKED_VENDOR', glDebugRendererInfo && gl.getParameter(glDebugRendererInfo.UNMASKED_VENDOR_WEBGL)], ['WebGL Version', 'WEBGL_VERSION', model.webgl2 ? 2 : 1]];
-    var result = {};
-
-    while (params.length) {
-      var _params$pop = params.pop(),
-          _params$pop2 = _slicedToArray(_params$pop, 3),
-          label = _params$pop2[0],
-          key = _params$pop2[1],
-          value = _params$pop2[2];
-
-      if (key) {
-        result[key] = {
-          label: label,
-          value: value
-        };
-      }
-    }
-
-    return result;
-  };
-
-  publicAPI.traverseAllPasses = function () {
-    if (model.renderPasses) {
-      for (var index = 0; index < model.renderPasses.length; ++index) {
-        model.renderPasses[index].traverse(publicAPI, null);
-      }
-    }
-
-    if (model.notifyStartCaptureImage) {
-      getCanvasDataURL();
-    }
-  };
-
-  publicAPI.disableCullFace = function () {
-    if (model.cullFaceEnabled) {
-      model.context.disable(model.context.CULL_FACE);
-      model.cullFaceEnabled = false;
-    }
-  };
-
-  publicAPI.enableCullFace = function () {
-    if (!model.cullFaceEnabled) {
-      model.context.enable(model.context.CULL_FACE);
-      model.cullFaceEnabled = true;
-    }
-  };
-
-  publicAPI.setViewStream = function (stream) {
-    if (model.viewStream === stream) {
-      return false;
-    }
-
-    if (model.subscription) {
-      model.subscription.unsubscribe();
-      model.subscription = null;
-    }
-
-    model.viewStream = stream;
-
-    if (model.viewStream) {
-      // Force background to be transparent + render
-      var mainRenderer = model.renderable.getRenderers()[0];
-      mainRenderer.getBackgroundByReference()[3] = 0; // Enable display of the background image
-
-      publicAPI.setUseBackgroundImage(true); // Bind to remote stream
-
-      model.subscription = model.viewStream.onImageReady(function (e) {
-        return publicAPI.setBackgroundImage(e.image);
-      });
-      model.viewStream.setSize(model.size[0], model.size[1]);
-      model.viewStream.invalidateCache();
-      model.viewStream.render();
-      publicAPI.modified();
-    }
-
-    return true;
-  };
-
-  publicAPI.createSelector = function () {
-    var ret = HardwareSelector_vtkHardwareSelector.newInstance();
-    ret.setOpenGLRenderWindow(publicAPI);
-    return ret;
-  };
-
-  publicAPI.delete = macro.chain(publicAPI.delete, publicAPI.setViewStream, deleteGLContext);
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var OpenGL_RenderWindow_DEFAULT_VALUES = {
-  cullFaceEnabled: false,
-  shaderCache: null,
-  initialized: false,
-  context: null,
-  canvas: null,
-  cursorVisibility: true,
-  cursor: 'pointer',
-  textureUnitManager: null,
-  textureResourceIds: null,
-  containerSize: null,
-  renderPasses: [],
-  notifyStartCaptureImage: false,
-  webgl2: false,
-  defaultToWebgl2: true,
-  // attempt webgl2 on by default
-  activeFramebuffer: null,
-  xrSession: null,
-  xrSessionIsAR: false,
-  xrReferenceSpace: null,
-  xrSupported: true,
-  imageFormat: 'image/png',
-  useOffScreen: false,
-  useBackgroundImage: false
-}; // ----------------------------------------------------------------------------
-
-function OpenGL_RenderWindow_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, OpenGL_RenderWindow_DEFAULT_VALUES, initialValues); // Inheritance
-
-  vtkRenderWindowViewNode$1.extend(publicAPI, model, initialValues); // Create internal instances
-
-  model.canvas = document.createElement('canvas');
-  model.canvas.style.width = '100%';
-  createGLContext();
-
-  if (!model.selector) {
-    model.selector = HardwareSelector_vtkHardwareSelector.newInstance();
-    model.selector.setOpenGLRenderWindow(publicAPI);
-  } // Create internal bgImage
-
-
-  model.bgImage = new Image();
-  model.bgImage.style.position = 'absolute';
-  model.bgImage.style.left = '0';
-  model.bgImage.style.top = '0';
-  model.bgImage.style.width = '100%';
-  model.bgImage.style.height = '100%';
-  model.bgImage.style.zIndex = '-1';
-  model._textureResourceIds = new Map();
-  model.myFactory = ViewNodeFactory_vtkViewNodeFactory.newInstance();
-  /* eslint-disable no-use-before-define */
-
-  model.myFactory.registerOverride('vtkRenderWindow', OpenGL_RenderWindow_newInstance);
-  /* eslint-enable no-use-before-define */
-
-  model.shaderCache = vtkShaderCache$1.newInstance();
-  model.shaderCache.setOpenGLRenderWindow(publicAPI); // setup default forward pass rendering
-
-  model.renderPasses[0] = vtkForwardPass$1.newInstance();
-  macro.event(publicAPI, model, 'imageReady');
-  macro.event(publicAPI, model, 'haveVRDisplay'); // Build VTK API
-
-  macro.get(publicAPI, model, ['shaderCache', 'textureUnitManager', 'webgl2', 'vrDisplay', 'useBackgroundImage', 'xrSupported']);
-  macro.setGet(publicAPI, model, ['initialized', 'context', 'canvas', 'renderPasses', 'notifyStartCaptureImage', 'defaultToWebgl2', 'cursor', 'useOffScreen', // might want to make this not call modified as
-  // we change the active framebuffer a lot. Or maybe
-  // only mark modified if the size or depth
-  // of the buffer has changed
-  'activeFramebuffer']);
-  macro.setGetArray(publicAPI, model, ['size'], 2); // Object methods
-
-  vtkOpenGLRenderWindow(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var OpenGL_RenderWindow_newInstance = macro.newInstance(OpenGL_RenderWindow_extend, 'vtkOpenGLRenderWindow'); // ----------------------------------------------------------------------------
-// Register API specific RenderWindow implementation
-// ----------------------------------------------------------------------------
-
-registerViewConstructor('WebGL', OpenGL_RenderWindow_newInstance); // ----------------------------------------------------------------------------
-
-var RenderWindow_vtkRenderWindow = {
-  newInstance: OpenGL_RenderWindow_newInstance,
-  extend: OpenGL_RenderWindow_extend,
-  pushMonitorGLContextCount: pushMonitorGLContextCount,
-  popMonitorGLContextCount: popMonitorGLContextCount
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/Camera.js
-
-
-
-
-
-var Camera_vtkDebugMacro = macro.vtkDebugMacro;
-/* eslint-disable new-cap */
-
-/*
- * Convenience function to access elements of a gl-matrix.  If it turns
- * out I have rows and columns swapped everywhere, then I'll just change
- * the order of 'row' and 'col' parameters in this function
- */
-// function getMatrixElement(matrix, row, col) {
-//   const idx = (row * 4) + col;
-//   return matrix[idx];
-// }
-// ----------------------------------------------------------------------------
-// vtkCamera methods
-// ----------------------------------------------------------------------------
-
-function Camera_vtkCamera(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkCamera'); // Set up private variables and methods
-
-  var origin = new Float64Array(3);
-  var dopbasis = new Float64Array([0.0, 0.0, -1.0]);
-  var upbasis = new Float64Array([0.0, 1.0, 0.0]);
-  var tmpMatrix = mat4_identity(new Float64Array(16));
-  var tmpvec1 = new Float64Array(3);
-  var tmpvec2 = new Float64Array(3);
-  var tmpvec3 = new Float64Array(3);
-  var rotateMatrix = mat4_identity(new Float64Array(16));
-  var trans = mat4_identity(new Float64Array(16));
-  var newPosition = new Float64Array(3);
-  var newFocalPoint = new Float64Array(3); // Internal Functions that don't need to be public
-
-  function computeViewPlaneNormal() {
-    // VPN is -DOP
-    model.viewPlaneNormal[0] = -model.directionOfProjection[0];
-    model.viewPlaneNormal[1] = -model.directionOfProjection[1];
-    model.viewPlaneNormal[2] = -model.directionOfProjection[2];
-  }
-
-  publicAPI.orthogonalizeViewUp = function () {
-    var vt = publicAPI.getViewMatrix();
-    model.viewUp[0] = vt[4];
-    model.viewUp[1] = vt[5];
-    model.viewUp[2] = vt[6];
-    publicAPI.modified();
-  };
-
-  publicAPI.setPosition = function (x, y, z) {
-    if (x === model.position[0] && y === model.position[1] && z === model.position[2]) {
-      return;
-    }
-
-    model.position[0] = x;
-    model.position[1] = y;
-    model.position[2] = z; // recompute the focal distance
-
-    publicAPI.computeDistance();
-    publicAPI.modified();
-  };
-
-  publicAPI.setFocalPoint = function (x, y, z) {
-    if (x === model.focalPoint[0] && y === model.focalPoint[1] && z === model.focalPoint[2]) {
-      return;
-    }
-
-    model.focalPoint[0] = x;
-    model.focalPoint[1] = y;
-    model.focalPoint[2] = z; // recompute the focal distance
-
-    publicAPI.computeDistance();
-    publicAPI.modified();
-  };
-
-  publicAPI.setDistance = function (d) {
-    if (model.distance === d) {
-      return;
-    }
-
-    model.distance = d;
-
-    if (model.distance < 1e-20) {
-      model.distance = 1e-20;
-      Camera_vtkDebugMacro('Distance is set to minimum.');
-    } // we want to keep the camera pointing in the same direction
-
-
-    var vec = model.directionOfProjection; // recalculate FocalPoint
-
-    model.focalPoint[0] = model.position[0] + vec[0] * model.distance;
-    model.focalPoint[1] = model.position[1] + vec[1] * model.distance;
-    model.focalPoint[2] = model.position[2] + vec[2] * model.distance;
-    publicAPI.modified();
-  }; //----------------------------------------------------------------------------
-  // This method must be called when the focal point or camera position changes
-
-
-  publicAPI.computeDistance = function () {
-    var dx = model.focalPoint[0] - model.position[0];
-    var dy = model.focalPoint[1] - model.position[1];
-    var dz = model.focalPoint[2] - model.position[2];
-    model.distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-    if (model.distance < 1e-20) {
-      model.distance = 1e-20;
-      Camera_vtkDebugMacro('Distance is set to minimum.');
-      var vec = model.directionOfProjection; // recalculate FocalPoint
-
-      model.focalPoint[0] = model.position[0] + vec[0] * model.distance;
-      model.focalPoint[1] = model.position[1] + vec[1] * model.distance;
-      model.focalPoint[2] = model.position[2] + vec[2] * model.distance;
-    }
-
-    model.directionOfProjection[0] = dx / model.distance;
-    model.directionOfProjection[1] = dy / model.distance;
-    model.directionOfProjection[2] = dz / model.distance;
-    computeViewPlaneNormal();
-  }; //----------------------------------------------------------------------------
-  // Move the position of the camera along the view plane normal. Moving
-  // towards the focal point (e.g., > 1) is a dolly-in, moving away
-  // from the focal point (e.g., < 1) is a dolly-out.
-
-
-  publicAPI.dolly = function (amount) {
-    if (amount <= 0.0) {
-      return;
-    } // dolly moves the camera towards the focus
-
-
-    var d = model.distance / amount;
-    publicAPI.setPosition(model.focalPoint[0] - d * model.directionOfProjection[0], model.focalPoint[1] - d * model.directionOfProjection[1], model.focalPoint[2] - d * model.directionOfProjection[2]);
-  };
-
-  publicAPI.roll = function (angle) {
-    var eye = model.position;
-    var at = model.focalPoint;
-    var up = model.viewUp;
-    var viewUpVec4 = new Float64Array([up[0], up[1], up[2], 0.0]);
-    mat4_identity(rotateMatrix);
-    var viewDir = new Float64Array([at[0] - eye[0], at[1] - eye[1], at[2] - eye[2]]);
-    mat4_rotate(rotateMatrix, rotateMatrix, radiansFromDegrees(angle), viewDir);
-    vec4_transformMat4(viewUpVec4, viewUpVec4, rotateMatrix);
-    model.viewUp[0] = viewUpVec4[0];
-    model.viewUp[1] = viewUpVec4[1];
-    model.viewUp[2] = viewUpVec4[2];
-    publicAPI.modified();
-  };
-
-  publicAPI.azimuth = function (angle) {
-    var fp = model.focalPoint;
-    mat4_identity(trans); // translate the focal point to the origin,
-    // rotate about view up,
-    // translate back again
-
-    mat4_translate(trans, trans, fp);
-    mat4_rotate(trans, trans, radiansFromDegrees(angle), model.viewUp);
-    mat4_translate(trans, trans, [-fp[0], -fp[1], -fp[2]]); // apply the transform to the position
-
-    transformMat4(newPosition, model.position, trans);
-    publicAPI.setPosition(newPosition[0], newPosition[1], newPosition[2]);
-  };
-
-  publicAPI.yaw = function (angle) {
-    var position = model.position;
-    mat4_identity(trans); // translate the camera to the origin,
-    // rotate about axis,
-    // translate back again
-
-    mat4_translate(trans, trans, position);
-    mat4_rotate(trans, trans, radiansFromDegrees(angle), model.viewUp);
-    mat4_translate(trans, trans, [-position[0], -position[1], -position[2]]); // apply the transform to the position
-
-    transformMat4(newFocalPoint, model.focalPoint, trans);
-    publicAPI.setFocalPoint(newFocalPoint[0], newFocalPoint[1], newFocalPoint[2]);
-  };
-
-  publicAPI.elevation = function (angle) {
-    var fp = model.focalPoint; // get the eye / camera position from the viewMatrix
-
-    var vt = publicAPI.getViewMatrix();
-    var axis = [-vt[0], -vt[1], -vt[2]];
-    mat4_identity(trans); // translate the focal point to the origin,
-    // rotate about view up,
-    // translate back again
-
-    mat4_translate(trans, trans, fp);
-    mat4_rotate(trans, trans, radiansFromDegrees(angle), axis);
-    mat4_translate(trans, trans, [-fp[0], -fp[1], -fp[2]]); // apply the transform to the position
-
-    transformMat4(newPosition, model.position, trans);
-    publicAPI.setPosition(newPosition[0], newPosition[1], newPosition[2]);
-  };
-
-  publicAPI.pitch = function (angle) {
-    var position = model.position;
-    var vt = publicAPI.getViewMatrix();
-    var axis = [vt[0], vt[1], vt[2]];
-    mat4_identity(trans); // translate the camera to the origin,
-    // rotate about axis,
-    // translate back again
-
-    mat4_translate(trans, trans, position);
-    mat4_rotate(trans, trans, radiansFromDegrees(angle), axis);
-    mat4_translate(trans, trans, [-position[0], -position[1], -position[2]]); // apply the transform to the focal point
-
-    transformMat4(newFocalPoint, model.focalPoint, trans);
-    publicAPI.setFocalPoint.apply(publicAPI, _toConsumableArray(newFocalPoint));
-  };
-
-  publicAPI.zoom = function (factor) {
-    if (factor <= 0) {
-      return;
-    }
-
-    if (model.parallelProjection) {
-      model.parallelScale /= factor;
-    } else {
-      model.viewAngle /= factor;
-    }
-
-    publicAPI.modified();
-  };
-
-  publicAPI.translate = function (x, y, z) {
-    var offset = [x, y, z];
-    add(model.position, offset, model.position);
-    add(model.focalPoint, offset, model.focalPoint);
-    publicAPI.computeDistance();
-    publicAPI.modified();
-  };
-
-  publicAPI.applyTransform = function (transformMat4) {
-    var vuOld = [].concat(_toConsumableArray(model.viewUp), [1.0]);
-    var posNew = [];
-    var fpNew = [];
-    var vuNew = [];
-    vuOld[0] += model.position[0];
-    vuOld[1] += model.position[1];
-    vuOld[2] += model.position[2];
-    vec4_transformMat4(posNew, [].concat(_toConsumableArray(model.position), [1.0]), transformMat4);
-    vec4_transformMat4(fpNew, [].concat(_toConsumableArray(model.focalPoint), [1.0]), transformMat4);
-    vec4_transformMat4(vuNew, vuOld, transformMat4);
-    vuNew[0] -= posNew[0];
-    vuNew[1] -= posNew[1];
-    vuNew[2] -= posNew[2];
-    publicAPI.setPosition.apply(publicAPI, _toConsumableArray(posNew.slice(0, 3)));
-    publicAPI.setFocalPoint.apply(publicAPI, _toConsumableArray(fpNew.slice(0, 3)));
-    publicAPI.setViewUp.apply(publicAPI, _toConsumableArray(vuNew.slice(0, 3)));
-  };
-
-  publicAPI.getThickness = function () {
-    return model.clippingRange[1] - model.clippingRange[0];
-  };
-
-  publicAPI.setThickness = function (thickness) {
-    var t = thickness;
-
-    if (t < 1e-20) {
-      t = 1e-20;
-      Camera_vtkDebugMacro('Thickness is set to minimum.');
-    }
-
-    publicAPI.setClippingRange(model.clippingRange[0], model.clippingRange[0] + t);
-  };
-
-  publicAPI.setThicknessFromFocalPoint = function (thickness) {
-    var t = thickness;
-
-    if (t < 1e-20) {
-      t = 1e-20;
-      Camera_vtkDebugMacro('Thickness is set to minimum.');
-    }
-
-    publicAPI.setClippingRange(model.distance - t / 2, model.distance + t / 2);
-  }; // Unimplemented functions
-
-
-  publicAPI.setRoll = function (angle) {}; // dependency on GetOrientation() and a model.ViewTransform object, see https://github.com/Kitware/VTK/blob/master/Common/Transforms/vtkTransform.cxx and https://vtk.org/doc/nightly/html/classvtkTransform.html
-
-
-  publicAPI.getRoll = function () {};
-
-  publicAPI.setObliqueAngles = function (alpha, beta) {};
-
-  publicAPI.getOrientation = function () {};
-
-  publicAPI.getOrientationWXYZ = function () {};
-
-  publicAPI.getFrustumPlanes = function (aspect) {// Return array of 24 params (4 params for each of 6 plane equations)
-  };
-
-  publicAPI.getCameraLightTransformMatrix = function () {};
-
-  publicAPI.deepCopy = function (sourceCamera) {};
-
-  publicAPI.physicalOrientationToWorldDirection = function (ori) {
-    // push the x axis through the orientation quat
-    var oriq = quat_fromValues(ori[0], ori[1], ori[2], ori[3]);
-    var coriq = quat_create();
-    var qdir = quat_fromValues(0.0, 0.0, 1.0, 0.0);
-    conjugate(coriq, oriq); // rotate the z axis by the quat
-
-    quat_multiply(qdir, oriq, qdir);
-    quat_multiply(qdir, qdir, coriq); // return the z axis in world coords
-
-    return [qdir[0], qdir[1], qdir[2]];
-  };
-
-  publicAPI.getPhysicalToWorldMatrix = function (result) {
-    publicAPI.getWorldToPhysicalMatrix(result);
-    invert(result, result);
-  };
-
-  publicAPI.getWorldToPhysicalMatrix = function (result) {
-    mat4_identity(result); // now the physical to vtk world rotation tform
-
-    var physVRight = [3];
-    cross(model.physicalViewNorth, model.physicalViewUp, physVRight);
-    result[0] = physVRight[0];
-    result[1] = physVRight[1];
-    result[2] = physVRight[2];
-    result[4] = model.physicalViewUp[0];
-    result[5] = model.physicalViewUp[1];
-    result[6] = model.physicalViewUp[2];
-    result[8] = -model.physicalViewNorth[0];
-    result[9] = -model.physicalViewNorth[1];
-    result[10] = -model.physicalViewNorth[2];
-    transpose(result, result);
-    vec3_set(tmpvec1, 1 / model.physicalScale, 1 / model.physicalScale, 1 / model.physicalScale);
-    mat4_scale(result, result, tmpvec1);
-    mat4_translate(result, result, model.physicalTranslation);
-  };
-
-  publicAPI.computeViewParametersFromViewMatrix = function (vmat) {
-    // invert to get view to world
-    invert(tmpMatrix, vmat); // note with glmatrix operations happen in
-    // the reverse order
-    // mat.scale
-    // mat.translate
-    // will result in the translation then the scale
-    // mat.mult(a,b)
-    // results in perform the B transformation then A
-    // then extract the params position, orientation
-    // push 0,0,0 through to get a translation
-
-    transformMat4(tmpvec1, origin, tmpMatrix);
-    publicAPI.computeDistance();
-    var oldDist = model.distance;
-    publicAPI.setPosition(tmpvec1[0], tmpvec1[1], tmpvec1[2]); // push basis vectors to get orientation
-
-    transformMat4(tmpvec2, dopbasis, tmpMatrix);
-    vec3_subtract(tmpvec2, tmpvec2, tmpvec1);
-    vec3_normalize(tmpvec2, tmpvec2);
-    publicAPI.setDirectionOfProjection(tmpvec2[0], tmpvec2[1], tmpvec2[2]);
-    transformMat4(tmpvec3, upbasis, tmpMatrix);
-    vec3_subtract(tmpvec3, tmpvec3, tmpvec1);
-    vec3_normalize(tmpvec3, tmpvec3);
-    publicAPI.setViewUp(tmpvec3[0], tmpvec3[1], tmpvec3[2]);
-    publicAPI.setDistance(oldDist);
-  }; // the provided matrix should include
-  // translation and orientation only
-  // mat is physical to view
-
-
-  publicAPI.computeViewParametersFromPhysicalMatrix = function (mat) {
-    // get the WorldToPhysicalMatrix
-    publicAPI.getWorldToPhysicalMatrix(tmpMatrix); // first convert the physical -> view matrix to be
-    // world -> view
-
-    mat4_multiply(tmpMatrix, mat, tmpMatrix);
-    publicAPI.computeViewParametersFromViewMatrix(tmpMatrix);
-  };
-
-  publicAPI.setViewMatrix = function (mat) {
-    model.viewMatrix = mat;
-
-    if (model.viewMatrix) {
-      mat4_copy(tmpMatrix, model.viewMatrix);
-      publicAPI.computeViewParametersFromViewMatrix(tmpMatrix);
-      transpose(model.viewMatrix, model.viewMatrix);
-    }
-  };
-
-  publicAPI.getViewMatrix = function () {
-    if (model.viewMatrix) {
-      return model.viewMatrix;
-    }
-
-    lookAt(tmpMatrix, model.position, // eye
-    model.focalPoint, // at
-    model.viewUp // up
-    );
-    transpose(tmpMatrix, tmpMatrix);
-    var result = new Float64Array(16);
-    mat4_copy(result, tmpMatrix);
-    return result;
-  };
-
-  publicAPI.setProjectionMatrix = function (mat) {
-    model.projectionMatrix = mat;
-  };
-
-  publicAPI.getProjectionMatrix = function (aspect, nearz, farz) {
-    var result = new Float64Array(16);
-    mat4_identity(result);
-
-    if (model.projectionMatrix) {
-      var scale = 1 / model.physicalScale;
-      vec3_set(tmpvec1, scale, scale, scale);
-      mat4_copy(result, model.projectionMatrix);
-      mat4_scale(result, result, tmpvec1);
-      transpose(result, result);
-      return result;
-    }
-
-    mat4_identity(tmpMatrix); // FIXME: Not sure what to do about adjust z buffer here
-    // adjust Z-buffer range
-    // this->ProjectionTransform->AdjustZBuffer( -1, +1, nearz, farz );
-
-    var cWidth = model.clippingRange[1] - model.clippingRange[0];
-    var cRange = [model.clippingRange[0] + (nearz + 1) * cWidth / 2.0, model.clippingRange[0] + (farz + 1) * cWidth / 2.0];
-
-    if (model.parallelProjection) {
-      // set up a rectangular parallelipiped
-      var width = model.parallelScale * aspect;
-      var height = model.parallelScale;
-      var xmin = (model.windowCenter[0] - 1.0) * width;
-      var xmax = (model.windowCenter[0] + 1.0) * width;
-      var ymin = (model.windowCenter[1] - 1.0) * height;
-      var ymax = (model.windowCenter[1] + 1.0) * height;
-      ortho(tmpMatrix, xmin, xmax, ymin, ymax, cRange[0], cRange[1]);
-      transpose(tmpMatrix, tmpMatrix);
-    } else if (model.useOffAxisProjection) {
-      throw new Error('Off-Axis projection is not supported at this time');
-    } else {
-      var tmp = Math.tan(radiansFromDegrees(model.viewAngle) / 2.0);
-
-      var _width;
-
-      var _height;
-
-      if (model.useHorizontalViewAngle === true) {
-        _width = model.clippingRange[0] * tmp;
-        _height = model.clippingRange[0] * tmp / aspect;
-      } else {
-        _width = model.clippingRange[0] * tmp * aspect;
-        _height = model.clippingRange[0] * tmp;
-      }
-
-      var _xmin = (model.windowCenter[0] - 1.0) * _width;
-
-      var _xmax = (model.windowCenter[0] + 1.0) * _width;
-
-      var _ymin = (model.windowCenter[1] - 1.0) * _height;
-
-      var _ymax = (model.windowCenter[1] + 1.0) * _height;
-
-      var znear = cRange[0];
-      var zfar = cRange[1];
-      tmpMatrix[0] = 2.0 * znear / (_xmax - _xmin);
-      tmpMatrix[5] = 2.0 * znear / (_ymax - _ymin);
-      tmpMatrix[2] = (_xmin + _xmax) / (_xmax - _xmin);
-      tmpMatrix[6] = (_ymin + _ymax) / (_ymax - _ymin);
-      tmpMatrix[10] = -(znear + zfar) / (zfar - znear);
-      tmpMatrix[14] = -1.0;
-      tmpMatrix[11] = -2.0 * znear * zfar / (zfar - znear);
-      tmpMatrix[15] = 0.0;
-    }
-
-    mat4_copy(result, tmpMatrix);
-    return result;
-  };
-
-  publicAPI.getCompositeProjectionMatrix = function (aspect, nearz, farz) {
-    var vMat = publicAPI.getViewMatrix();
-    var pMat = publicAPI.getProjectionMatrix(aspect, nearz, farz); // mats are transposed so the order is A then B
-    // we reuse pMat as it is a copy so we can do what we want with it
-
-    mat4_multiply(pMat, vMat, pMat);
-    return pMat;
-  };
-
-  publicAPI.setDirectionOfProjection = function (x, y, z) {
-    if (model.directionOfProjection[0] === x && model.directionOfProjection[1] === y && model.directionOfProjection[2] === z) {
-      return;
-    }
-
-    model.directionOfProjection[0] = x;
-    model.directionOfProjection[1] = y;
-    model.directionOfProjection[2] = z;
-    var vec = model.directionOfProjection; // recalculate FocalPoint
-
-    model.focalPoint[0] = model.position[0] + vec[0] * model.distance;
-    model.focalPoint[1] = model.position[1] + vec[1] * model.distance;
-    model.focalPoint[2] = model.position[2] + vec[2] * model.distance;
-    computeViewPlaneNormal();
-  }; // used to handle convert js device orientation angles
-  // when you use this method the camera will adjust to the
-  // device orientation such that the physicalViewUp you set
-  // in world coordinates looks up, and the physicalViewNorth
-  // you set in world coorindates will (maybe) point north
-  //
-  // NOTE WARNING - much of the documentation out there on how
-  // orientation works is seriously wrong. Even worse the Chrome
-  // device orientation simulator is completely wrong and should
-  // never be used. OMG it is so messed up.
-  //
-  // how it seems to work on iOS is that the device orientation
-  // is specified in extrinsic angles with a alpha, beta, gamma
-  // convention with axes of Z, X, Y (the code below substitutes
-  // the physical coordinate system for these axes to get the right
-  // modified coordinate system.
-
-
-  publicAPI.setDeviceAngles = function (alpha, beta, gamma, screen) {
-    var physVRight = [3];
-    cross(model.physicalViewNorth, model.physicalViewUp, physVRight); // phone to physical coordinates
-
-    var rotmat = mat4_identity(new Float64Array(16));
-    mat4_rotate(rotmat, rotmat, radiansFromDegrees(alpha), model.physicalViewUp);
-    mat4_rotate(rotmat, rotmat, radiansFromDegrees(beta), physVRight);
-    mat4_rotate(rotmat, rotmat, radiansFromDegrees(gamma), model.physicalViewNorth);
-    mat4_rotate(rotmat, rotmat, radiansFromDegrees(-screen), model.physicalViewUp);
-    var dop = new Float64Array([-model.physicalViewUp[0], -model.physicalViewUp[1], -model.physicalViewUp[2]]);
-    var vup = new Float64Array(model.physicalViewNorth);
-    transformMat4(dop, dop, rotmat);
-    transformMat4(vup, vup, rotmat);
-    publicAPI.setDirectionOfProjection(dop[0], dop[1], dop[2]);
-    publicAPI.setViewUp(vup[0], vup[1], vup[2]);
-    publicAPI.modified();
-  };
-
-  publicAPI.setOrientationWXYZ = function (degrees, x, y, z) {
-    var quatMat = mat4_identity(new Float64Array(16));
-
-    if (degrees !== 0.0 && (x !== 0.0 || y !== 0.0 || z !== 0.0)) {
-      // convert to radians
-      var angle = radiansFromDegrees(degrees);
-      var q = quat_create();
-      setAxisAngle(q, [x, y, z], angle);
-      fromQuat(quatMat, q);
-    }
-
-    var newdop = new Float64Array(3);
-    transformMat4(newdop, [0.0, 0.0, -1.0], quatMat);
-    var newvup = new Float64Array(3);
-    transformMat4(newvup, [0.0, 1.0, 0.0], quatMat);
-    publicAPI.setDirectionOfProjection.apply(publicAPI, _toConsumableArray(newdop));
-    publicAPI.setViewUp.apply(publicAPI, _toConsumableArray(newvup));
-    publicAPI.modified();
-  };
-
-  publicAPI.computeClippingRange = function (bounds) {
-    var vn = null;
-    var position = null;
-    vn = model.viewPlaneNormal;
-    position = model.position;
-    var a = -vn[0];
-    var b = -vn[1];
-    var c = -vn[2];
-    var d = -(a * position[0] + b * position[1] + c * position[2]); // Set the max near clipping plane and the min far clipping plane
-
-    var range = [a * bounds[0] + b * bounds[2] + c * bounds[4] + d, 1e-18]; // Find the closest / farthest bounding box vertex
-
-    for (var k = 0; k < 2; k++) {
-      for (var j = 0; j < 2; j++) {
-        for (var i = 0; i < 2; i++) {
-          var dist = a * bounds[i] + b * bounds[2 + j] + c * bounds[4 + k] + d;
-          range[0] = dist < range[0] ? dist : range[0];
-          range[1] = dist > range[1] ? dist : range[1];
-        }
-      }
-    }
-
-    return range;
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var Core_Camera_DEFAULT_VALUES = {
-  position: [0, 0, 1],
-  focalPoint: [0, 0, 0],
-  viewUp: [0, 1, 0],
-  directionOfProjection: [0, 0, -1],
-  parallelProjection: false,
-  useHorizontalViewAngle: false,
-  viewAngle: 30,
-  parallelScale: 1,
-  clippingRange: [0.01, 1000.01],
-  windowCenter: [0, 0],
-  viewPlaneNormal: [0, 0, 1],
-  useOffAxisProjection: false,
-  screenBottomLeft: [-0.5, -0.5, -0.5],
-  screenBottomRight: [0.5, -0.5, -0.5],
-  screenTopRight: [0.5, 0.5, -0.5],
-  freezeFocalPoint: false,
-  projectionMatrix: null,
-  viewMatrix: null,
-  // used for world to physical transformations
-  physicalTranslation: [0, 0, 0],
-  physicalScale: 1.0,
-  physicalViewUp: [0, 1, 0],
-  physicalViewNorth: [0, 0, -1]
-}; // ----------------------------------------------------------------------------
-
-function Core_Camera_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, Core_Camera_DEFAULT_VALUES, initialValues); // Build VTK API
-
-  macro.obj(publicAPI, model);
-  macro.get(publicAPI, model, ['distance']);
-  macro.setGet(publicAPI, model, ['parallelProjection', 'useHorizontalViewAngle', 'viewAngle', 'parallelScale', 'useOffAxisProjection', 'freezeFocalPoint', 'physicalScale']);
-  macro.getArray(publicAPI, model, ['directionOfProjection', 'viewPlaneNormal', 'position', 'focalPoint']);
-  macro.setGetArray(publicAPI, model, ['clippingRange', 'windowCenter'], 2);
-  macro.setGetArray(publicAPI, model, ['viewUp', 'screenBottomLeft', 'screenBottomRight', 'screenTopRight', 'physicalTranslation', 'physicalViewUp', 'physicalViewNorth'], 3); // Object methods
-
-  Camera_vtkCamera(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var Core_Camera_newInstance = macro.newInstance(Core_Camera_extend, 'vtkCamera'); // ----------------------------------------------------------------------------
-
-var vtkCamera$1 = {
-  newInstance: Core_Camera_newInstance,
-  extend: Core_Camera_extend
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/Light.js
-
-
-
-var LIGHT_TYPES = ['HeadLight', 'CameraLight', 'SceneLight']; // ----------------------------------------------------------------------------
-// vtkLight methods
-// ----------------------------------------------------------------------------
-
-function vtkLight(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkLight');
-
-  publicAPI.getTransformedPosition = function () {
-    if (model.transformMatrix) {
-      return []; // FIXME !!!!
-    }
-
-    return [].concat(model.position);
-  };
-
-  publicAPI.getTransformedFocalPoint = function () {
-    if (model.transformMatrix) {
-      return []; // FIXME !!!!
-    }
-
-    return [].concat(model.focalPoint);
-  };
-
-  publicAPI.getDirection = function () {
-    if (model.directionMTime < model.mtime) {
-      model.direction[0] = model.focalPoint[0] - model.position[0];
-      model.direction[1] = model.focalPoint[1] - model.position[1];
-      model.direction[2] = model.focalPoint[2] - model.position[2];
-      normalize(model.direction);
-      model.directionMTime = model.mtime;
-    }
-
-    return model.direction;
-  };
-
-  publicAPI.setDirectionAngle = function (elevation, azimuth) {
-    var elevationRadians = radiansFromDegrees(elevation);
-    var azimuthRadians = radiansFromDegrees(azimuth);
-    publicAPI.setPosition(Math.cos(elevationRadians) * Math.sin(azimuthRadians), Math.sin(elevationRadians), Math.cos(elevationRadians) * Math.cos(azimuthRadians));
-    publicAPI.setFocalPoint(0, 0, 0);
-    publicAPI.setPositional(0);
-  };
-
-  publicAPI.setLightTypeToHeadLight = function () {
-    publicAPI.setLightType('HeadLight');
-  };
-
-  publicAPI.setLightTypeToCameraLight = function () {
-    publicAPI.setLightType('CameraLight');
-  };
-
-  publicAPI.setLightTypeToSceneLight = function () {
-    publicAPI.setTransformMatrix(null);
-    publicAPI.setLightType('SceneLight');
-  };
-
-  publicAPI.lightTypeIsHeadLight = function () {
-    return model.lightType === 'HeadLight';
-  };
-
-  publicAPI.lightTypeIsSceneLight = function () {
-    return model.lightType === 'SceneLight';
-  };
-
-  publicAPI.lightTypeIsCameraLight = function () {
-    return model.lightType === 'CameraLight';
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var Light_DEFAULT_VALUES = {
-  switch: true,
-  intensity: 1,
-  color: [1, 1, 1],
-  position: [0, 0, 1],
-  focalPoint: [0, 0, 0],
-  positional: false,
-  exponent: 1,
-  coneAngle: 30,
-  attenuationValues: [1, 0, 0],
-  transformMatrix: null,
-  lightType: 'SceneLight',
-  shadowAttenuation: 1,
-  direction: [0, 0, 0],
-  directionMTime: 0
-}; // ----------------------------------------------------------------------------
-
-function Light_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, Light_DEFAULT_VALUES, initialValues); // Build VTK API
-
-  macro.obj(publicAPI, model);
-  macro.setGet(publicAPI, model, ['intensity', 'switch', 'positional', 'exponent', 'coneAngle', 'transformMatrix', 'lightType', 'shadowAttenuation']);
-  macro.setGetArray(publicAPI, model, ['color', 'position', 'focalPoint', 'attenuationValues'], 3); // Object methods
-
-  vtkLight(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var Light_newInstance = macro.newInstance(Light_extend, 'vtkLight'); // ----------------------------------------------------------------------------
-
-var vtkLight$1 = {
-  newInstance: Light_newInstance,
-  extend: Light_extend,
-  LIGHT_TYPES: LIGHT_TYPES
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/Viewport.js
-
-
-var Viewport_vtkErrorMacro = macro.vtkErrorMacro;
-
-function Viewport_notImplemented(method) {
-  return function () {
-    return Viewport_vtkErrorMacro("vtkViewport::".concat(method, " - NOT IMPLEMENTED"));
-  };
-} // ----------------------------------------------------------------------------
-// vtkViewport methods
-// ----------------------------------------------------------------------------
-
-
-function vtkViewport(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkViewport'); // Public API methods
-
-  publicAPI.getViewProps = function () {
-    return model.props;
-  };
-
-  publicAPI.hasViewProp = function (prop) {
-    return !!model.props.filter(function (item) {
-      return item === prop;
-    }).length;
-  };
-
-  publicAPI.addViewProp = function (prop) {
-    if (prop && !publicAPI.hasViewProp(prop)) {
-      model.props = model.props.concat(prop);
-    }
-  };
-
-  publicAPI.removeViewProp = function (prop) {
-    var newPropList = model.props.filter(function (item) {
-      return item !== prop;
-    });
-
-    if (model.props.length !== newPropList.length) {
-      model.props = newPropList;
-    }
-  };
-
-  publicAPI.removeAllViewProps = function () {
-    model.props = [];
-  }; // this method get all the props including any nested props
-
-
-  function gatherProps(prop) {
-    var allProps = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
-    allProps.push(prop);
-    var children = prop.getNestedProps();
-
-    if (children && children.length) {
-      for (var i = 0; i < children.length; i++) {
-        gatherProps(children[i], allProps);
-      }
-    }
-
-    return allProps;
-  }
-
-  publicAPI.getViewPropsWithNestedProps = function () {
-    var allPropsArray = [];
-
-    for (var i = 0; i < model.props.length; i++) {
-      gatherProps(model.props[i], allPropsArray);
-    }
-
-    return allPropsArray;
-  };
-
-  publicAPI.addActor2D = publicAPI.addViewProp;
-
-  publicAPI.removeActor2D = function (prop) {
-    // VTK way: model.actors2D.RemoveItem(prop);
-    publicAPI.removeViewProp(prop);
-  };
-
-  publicAPI.getActors2D = function () {
-    model.actors2D = [];
-    model.props.forEach(function (prop) {
-      model.actors2D = model.actors2D.concat(prop.getActors2D());
-    });
-    return model.actors2D;
-  };
-
-  publicAPI.displayToView = function () {
-    return Viewport_vtkErrorMacro('call displayToView on your view instead');
-  };
-
-  publicAPI.viewToDisplay = function () {
-    return Viewport_vtkErrorMacro('callviewtodisplay on your view instead');
-  };
-
-  publicAPI.getSize = function () {
-    return Viewport_vtkErrorMacro('call getSize on your View instead');
-  };
-
-  publicAPI.normalizedDisplayToProjection = function (x, y, z) {
-    // first to normalized viewport
-    var nvp = publicAPI.normalizedDisplayToNormalizedViewport(x, y, z); // then to view
-
-    return publicAPI.normalizedViewportToProjection(nvp[0], nvp[1], nvp[2]);
-  };
-
-  publicAPI.normalizedDisplayToNormalizedViewport = function (x, y, z) {
-    var scale = [model.viewport[2] - model.viewport[0], model.viewport[3] - model.viewport[1]];
-    return [(x - model.viewport[0]) / scale[0], (y - model.viewport[1]) / scale[1], z];
-  };
-
-  publicAPI.normalizedViewportToProjection = function (x, y, z) {
-    return [x * 2.0 - 1.0, y * 2.0 - 1.0, z * 2.0 - 1.0];
-  };
-
-  publicAPI.projectionToNormalizedDisplay = function (x, y, z) {
-    // first to nvp
-    var nvp = publicAPI.projectionToNormalizedViewport(x, y, z); // then to ndp
-
-    return publicAPI.normalizedViewportToNormalizedDisplay(nvp[0], nvp[1], nvp[2]);
-  };
-
-  publicAPI.normalizedViewportToNormalizedDisplay = function (x, y, z) {
-    var scale = [model.viewport[2] - model.viewport[0], model.viewport[3] - model.viewport[1]];
-    return [x * scale[0] + model.viewport[0], y * scale[1] + model.viewport[1], z];
-  };
-
-  publicAPI.projectionToNormalizedViewport = function (x, y, z) {
-    return [(x + 1.0) * 0.5, (y + 1.0) * 0.5, (z + 1.0) * 0.5];
-  };
-
-  publicAPI.PickPropFrom = Viewport_notImplemented('PickPropFrom');
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var Viewport_DEFAULT_VALUES = {
-  vtkWindow: null,
-  background: [0, 0, 0],
-  background2: [0.2, 0.2, 0.2],
-  gradientBackground: false,
-  viewport: [0, 0, 1, 1],
-  aspect: [1, 1],
-  pixelAspect: [1, 1],
-  props: [],
-  actors2D: []
-}; // ----------------------------------------------------------------------------
-
-function Viewport_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, Viewport_DEFAULT_VALUES, initialValues); // Build VTK API
-
-  macro.obj(publicAPI, model);
-  macro.event(publicAPI, model, 'event');
-  macro.setGetArray(publicAPI, model, ['viewport'], 4);
-  macro.setGetArray(publicAPI, model, ['background', 'background2'], 3);
-  vtkViewport(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var Viewport_newInstance = macro.newInstance(Viewport_extend, 'vtkViewport'); // ----------------------------------------------------------------------------
-
-var vtkViewport$1 = {
-  newInstance: Viewport_newInstance,
-  extend: Viewport_extend
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/Renderer.js
-
-
-
-
-
-
-
-
-var Core_Renderer_vtkDebugMacro = vtkDebugMacro,
-    Renderer_vtkErrorMacro = vtkErrorMacro,
-    Renderer_vtkWarningMacro = vtkWarningMacro;
-
-function Renderer_notImplemented(method) {
-  return function () {
-    return Renderer_vtkErrorMacro("vtkRenderer::".concat(method, " - NOT IMPLEMENTED"));
-  };
-} // ----------------------------------------------------------------------------
-// vtkRenderer methods
-// ----------------------------------------------------------------------------
-
-
-function Renderer_vtkRenderer(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkRenderer'); // Events
-
-  var COMPUTE_VISIBLE_PROP_BOUNDS_EVENT = {
-    type: 'ComputeVisiblePropBoundsEvent',
-    renderer: publicAPI
-  };
-  var RESET_CAMERA_CLIPPING_RANGE_EVENT = {
-    type: 'ResetCameraClippingRangeEvent',
-    renderer: publicAPI
-  };
-  var RESET_CAMERA_EVENT = {
-    type: 'ResetCameraEvent',
-    renderer: publicAPI
-  };
-
-  publicAPI.updateCamera = function () {
-    if (!model.activeCamera) {
-      Core_Renderer_vtkDebugMacro('No cameras are on, creating one.'); // the get method will automagically create a camera
-      // and reset it since one hasn't been specified yet.
-
-      publicAPI.getActiveCameraAndResetIfCreated();
-    } // update the viewing transformation
-
-
-    model.activeCamera.render(publicAPI);
-    return true;
-  };
-
-  publicAPI.updateLightsGeometryToFollowCamera = function () {
-    // only update the light's geometry if this Renderer is tracking
-    // this lights.  That allows one renderer to view the lights that
-    // another renderer is setting up.
-    var camera = publicAPI.getActiveCameraAndResetIfCreated();
-    model.lights.forEach(function (light) {
-      if (light.lightTypeIsSceneLight() || light.lightTypeIsCameraLight()) ; else if (light.lightTypeIsHeadLight()) {
-        // update position and orientation of light to match camera.
-        light.setPositionFrom(camera.getPositionByReference());
-        light.setFocalPointFrom(camera.getFocalPointByReference());
-        light.modified(camera.getMTime());
-      } else {
-        Renderer_vtkErrorMacro('light has unknown light type', light.get());
-      }
-    });
-  };
-
-  publicAPI.updateLightGeometry = function () {
-    if (model.lightFollowCamera) {
-      // only update the light's geometry if this Renderer is tracking
-      // this lights.  That allows one renderer to view the lights that
-      // another renderer is setting up.
-      return publicAPI.updateLightsGeometryToFollowCamera();
-    }
-
-    return true;
-  };
-
-  publicAPI.allocateTime = Renderer_notImplemented('allocateTime');
-  publicAPI.updateGeometry = Renderer_notImplemented('updateGeometry');
-
-  publicAPI.getVTKWindow = function () {
-    return model.renderWindow;
-  };
-
-  publicAPI.setLayer = function (layer) {
-    Core_Renderer_vtkDebugMacro(publicAPI.getClassName(), publicAPI, 'setting Layer to ', layer);
-
-    if (model.layer !== layer) {
-      model.layer = layer;
-      publicAPI.modified();
-    }
-
-    publicAPI.setPreserveColorBuffer(!!layer);
-  };
-
-  publicAPI.setActiveCamera = function (camera) {
-    if (model.activeCamera === camera) {
-      return false;
-    }
-
-    model.activeCamera = camera;
-    publicAPI.modified();
-    publicAPI.invokeEvent({
-      type: 'ActiveCameraEvent',
-      camera: camera
-    });
-    return true;
-  };
-
-  publicAPI.makeCamera = function () {
-    var camera = vtkCamera$1.newInstance();
-    publicAPI.invokeEvent({
-      type: 'CreateCameraEvent',
-      camera: camera
-    });
-    return camera;
-  }; // Replace the set/get macro method
-
-
-  publicAPI.getActiveCamera = function () {
-    if (!model.activeCamera) {
-      model.activeCamera = publicAPI.makeCamera();
-    }
-
-    return model.activeCamera;
-  };
-
-  publicAPI.getActiveCameraAndResetIfCreated = function () {
-    if (!model.activeCamera) {
-      publicAPI.getActiveCamera();
-      publicAPI.resetCamera();
-    }
-
-    return model.activeCamera;
-  };
-
-  publicAPI.getActors = function () {
-    model.actors = [];
-    model.props.forEach(function (prop) {
-      model.actors = model.actors.concat(prop.getActors());
-    });
-    return model.actors;
-  };
-
-  publicAPI.addActor = publicAPI.addViewProp;
-
-  publicAPI.removeActor = function (actor) {
-    model.actors = model.actors.filter(function (a) {
-      return a !== actor;
-    });
-    publicAPI.removeViewProp(actor);
-    publicAPI.modified();
-  };
-
-  publicAPI.removeAllActors = function () {
-    var actors = publicAPI.getActors();
-    actors.forEach(function (actor) {
-      publicAPI.removeViewProp(actor);
-    });
-    model.actors = [];
-    publicAPI.modified();
-  };
-
-  publicAPI.getVolumes = function () {
-    model.volumes = [];
-    model.props.forEach(function (prop) {
-      model.volumes = model.volumes.concat(prop.getVolumes());
-    });
-    return model.volumes;
-  };
-
-  publicAPI.addVolume = publicAPI.addViewProp;
-
-  publicAPI.removeVolume = function (volume) {
-    model.volumes = model.volumes.filter(function (v) {
-      return v !== volume;
-    });
-    publicAPI.removeViewProp(volume);
-    publicAPI.modified();
-  };
-
-  publicAPI.removeAllVolumes = function () {
-    var volumes = publicAPI.getVolumes();
-    volumes.forEach(function (volume) {
-      publicAPI.removeViewProp(volume);
-    });
-    model.volumes = [];
-    publicAPI.modified();
-  };
-
-  publicAPI.addLight = function (light) {
-    model.lights = [].concat(model.lights, light);
-    publicAPI.modified();
-  };
-
-  publicAPI.removeLight = function (light) {
-    model.lights = model.lights.filter(function (l) {
-      return l !== light;
-    });
-    publicAPI.modified();
-  };
-
-  publicAPI.removeAllLights = function () {
-    model.lights = [];
-    publicAPI.modified();
-  };
-
-  publicAPI.setLightCollection = function (lights) {
-    model.lights = lights;
-    publicAPI.modified();
-  };
-
-  publicAPI.makeLight = vtkLight$1.newInstance;
-
-  publicAPI.createLight = function () {
-    if (!model.automaticLightCreation) {
-      return;
-    }
-
-    if (model.createdLight) {
-      publicAPI.removeLight(model.createdLight);
-      model.createdLight.delete();
-      model.createdLight = null;
-    }
-
-    model.createdLight = publicAPI.makeLight();
-    publicAPI.addLight(model.createdLight);
-    model.createdLight.setLightTypeToHeadLight(); // set these values just to have a good default should LightFollowCamera
-    // be turned off.
-
-    model.createdLight.setPosition(publicAPI.getActiveCamera().getPosition());
-    model.createdLight.setFocalPoint(publicAPI.getActiveCamera().getFocalPoint());
-  }; // requires the aspect ratio of the viewport as X/Y
-
-
-  publicAPI.normalizedDisplayToWorld = function (x, y, z, aspect) {
-    var vpd = publicAPI.normalizedDisplayToProjection(x, y, z);
-    vpd = publicAPI.projectionToView(vpd[0], vpd[1], vpd[2], aspect);
-    return publicAPI.viewToWorld(vpd[0], vpd[1], vpd[2]);
-  }; // requires the aspect ratio of the viewport as X/Y
-
-
-  publicAPI.worldToNormalizedDisplay = function (x, y, z, aspect) {
-    var vpd = publicAPI.worldToView(x, y, z);
-    vpd = publicAPI.viewToProjection(vpd[0], vpd[1], vpd[2], aspect);
-    return publicAPI.projectionToNormalizedDisplay(vpd[0], vpd[1], vpd[2]);
-  }; // requires the aspect ratio of the viewport as X/Y
-
-
-  publicAPI.viewToWorld = function (x, y, z) {
-    if (model.activeCamera === null) {
-      Renderer_vtkErrorMacro('ViewToWorld: no active camera, cannot compute view to world, returning 0,0,0');
-      return [0, 0, 0];
-    } // get the view matrix from the active camera
-
-
-    var matrix = model.activeCamera.getViewMatrix();
-    invert(matrix, matrix);
-    transpose(matrix, matrix); // Transform point to world coordinates
-
-    var result = new Float64Array([x, y, z]);
-    transformMat4(result, result, matrix);
-    return result;
-  };
-
-  publicAPI.projectionToView = function (x, y, z, aspect) {
-    if (model.activeCamera === null) {
-      Renderer_vtkErrorMacro('ProjectionToView: no active camera, cannot compute projection to view, returning 0,0,0');
-      return [0, 0, 0];
-    } // get the projection transformation from the active camera
-
-
-    var matrix = model.activeCamera.getProjectionMatrix(aspect, -1.0, 1.0);
-    invert(matrix, matrix);
-    transpose(matrix, matrix); // Transform point to world coordinates
-
-    var result = new Float64Array([x, y, z]);
-    transformMat4(result, result, matrix);
-    return result;
-  }; // Convert world point coordinates to view coordinates.
-
-
-  publicAPI.worldToView = function (x, y, z) {
-    if (model.activeCamera === null) {
-      Renderer_vtkErrorMacro('WorldToView: no active camera, cannot compute view to world, returning 0,0,0');
-      return [0, 0, 0];
-    } // get the view transformation from the active camera
-
-
-    var matrix = model.activeCamera.getViewMatrix();
-    transpose(matrix, matrix);
-    var result = new Float64Array([x, y, z]);
-    transformMat4(result, result, matrix);
-    return result;
-  }; // Convert world point coordinates to view coordinates.
-  // requires the aspect ratio of the viewport as X/Y
-
-
-  publicAPI.viewToProjection = function (x, y, z, aspect) {
-    if (model.activeCamera === null) {
-      Renderer_vtkErrorMacro('ViewToProjection: no active camera, cannot compute view to projection, returning 0,0,0');
-      return [0, 0, 0];
-    } // get the projeciton transformation from the active camera
-
-
-    var matrix = model.activeCamera.getProjectionMatrix(aspect, -1.0, 1.0);
-    transpose(matrix, matrix);
-    var result = new Float64Array([x, y, z]);
-    transformMat4(result, result, matrix);
-    return result;
-  };
-
-  publicAPI.computeVisiblePropBounds = function () {
-    model.allBounds[0] = vtkBoundingBox.INIT_BOUNDS[0];
-    model.allBounds[1] = vtkBoundingBox.INIT_BOUNDS[1];
-    model.allBounds[2] = vtkBoundingBox.INIT_BOUNDS[2];
-    model.allBounds[3] = vtkBoundingBox.INIT_BOUNDS[3];
-    model.allBounds[4] = vtkBoundingBox.INIT_BOUNDS[4];
-    model.allBounds[5] = vtkBoundingBox.INIT_BOUNDS[5];
-    var nothingVisible = true;
-    publicAPI.invokeEvent(COMPUTE_VISIBLE_PROP_BOUNDS_EVENT); // loop through all props
-
-    for (var index = 0; index < model.props.length; ++index) {
-      var prop = model.props[index];
-
-      if (prop.getVisibility() && prop.getUseBounds()) {
-        var bounds = prop.getBounds();
-
-        if (bounds && areBoundsInitialized(bounds)) {
-          nothingVisible = false;
-
-          if (bounds[0] < model.allBounds[0]) {
-            model.allBounds[0] = bounds[0];
-          }
-
-          if (bounds[1] > model.allBounds[1]) {
-            model.allBounds[1] = bounds[1];
-          }
-
-          if (bounds[2] < model.allBounds[2]) {
-            model.allBounds[2] = bounds[2];
-          }
-
-          if (bounds[3] > model.allBounds[3]) {
-            model.allBounds[3] = bounds[3];
-          }
-
-          if (bounds[4] < model.allBounds[4]) {
-            model.allBounds[4] = bounds[4];
-          }
-
-          if (bounds[5] > model.allBounds[5]) {
-            model.allBounds[5] = bounds[5];
-          }
-        }
-      }
-    }
-
-    if (nothingVisible) {
-      uninitializeBounds(model.allBounds);
-      Core_Renderer_vtkDebugMacro("Can't compute bounds, no 3D props are visible");
-    }
-
-    return model.allBounds;
-  };
-
-  publicAPI.resetCamera = function () {
-    var bounds = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : null;
-    var boundsToUse = bounds || publicAPI.computeVisiblePropBounds();
-    var center = [0, 0, 0];
-
-    if (!areBoundsInitialized(boundsToUse)) {
-      Core_Renderer_vtkDebugMacro('Cannot reset camera!');
-      return false;
-    }
-
-    var vn = null;
-
-    if (publicAPI.getActiveCamera()) {
-      vn = model.activeCamera.getViewPlaneNormal();
-    } else {
-      Renderer_vtkErrorMacro('Trying to reset non-existent camera');
-      return false;
-    } // Reset the perspective zoom factors, otherwise subsequent zooms will cause
-    // the view angle to become very small and cause bad depth sorting.
-
-
-    model.activeCamera.setViewAngle(30.0);
-    center[0] = (boundsToUse[0] + boundsToUse[1]) / 2.0;
-    center[1] = (boundsToUse[2] + boundsToUse[3]) / 2.0;
-    center[2] = (boundsToUse[4] + boundsToUse[5]) / 2.0;
-    var w1 = boundsToUse[1] - boundsToUse[0];
-    var w2 = boundsToUse[3] - boundsToUse[2];
-    var w3 = boundsToUse[5] - boundsToUse[4];
-    w1 *= w1;
-    w2 *= w2;
-    w3 *= w3;
-    var radius = w1 + w2 + w3; // If we have just a single point, pick a radius of 1.0
-
-    radius = radius === 0 ? 1.0 : radius; // compute the radius of the enclosing sphere
-
-    radius = Math.sqrt(radius) * 0.5; // default so that the bounding sphere fits within the view fustrum
-    // compute the distance from the intersection of the view frustum with the
-    // bounding sphere. Basically in 2D draw a circle representing the bounding
-    // sphere in 2D then draw a horizontal line going out from the center of
-    // the circle. That is the camera view. Then draw a line from the camera
-    // position to the point where it intersects the circle. (it will be tangent
-    // to the circle at this point, this is important, only go to the tangent
-    // point, do not draw all the way to the view plane). Then draw the radius
-    // from the tangent point to the center of the circle. You will note that
-    // this forms a right triangle with one side being the radius, another being
-    // the target distance for the camera, then just find the target dist using
-    // a sin.
-
-    var angle = radiansFromDegrees(model.activeCamera.getViewAngle());
-    var parallelScale = radius;
-    var distance = radius / Math.sin(angle * 0.5); // check view-up vector against view plane normal
-
-    var vup = model.activeCamera.getViewUp();
-
-    if (Math.abs(dot(vup, vn)) > 0.999) {
-      Renderer_vtkWarningMacro('Resetting view-up since view plane normal is parallel');
-      model.activeCamera.setViewUp(-vup[2], vup[0], vup[1]);
-    } // update the camera
-
-
-    model.activeCamera.setFocalPoint(center[0], center[1], center[2]);
-    model.activeCamera.setPosition(center[0] + distance * vn[0], center[1] + distance * vn[1], center[2] + distance * vn[2]);
-    publicAPI.resetCameraClippingRange(boundsToUse); // setup default parallel scale
-
-    model.activeCamera.setParallelScale(parallelScale); // update reasonable world to physical values
-
-    model.activeCamera.setPhysicalScale(radius);
-    model.activeCamera.setPhysicalTranslation(-center[0], -center[1], -center[2]); // Here to let parallel/distributed compositing intercept
-    // and do the right thing.
-
-    publicAPI.invokeEvent(RESET_CAMERA_EVENT);
-    return true;
-  };
-
-  publicAPI.resetCameraClippingRange = function () {
-    var bounds = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : null;
-    var boundsToUse = bounds || publicAPI.computeVisiblePropBounds();
-
-    if (!areBoundsInitialized(boundsToUse)) {
-      Core_Renderer_vtkDebugMacro('Cannot reset camera clipping range!');
-      return false;
-    } // Make sure we have an active camera
-
-
-    publicAPI.getActiveCameraAndResetIfCreated();
-
-    if (!model.activeCamera) {
-      Renderer_vtkErrorMacro('Trying to reset clipping range of non-existent camera');
-      return false;
-    } // Get the exact range for the bounds
-
-
-    var range = model.activeCamera.computeClippingRange(boundsToUse); // do not let far - near be less than 0.1 of the window height
-    // this is for cases such as 2D images which may have zero range
-
-    var minGap = 0.0;
-
-    if (model.activeCamera.getParallelProjection()) {
-      minGap = 0.2 * model.activeCamera.getParallelScale();
-    } else {
-      var angle = radiansFromDegrees(model.activeCamera.getViewAngle());
-      minGap = 0.2 * Math.tan(angle / 2.0) * range[1];
-    }
-
-    if (range[1] - range[0] < minGap) {
-      minGap = minGap - range[1] + range[0];
-      range[1] += minGap / 2.0;
-      range[0] -= minGap / 2.0;
-    } // Do not let the range behind the camera throw off the calculation.
-
-
-    if (range[0] < 0.0) {
-      range[0] = 0.0;
-    } // Give ourselves a little breathing room
-
-
-    range[0] = 0.99 * range[0] - (range[1] - range[0]) * model.clippingRangeExpansion;
-    range[1] = 1.01 * range[1] + (range[1] - range[0]) * model.clippingRangeExpansion; // Make sure near is not bigger than far
-
-    range[0] = range[0] >= range[1] ? 0.01 * range[1] : range[0]; // Make sure near is at least some fraction of far - this prevents near
-    // from being behind the camera or too close in front. How close is too
-    // close depends on the resolution of the depth buffer
-
-    if (!model.nearClippingPlaneTolerance) {
-      model.nearClippingPlaneTolerance = 0.01;
-    } // make sure the front clipping range is not too far from the far clippnig
-    // range, this is to make sure that the zbuffer resolution is effectively
-    // used
-
-
-    if (range[0] < model.nearClippingPlaneTolerance * range[1]) {
-      range[0] = model.nearClippingPlaneTolerance * range[1];
-    }
-
-    model.activeCamera.setClippingRange(range[0], range[1]); // Here to let parallel/distributed compositing intercept
-    // and do the right thing.
-
-    publicAPI.invokeEvent(RESET_CAMERA_CLIPPING_RANGE_EVENT);
-    return false;
-  };
-
-  publicAPI.setRenderWindow = function (renderWindow) {
-    if (renderWindow !== model.renderWindow) {
-      model.vtkWindow = renderWindow;
-      model.renderWindow = renderWindow;
-    }
-  };
-
-  publicAPI.visibleActorCount = function () {
-    return model.props.filter(function (prop) {
-      return prop.getVisibility();
-    }).length;
-  };
-
-  publicAPI.visibleVolumeCount = publicAPI.visibleActorCount;
-
-  publicAPI.getMTime = function () {
-    var m1 = model.mtime;
-    var m2 = model.activeCamera ? model.activeCamera.getMTime() : 0;
-
-    if (m2 > m1) {
-      m1 = m2;
-    }
-
-    var m3 = model.createdLight ? model.createdLight.getMTime() : 0;
-
-    if (m3 > m1) {
-      m1 = m3;
-    }
-
-    return m1;
-  };
-
-  publicAPI.getTransparent = function () {
-    return !!model.preserveColorBuffer;
-  };
-
-  publicAPI.isActiveCameraCreated = function () {
-    return !!model.activeCamera;
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var Core_Renderer_DEFAULT_VALUES = {
-  pickedProp: null,
-  activeCamera: null,
-  allBounds: [],
-  ambient: [1, 1, 1],
-  allocatedRenderTime: 100,
-  timeFactor: 1,
-  createdLight: null,
-  automaticLightCreation: true,
-  twoSidedLighting: true,
-  lastRenderTimeInSeconds: -1,
-  renderWindow: null,
-  lights: [],
-  actors: [],
-  volumes: [],
-  lightFollowCamera: true,
-  numberOfPropsRendered: 0,
-  propArray: null,
-  pathArray: null,
-  layer: 0,
-  preserveColorBuffer: false,
-  preserveDepthBuffer: false,
-  computeVisiblePropBounds: createUninitializedBounds(),
-  interactive: true,
-  nearClippingPlaneTolerance: 0,
-  clippingRangeExpansion: 0.05,
-  erase: true,
-  draw: true,
-  useShadows: false,
-  useDepthPeeling: false,
-  occlusionRatio: 0,
-  maximumNumberOfPeels: 4,
-  selector: null,
-  delegate: null,
-  texturedBackground: false,
-  backgroundTexture: null,
-  pass: 0
-}; // ----------------------------------------------------------------------------
-
-function Core_Renderer_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, Core_Renderer_DEFAULT_VALUES, initialValues); // Inheritance
-
-  vtkViewport$1.extend(publicAPI, model, initialValues); // make sure background has 4 entries. Default to opaque black
-
-  if (!model.background) model.background = [0, 0, 0, 1];
-
-  while (model.background.length < 3) {
-    model.background.push(0);
-  }
-
-  if (model.background.length === 3) model.background.push(1); // Build VTK API
-
-  get(publicAPI, model, ['renderWindow', 'allocatedRenderTime', 'timeFactor', 'lastRenderTimeInSeconds', 'numberOfPropsRendered', 'lastRenderingUsedDepthPeeling', 'selector']);
-  setGet(publicAPI, model, ['twoSidedLighting', 'lightFollowCamera', 'automaticLightCreation', 'erase', 'draw', 'nearClippingPlaneTolerance', 'clippingRangeExpansion', 'backingStore', 'interactive', 'layer', 'preserveColorBuffer', 'preserveDepthBuffer', 'useDepthPeeling', 'occlusionRatio', 'maximumNumberOfPeels', 'delegate', 'backgroundTexture', 'texturedBackground', 'useShadows', 'pass']);
-  getArray(publicAPI, model, ['actors', 'volumes', 'lights']);
-  setGetArray(publicAPI, model, ['background'], 4, 1.0); // Object methods
-
-  Renderer_vtkRenderer(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var Core_Renderer_newInstance = newInstance(Core_Renderer_extend, 'vtkRenderer'); // ----------------------------------------------------------------------------
-
-var vtkRenderer$1 = {
-  newInstance: Core_Renderer_newInstance,
-  extend: Core_Renderer_extend
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/InteractorStyle/Constants.js
-var States = {
-  IS_START: 0,
-  IS_NONE: 0,
-  IS_ROTATE: 1,
-  IS_PAN: 2,
-  IS_SPIN: 3,
-  IS_DOLLY: 4,
-  IS_CAMERA_POSE: 11,
-  IS_WINDOW_LEVEL: 1024,
-  IS_SLICE: 1025
-};
-var vtkInteractorStyleConstants = {
-  States: States
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Core/InteractorStyle.js
-
-
-
-
-
-function InteractorStyle_ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); enumerableOnly && (symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; })), keys.push.apply(keys, symbols); } return keys; }
-
-function InteractorStyle_objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = null != arguments[i] ? arguments[i] : {}; i % 2 ? InteractorStyle_ownKeys(Object(source), !0).forEach(function (key) { _defineProperty(target, key, source[key]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : InteractorStyle_ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } return target; }
-var InteractorStyle_States = vtkInteractorStyleConstants.States; // ----------------------------------------------------------------------------
-// Global methods
-// ----------------------------------------------------------------------------
-// Add module-level functions or api that you want to expose statically via
-// the next section...
-
-var stateNames = {
-  Rotate: InteractorStyle_States.IS_ROTATE,
-  Pan: InteractorStyle_States.IS_PAN,
-  Spin: InteractorStyle_States.IS_SPIN,
-  Dolly: InteractorStyle_States.IS_DOLLY,
-  CameraPose: InteractorStyle_States.IS_CAMERA_POSE,
-  WindowLevel: InteractorStyle_States.IS_WINDOW_LEVEL,
-  Slice: InteractorStyle_States.IS_SLICE
-}; // ----------------------------------------------------------------------------
-// vtkInteractorStyle methods
-// ----------------------------------------------------------------------------
-
-function vtkInteractorStyle(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkInteractorStyle'); // Public API methods
-  // create bunch of Start/EndState methods
-
-  Object.keys(stateNames).forEach(function (key) {
-    macro.event(publicAPI, model, "Start".concat(key, "Event"));
-
-    publicAPI["start".concat(key)] = function () {
-      if (model.state !== InteractorStyle_States.IS_NONE) {
-        return;
-      }
-
-      model.state = stateNames[key];
-      model.interactor.requestAnimation(publicAPI);
-      publicAPI.invokeStartInteractionEvent({
-        type: 'StartInteractionEvent'
-      });
-      publicAPI["invokeStart".concat(key, "Event")]({
-        type: "Start".concat(key, "Event")
-      });
-    };
-
-    macro.event(publicAPI, model, "End".concat(key, "Event"));
-
-    publicAPI["end".concat(key)] = function () {
-      if (model.state !== stateNames[key]) {
-        return;
-      }
-
-      model.state = InteractorStyle_States.IS_NONE;
-      model.interactor.cancelAnimation(publicAPI);
-      publicAPI.invokeEndInteractionEvent({
-        type: 'EndInteractionEvent'
-      });
-      publicAPI["invokeEnd".concat(key, "Event")]({
-        type: "End".concat(key, "Event")
-      });
-      model.interactor.render();
-    };
-  }); //----------------------------------------------------------------------------
-
-  publicAPI.handleKeyPress = function (callData) {
-    var rwi = model.interactor;
-    var ac = null;
-
-    switch (callData.key) {
-      case 'r':
-      case 'R':
-        callData.pokedRenderer.resetCamera();
-        rwi.render();
-        break;
-
-      case 'w':
-      case 'W':
-        ac = callData.pokedRenderer.getActors();
-        ac.forEach(function (anActor) {
-          var prop = anActor.getProperty();
-
-          if (prop.setRepresentationToWireframe) {
-            prop.setRepresentationToWireframe();
-          }
-        });
-        rwi.render();
-        break;
-
-      case 's':
-      case 'S':
-        ac = callData.pokedRenderer.getActors();
-        ac.forEach(function (anActor) {
-          var prop = anActor.getProperty();
-
-          if (prop.setRepresentationToSurface) {
-            prop.setRepresentationToSurface();
-          }
-        });
-        rwi.render();
-        break;
-
-      case 'v':
-      case 'V':
-        ac = callData.pokedRenderer.getActors();
-        ac.forEach(function (anActor) {
-          var prop = anActor.getProperty();
-
-          if (prop.setRepresentationToPoints) {
-            prop.setRepresentationToPoints();
-          }
-        });
-        rwi.render();
-        break;
-    }
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var InteractorStyle_DEFAULT_VALUES = {
-  state: InteractorStyle_States.IS_NONE,
-  handleObservers: 1,
-  autoAdjustCameraClippingRange: 1
-}; // ----------------------------------------------------------------------------
-
-function InteractorStyle_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, InteractorStyle_DEFAULT_VALUES, initialValues); // Inheritance
-
-  vtkInteractorObserver$1.extend(publicAPI, model, initialValues); // Object specific methods
-
-  vtkInteractorStyle(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var InteractorStyle_newInstance = macro.newInstance(InteractorStyle_extend, 'vtkInteractorStyle'); // ----------------------------------------------------------------------------
-
-var vtkInteractorStyle$1 = InteractorStyle_objectSpread({
-  newInstance: InteractorStyle_newInstance,
-  extend: InteractorStyle_extend
-}, vtkInteractorStyleConstants);
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Interaction/Style/InteractorStyleTrackballCamera.js
-
-
-
-
-
-
-var InteractorStyleTrackballCamera_States = vtkInteractorStyleConstants.States;
-/* eslint-disable no-lonely-if */
-// ----------------------------------------------------------------------------
-// vtkInteractorStyleTrackballCamera methods
-// ----------------------------------------------------------------------------
-
-function vtkInteractorStyleTrackballCamera(publicAPI, model) {
-  // Set our className
-  model.classHierarchy.push('vtkInteractorStyleTrackballCamera'); // Public API methods
-
-  publicAPI.handleMouseMove = function (callData) {
-    var pos = callData.position;
-    var renderer = callData.pokedRenderer;
-
-    switch (model.state) {
-      case InteractorStyleTrackballCamera_States.IS_ROTATE:
-        publicAPI.handleMouseRotate(renderer, pos);
-        publicAPI.invokeInteractionEvent({
-          type: 'InteractionEvent'
-        });
-        break;
-
-      case InteractorStyleTrackballCamera_States.IS_PAN:
-        publicAPI.handleMousePan(renderer, pos);
-        publicAPI.invokeInteractionEvent({
-          type: 'InteractionEvent'
-        });
-        break;
-
-      case InteractorStyleTrackballCamera_States.IS_DOLLY:
-        publicAPI.handleMouseDolly(renderer, pos);
-        publicAPI.invokeInteractionEvent({
-          type: 'InteractionEvent'
-        });
-        break;
-
-      case InteractorStyleTrackballCamera_States.IS_SPIN:
-        publicAPI.handleMouseSpin(renderer, pos);
-        publicAPI.invokeInteractionEvent({
-          type: 'InteractionEvent'
-        });
-        break;
-    }
-
-    model.previousPosition = pos;
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.handleButton3D = function (ed) {
-    if (ed && ed.pressed && ed.device === Device.RightController && (ed.input === Input.Trigger || ed.input === Input.TrackPad)) {
-      publicAPI.startCameraPose();
-      return;
-    }
-
-    if (ed && !ed.pressed && ed.device === Device.RightController && (ed.input === Input.Trigger || ed.input === Input.TrackPad) && model.state === InteractorStyleTrackballCamera_States.IS_CAMERA_POSE) {
-      publicAPI.endCameraPose(); // return;
-    }
-  };
-
-  publicAPI.handleMove3D = function (ed) {
-    switch (model.state) {
-      case InteractorStyleTrackballCamera_States.IS_CAMERA_POSE:
-        publicAPI.updateCameraPose(ed);
-        break;
-    }
-  };
-
-  publicAPI.updateCameraPose = function (ed) {
-    // move the world in the direction of the
-    // controller
-    var camera = ed.pokedRenderer.getActiveCamera();
-    var oldTrans = camera.getPhysicalTranslation(); // look at the y axis to determine how fast / what direction to move
-
-    var speed = 0.5; // ed.gamepad.axes[1];
-    // 0.05 meters / frame movement
-
-    var pscale = speed * 0.05 * camera.getPhysicalScale(); // convert orientation to world coordinate direction
-
-    var dir = camera.physicalOrientationToWorldDirection([ed.orientation.x, ed.orientation.y, ed.orientation.z, ed.orientation.w]);
-    camera.setPhysicalTranslation(oldTrans[0] + dir[0] * pscale, oldTrans[1] + dir[1] * pscale, oldTrans[2] + dir[2] * pscale);
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.handleLeftButtonPress = function (callData) {
-    var pos = callData.position;
-    model.previousPosition = pos;
-
-    if (callData.shiftKey) {
-      if (callData.controlKey || callData.altKey) {
-        publicAPI.startDolly();
-      } else {
-        publicAPI.startPan();
-      }
-    } else {
-      if (callData.controlKey || callData.altKey) {
-        publicAPI.startSpin();
-      } else {
-        publicAPI.startRotate();
-      }
-    }
-  }; //--------------------------------------------------------------------------
-
-
-  publicAPI.handleLeftButtonRelease = function () {
-    switch (model.state) {
-      case InteractorStyleTrackballCamera_States.IS_DOLLY:
-        publicAPI.endDolly();
-        break;
-
-      case InteractorStyleTrackballCamera_States.IS_PAN:
-        publicAPI.endPan();
-        break;
-
-      case InteractorStyleTrackballCamera_States.IS_SPIN:
-        publicAPI.endSpin();
-        break;
-
-      case InteractorStyleTrackballCamera_States.IS_ROTATE:
-        publicAPI.endRotate();
-        break;
-    }
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.handleStartMouseWheel = function (callData) {
-    publicAPI.startDolly();
-    publicAPI.handleMouseWheel(callData);
-  }; //--------------------------------------------------------------------------
-
-
-  publicAPI.handleEndMouseWheel = function () {
-    publicAPI.endDolly();
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.handleStartPinch = function (callData) {
-    model.previousScale = callData.scale;
-    publicAPI.startDolly();
-  }; //--------------------------------------------------------------------------
-
-
-  publicAPI.handleEndPinch = function () {
-    publicAPI.endDolly();
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.handleStartRotate = function (callData) {
-    model.previousRotation = callData.rotation;
-    publicAPI.startRotate();
-  }; //--------------------------------------------------------------------------
-
-
-  publicAPI.handleEndRotate = function () {
-    publicAPI.endRotate();
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.handleStartPan = function (callData) {
-    model.previousTranslation = callData.translation;
-    publicAPI.startPan();
-  }; //--------------------------------------------------------------------------
-
-
-  publicAPI.handleEndPan = function () {
-    publicAPI.endPan();
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.handlePinch = function (callData) {
-    publicAPI.dollyByFactor(callData.pokedRenderer, callData.scale / model.previousScale);
-    model.previousScale = callData.scale;
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.handlePan = function (callData) {
-    var camera = callData.pokedRenderer.getActiveCamera(); // Calculate the focal depth since we'll be using it a lot
-
-    var viewFocus = camera.getFocalPoint();
-    viewFocus = publicAPI.computeWorldToDisplay(callData.pokedRenderer, viewFocus[0], viewFocus[1], viewFocus[2]);
-    var focalDepth = viewFocus[2];
-    var trans = callData.translation;
-    var lastTrans = model.previousTranslation;
-    var newPickPoint = publicAPI.computeDisplayToWorld(callData.pokedRenderer, viewFocus[0] + trans[0] - lastTrans[0], viewFocus[1] + trans[1] - lastTrans[1], focalDepth); // Has to recalc old mouse point since the viewport has moved,
-    // so can't move it outside the loop
-
-    var oldPickPoint = publicAPI.computeDisplayToWorld(callData.pokedRenderer, viewFocus[0], viewFocus[1], focalDepth); // Camera motion is reversed
-
-    var motionVector = [];
-    motionVector[0] = oldPickPoint[0] - newPickPoint[0];
-    motionVector[1] = oldPickPoint[1] - newPickPoint[1];
-    motionVector[2] = oldPickPoint[2] - newPickPoint[2];
-    viewFocus = camera.getFocalPoint();
-    var viewPoint = camera.getPosition();
-    camera.setFocalPoint(motionVector[0] + viewFocus[0], motionVector[1] + viewFocus[1], motionVector[2] + viewFocus[2]);
-    camera.setPosition(motionVector[0] + viewPoint[0], motionVector[1] + viewPoint[1], motionVector[2] + viewPoint[2]);
-
-    if (model.interactor.getLightFollowCamera()) {
-      callData.pokedRenderer.updateLightsGeometryToFollowCamera();
-    }
-
-    camera.orthogonalizeViewUp();
-    model.previousTranslation = callData.translation;
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.handleRotate = function (callData) {
-    var camera = callData.pokedRenderer.getActiveCamera();
-    camera.roll(callData.rotation - model.previousRotation);
-    camera.orthogonalizeViewUp();
-    model.previousRotation = callData.rotation;
-  }; //--------------------------------------------------------------------------
-
-
-  publicAPI.handleMouseRotate = function (renderer, position) {
-    var rwi = model.interactor;
-    var dx = position.x - model.previousPosition.x;
-    var dy = position.y - model.previousPosition.y;
-    var size = rwi.getView().getViewportSize(renderer);
-    var deltaElevation = -0.1;
-    var deltaAzimuth = -0.1;
-
-    if (size[0] && size[1]) {
-      deltaElevation = -20.0 / size[1];
-      deltaAzimuth = -20.0 / size[0];
-    }
-
-    var rxf = dx * deltaAzimuth * model.motionFactor;
-    var ryf = dy * deltaElevation * model.motionFactor;
-    var camera = renderer.getActiveCamera();
-
-    if (!Number.isNaN(rxf) && !Number.isNaN(ryf)) {
-      camera.azimuth(rxf);
-      camera.elevation(ryf);
-      camera.orthogonalizeViewUp();
-    }
-
-    if (model.autoAdjustCameraClippingRange) {
-      renderer.resetCameraClippingRange();
-    }
-
-    if (rwi.getLightFollowCamera()) {
-      renderer.updateLightsGeometryToFollowCamera();
-    }
-  }; //--------------------------------------------------------------------------
-
-
-  publicAPI.handleMouseSpin = function (renderer, position) {
-    var rwi = model.interactor;
-    var camera = renderer.getActiveCamera();
-    var center = rwi.getView().getViewportCenter(renderer);
-    var oldAngle = degreesFromRadians(Math.atan2(model.previousPosition.y - center[1], model.previousPosition.x - center[0]));
-    var newAngle = degreesFromRadians(Math.atan2(position.y - center[1], position.x - center[0])) - oldAngle;
-
-    if (!Number.isNaN(newAngle)) {
-      camera.roll(newAngle);
-      camera.orthogonalizeViewUp();
-    }
-  }; //--------------------------------------------------------------------------
-
-
-  publicAPI.handleMousePan = function (renderer, position) {
-    var camera = renderer.getActiveCamera(); // Calculate the focal depth since we'll be using it a lot
-
-    var viewFocus = camera.getFocalPoint();
-    viewFocus = publicAPI.computeWorldToDisplay(renderer, viewFocus[0], viewFocus[1], viewFocus[2]);
-    var focalDepth = viewFocus[2];
-    var newPickPoint = publicAPI.computeDisplayToWorld(renderer, position.x, position.y, focalDepth); // Has to recalc old mouse point since the viewport has moved,
-    // so can't move it outside the loop
-
-    var oldPickPoint = publicAPI.computeDisplayToWorld(renderer, model.previousPosition.x, model.previousPosition.y, focalDepth); // Camera motion is reversed
-
-    var motionVector = [];
-    motionVector[0] = oldPickPoint[0] - newPickPoint[0];
-    motionVector[1] = oldPickPoint[1] - newPickPoint[1];
-    motionVector[2] = oldPickPoint[2] - newPickPoint[2];
-    viewFocus = camera.getFocalPoint();
-    var viewPoint = camera.getPosition();
-    camera.setFocalPoint(motionVector[0] + viewFocus[0], motionVector[1] + viewFocus[1], motionVector[2] + viewFocus[2]);
-    camera.setPosition(motionVector[0] + viewPoint[0], motionVector[1] + viewPoint[1], motionVector[2] + viewPoint[2]);
-
-    if (model.interactor.getLightFollowCamera()) {
-      renderer.updateLightsGeometryToFollowCamera();
-    }
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.handleMouseDolly = function (renderer, position) {
-    var dy = position.y - model.previousPosition.y;
-    var rwi = model.interactor;
-    var center = rwi.getView().getViewportCenter(renderer);
-    var dyf = model.motionFactor * dy / center[1];
-    publicAPI.dollyByFactor(renderer, Math.pow(1.1, dyf));
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.handleMouseWheel = function (callData) {
-    var dyf = 1 - callData.spinY / model.zoomFactor;
-    publicAPI.dollyByFactor(callData.pokedRenderer, dyf);
-  }; //----------------------------------------------------------------------------
-
-
-  publicAPI.dollyByFactor = function (renderer, factor) {
-    if (Number.isNaN(factor)) {
-      return;
-    }
-
-    var camera = renderer.getActiveCamera();
-
-    if (camera.getParallelProjection()) {
-      camera.setParallelScale(camera.getParallelScale() / factor);
-    } else {
-      camera.dolly(factor);
-
-      if (model.autoAdjustCameraClippingRange) {
-        renderer.resetCameraClippingRange();
-      }
-    }
-
-    if (model.interactor.getLightFollowCamera()) {
-      renderer.updateLightsGeometryToFollowCamera();
-    }
-  };
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var InteractorStyleTrackballCamera_DEFAULT_VALUES = {
-  motionFactor: 10.0,
-  zoomFactor: 10.0
-}; // ----------------------------------------------------------------------------
-
-function InteractorStyleTrackballCamera_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, InteractorStyleTrackballCamera_DEFAULT_VALUES, initialValues); // Inheritance
-
-  vtkInteractorStyle$1.extend(publicAPI, model, initialValues); // Create get-set macros
-
-  macro.setGet(publicAPI, model, ['motionFactor', 'zoomFactor']); // For more macro methods, see "Sources/macros.js"
-  // Object specific methods
-
-  vtkInteractorStyleTrackballCamera(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var InteractorStyleTrackballCamera_newInstance = macro.newInstance(InteractorStyleTrackballCamera_extend, 'vtkInteractorStyleTrackballCamera'); // ----------------------------------------------------------------------------
-
-var vtkInteractorStyleTrackballCamera$1 = {
-  newInstance: InteractorStyleTrackballCamera_newInstance,
-  extend: InteractorStyleTrackballCamera_extend
-};
-
-
-
-;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Rendering/Misc/GenericRenderWindow.js
-
-
-
-
-
-
-
-
-
-
-
-
-
-function vtkGenericRenderWindow(publicAPI, model) {
-  // Capture resize trigger method to remove from publicAPI
-  var invokeResize = publicAPI.invokeResize;
-  delete publicAPI.invokeResize; // VTK renderWindow/renderer
-
-  model.renderWindow = vtkRenderWindow$1.newInstance();
-  model.renderer = vtkRenderer$1.newInstance();
-  model.renderWindow.addRenderer(model.renderer); // OpenGLRenderWindow
-
-  model.openGLRenderWindow = RenderWindow_vtkRenderWindow.newInstance();
-  model.renderWindow.addView(model.openGLRenderWindow); // Interactor
-
-  model.interactor = vtkRenderWindowInteractor$1.newInstance();
-  model.interactor.setInteractorStyle(vtkInteractorStyleTrackballCamera$1.newInstance());
-  model.interactor.setView(model.openGLRenderWindow);
-  model.interactor.initialize(); // Expose background
-
-  publicAPI.setBackground = model.renderer.setBackground; // Update BG color
-
-  publicAPI.setBackground.apply(publicAPI, _toConsumableArray(model.background)); // Handle window resize
-
-  publicAPI.resize = function () {
-    if (model.container) {
-      var dims = model.container.getBoundingClientRect();
-      var devicePixelRatio = window.devicePixelRatio || 1;
-      model.openGLRenderWindow.setSize(Math.floor(dims.width * devicePixelRatio), Math.floor(dims.height * devicePixelRatio));
-      invokeResize();
-      model.renderWindow.render();
-    }
-  }; // Handle DOM container relocation
-
-
-  publicAPI.setContainer = function (el) {
-    if (model.container) {
-      model.interactor.unbindEvents(model.container);
-    } // Switch container
-
-
-    model.container = el;
-    model.openGLRenderWindow.setContainer(model.container); // Bind to new container
-
-    if (model.container) {
-      model.interactor.bindEvents(model.container);
-    }
-  }; // Properly release GL context
-
-
-  publicAPI.delete = macro.chain(publicAPI.setContainer, model.openGLRenderWindow.delete, publicAPI.delete); // Handle size
-
-  if (model.listenWindowResize) {
-    window.addEventListener('resize', publicAPI.resize);
-  }
-
-  publicAPI.resize();
-} // ----------------------------------------------------------------------------
-// Object factory
-// ----------------------------------------------------------------------------
-
-
-var GenericRenderWindow_DEFAULT_VALUES = {
-  background: [0.32, 0.34, 0.43],
-  listenWindowResize: true,
-  container: null
-}; // ----------------------------------------------------------------------------
-
-function GenericRenderWindow_extend(publicAPI, model) {
-  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-  Object.assign(model, GenericRenderWindow_DEFAULT_VALUES, initialValues); // Object methods
-
-  macro.obj(publicAPI, model);
-  macro.get(publicAPI, model, ['renderWindow', 'renderer', 'openGLRenderWindow', 'interactor', 'container']);
-  macro.event(publicAPI, model, 'resize'); // Object specific methods
-
-  vtkGenericRenderWindow(publicAPI, model);
-} // ----------------------------------------------------------------------------
-
-var GenericRenderWindow_newInstance = macro.newInstance(GenericRenderWindow_extend); // ----------------------------------------------------------------------------
-
-var vtkGenericRenderWindow$1 = {
-  newInstance: GenericRenderWindow_newInstance,
-  extend: GenericRenderWindow_extend
-};
 
 
 
