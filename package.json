@@ -7,7 +7,8 @@
     "dev": "webpack --progress --color --mode development",
     "build": "webpack --progress --color --mode production",
     "serve": "webpack-dev-server --content-base ./dist",
-    "generate-docs": "node_modules/.bin/jsdoc -c jsdoc.json"
+    "generate-docs": "node_modules/.bin/jsdoc -c jsdoc.json",
+    "codehawk": "node ./node_modules/codehawk-cli/build/index.js src"
   },
   "repository": {
     "type": "git",
@@ -33,6 +34,7 @@
     "worker-loader": "^3.0.8"
   },
   "devDependencies": {
+    "codehawk-cli": "^9.0.0",
     "docdash": "^1.2.0",
     "jsdoc": "^3.6.6",
     "webpack": "^5.70.0",
