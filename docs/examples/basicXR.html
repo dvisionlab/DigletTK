@@ -78,6 +78,8 @@ Right click to delete a curve.
           id="widget"
           style="height: 120px; margin: auto; border: 3px solid green"
         ></div>
+        <input id="xr" type="button" value="Activate XR" style="margin-top: 4px;"></input>
+
         <h3 style="margin-top: 20px; margin-bottom: 10px">Code Example</h3>
         <pre class="h-100">
           <code class="javascript">
@@ -116,6 +118,8 @@ vr.rescaleLUT = true;
 // vr.cropWidget = true;
 // activate edge enhancement
 // vr.edgeEnhancement = true;
+// Activate XR
+// vr.activateXR();
 
           </code>
         </pre>
@@ -150,8 +154,16 @@ vr.rescaleLUT = true;
         vr.rescaleLUT = v;
       }
 
+      function activateXR() {
+        console.log("Activate XR");
+        vr.activateXR();
+      }
+
       const element = document.getElementById("viewer-2");
       const widgetContainer = document.getElementById("widget");
+
+      const button = document.getElementById("xr");
+      button.addEventListener('click', activateXR);
 
       let header, data;
 
@@ -174,7 +186,7 @@ vr.rescaleLUT = true;
         const image = diglettk.buildVtkVolume(header, data);
         // run vr
         const enableXR = true;
-        vr = new diglettk.VRView(element, enableXR);
+        vr = new diglettk.VRView(element);
         // set an image
         vr.setImage(image);
         // set widget element to control opacity
