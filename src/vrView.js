@@ -2,6 +2,7 @@ import vtkGenericRenderWindow from "@kitware/vtk.js/Rendering/Misc/GenericRender
 import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction";
 import vtkPiecewiseFunction from "@kitware/vtk.js/Common/DataModel/PiecewiseFunction";
 import vtkColorMaps from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps";
+import vtkFullScreenRenderWindow from "@kitware/vtk.js/Rendering/Misc/FullScreenRenderWindow";
 
 import vtkMouseCameraTrackballRotateManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballRotateManipulator";
 import vtkMouseCameraTrackballPanManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
@@ -36,7 +37,7 @@ export class VRView extends baseView {
    * Create a volume rendering scene
    * @param {HTMLElement} element - the target html element to render the scene
    */
-  constructor(element) {
+  constructor(element, enableXR) {
     super();
 
     this.VERBOSE = false;
@@ -75,7 +76,11 @@ export class VRView extends baseView {
     // measurement state
     this._measurementState = null;
 
-    this._initVR();
+    if (enableXR) {
+      this._initXR();
+    } else {
+      this._initVR();
+    }
   }
 
   // ===========================================================
@@ -461,6 +466,46 @@ export class VRView extends baseView {
     this._renderer = genericRenderWindow.getRenderer();
     this._renderWindow = genericRenderWindow.getRenderWindow();
     this._genericRenderWindow = genericRenderWindow;
+
+    // initalize piecewise gaussian widget
+    this._PGwidget = setupPGwidget(this._PGwidgetElement);
+  }
+
+  /**
+   * Initialize rendering scene with XR
+   * @private
+   */
+  _initXR() {
+    const genericRenderWindow = vtkGenericRenderWindow.newInstance();
+    genericRenderWindow.setContainer(this._element);
+    genericRenderWindow.setBackground([0, 0, 0]);
+
+    //add custom resize cb
+    genericRenderWindow.onResize(() => {
+      // bypass genericRenderWindow resize method (do not consider devicePixelRatio)
+      // https://kitware.github.io/vtk-js/api/Rendering_Misc_GenericRenderWindow.html
+      let size = [
+        genericRenderWindow.getContainer().getBoundingClientRect().width,
+        genericRenderWindow.getContainer().getBoundingClientRect().height
+      ];
+      genericRenderWindow.getRenderWindow().getViews()[0].setSize(size);
+
+      if (this.VERBOSE) console.log("resize", size);
+    });
+
+    // resize callback
+    window.addEventListener("resize", evt => {
+      genericRenderWindow.resize();
+    });
+
+    genericRenderWindow.resize();
+
+    this._renderer = genericRenderWindow.getRenderer();
+    this._renderWindow = genericRenderWindow.getRenderWindow();
+    this._genericRenderWindow = genericRenderWindow;
+
+    const openGLRenderWindow = genericRenderWindow.getOpenGLRenderWindow();
+    openGLRenderWindow.startXR();
 
     // initalize piecewise gaussian widget
     this._PGwidget = setupPGwidget(this._PGwidgetElement);
