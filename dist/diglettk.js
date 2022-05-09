@@ -72967,15 +72967,16 @@ class VRView extends baseView {
    * Activate XR
    */
   activateXR() {
-    if (__webpack_require__.g.navigator.xr === undefined) {
-      vtkResourceLoader.loadScript(
-          "https://cdn.jsdelivr.net/npm/webxr-polyfill@latest/build/webxr-polyfill.js"
-        )
-        .then(() => {
-          // eslint-disable-next-line no-new, no-undef
-          new WebXRPolyfill();
-        });
-    }
+    // if (global.navigator.xr === undefined) {
+    //   vtkResourceLoader
+    //     .loadScript(
+    //       "https://cdn.jsdelivr.net/npm/webxr-polyfill@latest/build/webxr-polyfill.js"
+    //     )
+    //     .then(() => {
+    //       // eslint-disable-next-line no-new, no-undef
+    //       new WebXRPolyfill();
+    //     });
+    // }
     this._genericRenderWindow.getOpenGLRenderWindow().startXR();
   }
 
