@@ -294,7 +294,24 @@ export class VRView extends baseView {
           new WebXRPolyfill();
         });
     }
+    let size = [
+      this._genericRenderWindow.getContainer().getBoundingClientRect().width,
+      this._genericRenderWindow.getContainer().getBoundingClientRect().height
+    ];
+    this._genericRenderWindow.getOpenGLRenderWindow().setSize(size);
     this._genericRenderWindow.getOpenGLRenderWindow().startXR();
+    this._genericRenderWindow.getOpenGLRenderWindow().enterXR();
+
+    const camera = this._renderer.getActiveCamera();
+    const cameraConfiguration = {
+      focalPoint: [0, 0, -1],
+      position: [0, 0, 0],
+      viewAngle: 100,
+      physicalViewNorth: [0, 0, -1],
+      viewUp: [0, 1, 0],
+      physicalViewUp: [0, 1, 0]
+    };
+    camera.set(cameraConfiguration);
   }
 
   /**
@@ -311,7 +328,7 @@ export class VRView extends baseView {
 
     // center camera on new volume
     this._renderer.resetCamera();
-    setCamera(this._renderer.getActiveCamera(), this._actor.getCenter());
+    // setCamera(this._renderer.getActiveCamera(), this._actor.getCenter());
 
     if (this._PGwidget) {
       this._updateWidget();

@@ -38253,15 +38253,15 @@ function setActorProperties(actor) {
   actor.getProperty().setScalarOpacityUnitDistance(0, 30.0);
   actor.getProperty().setInterpolationTypeToLinear();
   actor.getProperty().setUseGradientOpacity(0, true);
-  actor.getProperty().setGradientOpacityMinimumValue(0, 2);
+  actor.getProperty().setGradientOpacityMinimumValue(0, 10);
   actor.getProperty().setGradientOpacityMinimumOpacity(0, 0.0);
   actor.getProperty().setGradientOpacityMaximumValue(0, 20);
   actor.getProperty().setGradientOpacityMaximumOpacity(0, 2.0);
   actor.getProperty().setShade(true);
   actor.getProperty().setAmbient(0.3);
-  actor.getProperty().setDiffuse(0.7);
+  actor.getProperty().setDiffuse(0.2);
   actor.getProperty().setSpecular(0.3);
-  actor.getProperty().setSpecularPower(0.8);
+  actor.getProperty().setSpecularPower(0.4);
 }
 
 /**
@@ -72976,7 +72976,24 @@ class VRView extends baseView {
           new WebXRPolyfill();
         });
     }
+    let size = [
+      this._genericRenderWindow.getContainer().getBoundingClientRect().width,
+      this._genericRenderWindow.getContainer().getBoundingClientRect().height
+    ];
+    this._genericRenderWindow.getOpenGLRenderWindow().setSize(size);
     this._genericRenderWindow.getOpenGLRenderWindow().startXR();
+    this._genericRenderWindow.getOpenGLRenderWindow().enterXR();
+
+    const camera = this._renderer.getActiveCamera();
+    const cameraConfiguration = {
+      focalPoint: [0, 0, -1],
+      position: [0, 0, 0],
+      viewAngle: 100,
+      physicalViewNorth: [0, 0, -1],
+      viewUp: [0, 1, 0],
+      physicalViewUp: [0, 1, 0]
+    };
+    camera.set(cameraConfiguration);
   }
 
   /**
@@ -72993,7 +73010,7 @@ class VRView extends baseView {
 
     // center camera on new volume
     this._renderer.resetCamera();
-    setCamera(this._renderer.getActiveCamera(), this._actor.getCenter());
+    // setCamera(this._renderer.getActiveCamera(), this._actor.getCenter());
 
     if (this._PGwidget) {
       this._updateWidget();

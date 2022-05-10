@@ -444,15 +444,15 @@ export function setActorProperties(actor) {
   actor.getProperty().setScalarOpacityUnitDistance(0, 30.0);
   actor.getProperty().setInterpolationTypeToLinear();
   actor.getProperty().setUseGradientOpacity(0, true);
-  actor.getProperty().setGradientOpacityMinimumValue(0, 2);
+  actor.getProperty().setGradientOpacityMinimumValue(0, 10);
   actor.getProperty().setGradientOpacityMinimumOpacity(0, 0.0);
   actor.getProperty().setGradientOpacityMaximumValue(0, 20);
   actor.getProperty().setGradientOpacityMaximumOpacity(0, 2.0);
   actor.getProperty().setShade(true);
   actor.getProperty().setAmbient(0.3);
-  actor.getProperty().setDiffuse(0.7);
+  actor.getProperty().setDiffuse(0.2);
   actor.getProperty().setSpecular(0.3);
-  actor.getProperty().setSpecularPower(0.8);
+  actor.getProperty().setSpecularPower(0.4);
 }
 
 /**
