@@ -442,7 +442,7 @@ export function setCamera(camera, center) {
  */
 export function setActorProperties(actor) {
   actor.getProperty().setScalarOpacityUnitDistance(0, 30.0);
-  actor.getProperty().setInterpolationTypeToLinear();
+  // actor.getProperty().setInterpolationTypeToLinear();
   actor.getProperty().setUseGradientOpacity(0, true);
   actor.getProperty().setGradientOpacityMinimumValue(0, 10);
   actor.getProperty().setGradientOpacityMinimumOpacity(0, 0.0);
