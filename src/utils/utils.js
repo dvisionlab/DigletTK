@@ -441,13 +441,13 @@ export function setCamera(camera, center) {
  * @param {*} actor
  */
 export function setActorProperties(actor) {
-  actor.getProperty().setScalarOpacityUnitDistance(0, 30.0);
+  // actor.getProperty().setScalarOpacityUnitDistance(0, 10.0);
   // actor.getProperty().setInterpolationTypeToLinear();
-  actor.getProperty().setUseGradientOpacity(0, true);
-  actor.getProperty().setGradientOpacityMinimumValue(0, 10);
-  actor.getProperty().setGradientOpacityMinimumOpacity(0, 0.0);
-  actor.getProperty().setGradientOpacityMaximumValue(0, 20);
-  actor.getProperty().setGradientOpacityMaximumOpacity(0, 2.0);
+  // actor.getProperty().setUseGradientOpacity(0, true);
+  // actor.getProperty().setGradientOpacityMinimumValue(0, 10);
+  // actor.getProperty().setGradientOpacityMinimumOpacity(0, 0.0);
+  // actor.getProperty().setGradientOpacityMaximumValue(0, 20);
+  // actor.getProperty().setGradientOpacityMaximumOpacity(0, 1.0);
   actor.getProperty().setShade(true);
   actor.getProperty().setAmbient(0.3);
   actor.getProperty().setDiffuse(0.2);
