@@ -308,8 +308,8 @@ export class VRView extends baseView {
       position: [0, -2000, 0],
       viewAngle: 100,
       physicalViewNorth: [0, 0, -1],
-      viewUp: [1, 0, 0],
-      physicalViewUp: [1, 0, 0]
+      viewUp: [0, 1, 0],
+      physicalViewUp: [0, 1, 0]
     };
     camera.set(cameraConfiguration);
   }
