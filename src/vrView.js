@@ -11,6 +11,7 @@ import vtkInteractorStyleManipulator from "@kitware/vtk.js/Interaction/Style/Int
 
 import vtkPointPicker from "@kitware/vtk.js/Rendering/Core/PointPicker";
 import vtkCoordinate from "@kitware/vtk.js/Rendering/Core/Coordinate";
+import vtkResourceLoader from "@kitware/vtk.js/IO/Core/ResourceLoader";
 
 import {
   createVolumeActor,
@@ -280,6 +281,40 @@ export class VRView extends baseView {
   // ===========================================================
 
   /**
+   * Activate XR
+   */
+  activateXR() {
+    if (global.navigator.xr === undefined) {
+      vtkResourceLoader
+        .loadScript(
+          "https://cdn.jsdelivr.net/npm/webxr-polyfill@latest/build/webxr-polyfill.js"
+        )
+        .then(() => {
+          // eslint-disable-next-line no-new, no-undef
+          new WebXRPolyfill();
+        });
+    }
+    let size = [
+      this._genericRenderWindow.getContainer().getBoundingClientRect().width,
+      this._genericRenderWindow.getContainer().getBoundingClientRect().height
+    ];
+    this._genericRenderWindow.getOpenGLRenderWindow().setSize(size);
+    this._genericRenderWindow.getOpenGLRenderWindow().startXR();
+    this._genericRenderWindow.getOpenGLRenderWindow().enterXR();
+
+    const camera = this._renderer.getActiveCamera();
+    const cameraConfiguration = {
+      focalPoint: [0, 0, -1],
+      position: [0, -2000, 0],
+      viewAngle: 100,
+      physicalViewNorth: [0, 0, -1],
+      viewUp: [0, 1, 0],
+      physicalViewUp: [0, 1, 0]
+    };
+    camera.set(cameraConfiguration);
+  }
+
+  /**
    * Set the image to be rendered
    * @param {ArrayBuffer} image - The image content data as buffer array
    */
@@ -290,10 +325,15 @@ export class VRView extends baseView {
     this.lut = "Grayscale";
     this.resolution = 2;
     this._renderer.addVolume(this._actor);
+    // const pos = this._actor.getPosition();
+    // console.log(pos);
+    // // this._actor.setPosition(0, 0, 0);
+    // this._actor.rotateX();
+    // this._actor.setPosition(pos);
 
     // center camera on new volume
     this._renderer.resetCamera();
-    setCamera(this._renderer.getActiveCamera(), this._actor.getCenter());
+    // setCamera(this._renderer.getActiveCamera(), this._actor.getCenter());
 
     if (this._PGwidget) {
       this._updateWidget();

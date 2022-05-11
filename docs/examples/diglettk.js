@@ -3326,7 +3326,7 @@ __webpack_require__.d(mat3_namespaceObject, {
 });
 
 ;// CONCATENATED MODULE: ./package.json
-const package_namespaceObject = {"i8":"1.1.0"};
+const package_namespaceObject = {"i8":"1.2.0"};
 ;// CONCATENATED MODULE: ./node_modules/@babel/runtime/helpers/esm/defineProperty.js
 function _defineProperty(obj, key, value) {
   if (key in obj) {
@@ -38250,18 +38250,18 @@ function setCamera(camera, center) {
  * @param {*} actor
  */
 function setActorProperties(actor) {
-  actor.getProperty().setScalarOpacityUnitDistance(0, 30.0);
-  actor.getProperty().setInterpolationTypeToLinear();
-  actor.getProperty().setUseGradientOpacity(0, true);
-  actor.getProperty().setGradientOpacityMinimumValue(0, 2);
-  actor.getProperty().setGradientOpacityMinimumOpacity(0, 0.0);
-  actor.getProperty().setGradientOpacityMaximumValue(0, 20);
-  actor.getProperty().setGradientOpacityMaximumOpacity(0, 2.0);
+  // actor.getProperty().setScalarOpacityUnitDistance(0, 10.0);
+  // actor.getProperty().setInterpolationTypeToLinear();
+  // actor.getProperty().setUseGradientOpacity(0, true);
+  // actor.getProperty().setGradientOpacityMinimumValue(0, 10);
+  // actor.getProperty().setGradientOpacityMinimumOpacity(0, 0.0);
+  // actor.getProperty().setGradientOpacityMaximumValue(0, 20);
+  // actor.getProperty().setGradientOpacityMaximumOpacity(0, 1.0);
   actor.getProperty().setShade(true);
   actor.getProperty().setAmbient(0.3);
-  actor.getProperty().setDiffuse(0.7);
+  actor.getProperty().setDiffuse(0.2);
   actor.getProperty().setSpecular(0.3);
-  actor.getProperty().setSpecularPower(0.8);
+  actor.getProperty().setSpecularPower(0.4);
 }
 
 /**
@@ -71428,6 +71428,47 @@ var vtkCoordinate$1 = Coordinate_objectSpread({
 
 
 
+;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/IO/Core/ResourceLoader.js
+var LOADED_URLS = [];
+function loadScript(url) {
+  return new Promise(function (resolve, reject) {
+    if (LOADED_URLS.indexOf(url) === -1) {
+      LOADED_URLS.push(url);
+      var newScriptTag = document.createElement('script');
+      newScriptTag.type = 'text/javascript';
+      newScriptTag.src = url;
+      newScriptTag.onload = resolve;
+      newScriptTag.onerror = reject;
+      document.body.appendChild(newScriptTag);
+    } else {
+      resolve(false);
+    }
+  });
+} // <link href=/css/app.44f7bc81.css rel=preload as=style>
+
+function loadCSS(url) {
+  return new Promise(function (resolve, reject) {
+    if (LOADED_URLS.indexOf(url) === -1) {
+      LOADED_URLS.push(url);
+      var newScriptTag = document.createElement('link');
+      newScriptTag.rel = 'stylesheet';
+      newScriptTag.href = url;
+      newScriptTag.onload = resolve;
+      newScriptTag.onerror = reject;
+      document.head.appendChild(newScriptTag);
+    } else {
+      resolve(false);
+    }
+  });
+}
+var vtkResourceLoader = {
+  loadScript: loadScript,
+  loadCSS: loadCSS,
+  LOADED_URLS: LOADED_URLS
+};
+
+
+
 ;// CONCATENATED MODULE: ./node_modules/@kitware/vtk.js/Common/Core/Math.js
 
 
@@ -72669,6 +72710,7 @@ class baseView {
 
 
 
+
 // Add custom presets
 ColorMaps_vtkColorMaps.addPreset(createPreset());
 
@@ -72922,6 +72964,39 @@ class VRView extends baseView {
   // ===========================================================
 
   /**
+   * Activate XR
+   */
+  activateXR() {
+    if (__webpack_require__.g.navigator.xr === undefined) {
+      vtkResourceLoader.loadScript(
+          "https://cdn.jsdelivr.net/npm/webxr-polyfill@latest/build/webxr-polyfill.js"
+        )
+        .then(() => {
+          // eslint-disable-next-line no-new, no-undef
+          new WebXRPolyfill();
+        });
+    }
+    let size = [
+      this._genericRenderWindow.getContainer().getBoundingClientRect().width,
+      this._genericRenderWindow.getContainer().getBoundingClientRect().height
+    ];
+    this._genericRenderWindow.getOpenGLRenderWindow().setSize(size);
+    this._genericRenderWindow.getOpenGLRenderWindow().startXR();
+    this._genericRenderWindow.getOpenGLRenderWindow().enterXR();
+
+    const camera = this._renderer.getActiveCamera();
+    const cameraConfiguration = {
+      focalPoint: [0, 0, -1],
+      position: [0, -2000, 0],
+      viewAngle: 100,
+      physicalViewNorth: [0, 0, -1],
+      viewUp: [0, 1, 0],
+      physicalViewUp: [0, 1, 0]
+    };
+    camera.set(cameraConfiguration);
+  }
+
+  /**
    * Set the image to be rendered
    * @param {ArrayBuffer} image - The image content data as buffer array
    */
@@ -72932,10 +73007,15 @@ class VRView extends baseView {
     this.lut = "Grayscale";
     this.resolution = 2;
     this._renderer.addVolume(this._actor);
+    // const pos = this._actor.getPosition();
+    // console.log(pos);
+    // // this._actor.setPosition(0, 0, 0);
+    // this._actor.rotateX();
+    // this._actor.setPosition(pos);
 
     // center camera on new volume
     this._renderer.resetCamera();
-    setCamera(this._renderer.getActiveCamera(), this._actor.getCenter());
+    // setCamera(this._renderer.getActiveCamera(), this._actor.getCenter());
 
     if (this._PGwidget) {
       this._updateWidget();

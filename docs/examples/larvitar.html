@@ -150,8 +150,8 @@ Right click to delete a curve.
       const widgetContainer = document.getElementById("widget");
 
       let header;
-
-      diglettk.loadDemoSerieWithLarvitar("knee", larvitar, serie => {
+      console.log("load files");
+      diglettk.loadDemoSerieWithLarvitar("abdomen", larvitar, serie => {
         console.log(serie);
         // build vtk volume with larvitar
         header = larvitar.buildHeader(serie);
@@ -160,6 +160,8 @@ Right click to delete a curve.
 
       function onSuccess(volume) {
         data = volume;
+        console.log(header);
+        console.log(volume);
         const image = diglettk.buildVtkVolume(header, volume);
         // run vr
         vr = new diglettk.VRView(element);
