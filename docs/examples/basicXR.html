@@ -127,6 +127,7 @@ vr.rescaleLUT = true;
     </div>
 
     <script src="./diglettk.js"></script>
+    <script src="./larvitar.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
 
     <script>
@@ -165,27 +166,20 @@ vr.rescaleLUT = true;
       const button = document.getElementById("xr");
       button.addEventListener('click', activateXR);
 
-      let header, data;
+      let header;
+      console.log("load files");
+      diglettk.loadDemoSerieWithLarvitar("abdomen", larvitar, serie => {
+        console.log(serie);
+        // build vtk volume with larvitar
+        header = larvitar.buildHeader(serie);
+        larvitar.buildDataAsync(serie, 30, onSuccess, onError);
+      });
 
-      fetch("./demo/header.json")
-        .then(data => data.json())
-        .then(_header => {
-          header = _header;
-          console.log("header", header);
-          fetch("./demo/data.json")
-            .then(data => data.arrayBuffer())
-            .then(buffer => {
-              console.log(buffer);
-              data = new Int16Array(buffer);
-              console.log("data", data);
-              loadScene();
-            });
-        });
-
-      function loadScene() {
-        const image = diglettk.buildVtkVolume(header, data);
+      function onSuccess(volume) {
+        data = volume;
+        console.log(header)
+        const image = diglettk.buildVtkVolume(header, volume);
         // run vr
-        const enableXR = true;
         vr = new diglettk.VRView(element);
         // set an image
         vr.setImage(image);
@@ -197,9 +191,46 @@ vr.rescaleLUT = true;
         // vr.lut = lutList[0];
         vr.lut = "MuscleBone";
         vr.rescaleLUT = true;
-        // adjust wwwl
-        vr.wwwl = [500, 1000];
       }
+
+      function onError(err) {
+        console.error(err);
+      }
+
+      // let header, data;
+      // fetch("./demo/header.json")
+      //   .then(data => data.json())
+      //   .then(_header => {
+      //     header = _header;
+      //     console.log("header", header);
+      //     fetch("./demo/data.json")
+      //       .then(data => data.arrayBuffer())
+      //       .then(buffer => {
+      //         console.log(buffer);
+      //         data = new Int16Array(buffer);
+      //         console.log("data", data);
+      //         loadScene();
+      //       });
+      //   });
+
+      // function loadScene() {
+      //   const image = diglettk.buildVtkVolume(header, data);
+      //   // run vr
+      //   const enableXR = true;
+      //   vr = new diglettk.VRView(element);
+      //   // set an image
+      //   vr.setImage(image);
+      //   // set widget element to control opacity
+      //   vr.widgetElement = widgetContainer;
+      //   // set a LUT
+      //   let lutList = vr.getLutList();
+      //   fillSelect(lutList, "MuscleBone");
+      //   // vr.lut = lutList[0];
+      //   vr.lut = "MuscleBone";
+      //   vr.rescaleLUT = true;
+      //   // adjust wwwl
+      //   vr.wwwl = [500, 1000];
+      // }
     </script>
   </body>
 </html>

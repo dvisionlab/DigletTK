@@ -72987,11 +72987,11 @@ class VRView extends baseView {
     const camera = this._renderer.getActiveCamera();
     const cameraConfiguration = {
       focalPoint: [0, 0, -1],
-      position: [0, 0, 0],
+      position: [0, -2000, 0],
       viewAngle: 100,
       physicalViewNorth: [0, 0, -1],
-      viewUp: [0, 1, 0],
-      physicalViewUp: [0, 1, 0]
+      viewUp: [1, 0, 0],
+      physicalViewUp: [1, 0, 0]
     };
     camera.set(cameraConfiguration);
   }
@@ -73007,6 +73007,11 @@ class VRView extends baseView {
     this.lut = "Grayscale";
     this.resolution = 2;
     this._renderer.addVolume(this._actor);
+    // const pos = this._actor.getPosition();
+    // console.log(pos);
+    // // this._actor.setPosition(0, 0, 0);
+    // this._actor.rotateX();
+    // this._actor.setPosition(pos);
 
     // center camera on new volume
     this._renderer.resetCamera();
