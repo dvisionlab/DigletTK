@@ -703,6 +703,63 @@ var Constants = {
 
 /***/ }),
 
+/***/ "./node_modules/@kitware/vtk.js/Common/Core/Endian.js":
+/*!************************************************************!*\
+  !*** ./node_modules/@kitware/vtk.js/Common/Core/Endian.js ***!
+  \************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "ENDIANNESS": () => (/* binding */ ENDIANNESS),
+/* harmony export */   "default": () => (/* binding */ Endian),
+/* harmony export */   "getEndianness": () => (/* binding */ getEndianness),
+/* harmony export */   "swapBytes": () => (/* binding */ swapBytes)
+/* harmony export */ });
+function getEndianness() {
+  var a = new ArrayBuffer(4);
+  var b = new Uint8Array(a);
+  var c = new Uint32Array(a);
+  b[0] = 0xa1;
+  b[1] = 0xb2;
+  b[2] = 0xc3;
+  b[3] = 0xd4;
+  if (c[0] === 0xd4c3b2a1) return 'LittleEndian';
+  if (c[0] === 0xa1b2c3d4) return 'BigEndian';
+  return null;
+}
+var ENDIANNESS = getEndianness();
+function swapBytes(buffer, wordSize) {
+  if (wordSize < 2) {
+    return;
+  }
+
+  var bytes = new Int8Array(buffer);
+  var size = bytes.length;
+  var tempBuffer = [];
+
+  for (var i = 0; i < size; i += wordSize) {
+    for (var j = 0; j < wordSize; j++) {
+      tempBuffer.push(bytes[i + j]);
+    }
+
+    for (var _j = 0; _j < wordSize; _j++) {
+      bytes[i + _j] = tempBuffer.pop();
+    }
+  }
+}
+var Endian = {
+  ENDIANNESS: ENDIANNESS,
+  getEndianness: getEndianness,
+  swapBytes: swapBytes
+};
+
+
+
+
+/***/ }),
+
 /***/ "./node_modules/@kitware/vtk.js/Common/Core/HalfFloat.js":
 /*!***************************************************************!*\
   !*** ./node_modules/@kitware/vtk.js/Common/Core/HalfFloat.js ***!
@@ -10708,6 +10765,769 @@ var newInstance = _macros_js__WEBPACK_IMPORTED_MODULE_0__["default"].newInstance
 var vtkSphereSource$1 = {
   newInstance: newInstance,
   extend: extend
+};
+
+
+
+
+/***/ }),
+
+/***/ "./node_modules/@kitware/vtk.js/IO/Core/BinaryHelper.js":
+/*!**************************************************************!*\
+  !*** ./node_modules/@kitware/vtk.js/IO/Core/BinaryHelper.js ***!
+  \**************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ BinaryHelper)
+/* harmony export */ });
+/**
+ * Converts a binary buffer in an ArrayBuffer to a string.
+ *
+ * Note this does not take encoding into consideration, so don't
+ * expect proper Unicode or any other encoding.
+ */
+function arrayBufferToString(arrayBuffer) {
+  var decoder = new TextDecoder('latin1');
+  return decoder.decode(arrayBuffer);
+}
+/**
+ * Extracts binary data out of a file ArrayBuffer given a prefix/suffix.
+ */
+
+
+function extractBinary(arrayBuffer, prefixRegex) {
+  var suffixRegex = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : null;
+  var str = arrayBufferToString(arrayBuffer);
+  var prefixMatch = prefixRegex.exec(str);
+
+  if (!prefixMatch) {
+    return {
+      text: str
+    };
+  }
+
+  var dataStartIndex = prefixMatch.index + prefixMatch[0].length;
+  var strFirstHalf = str.substring(0, dataStartIndex);
+  var retVal = null;
+  var suffixMatch = suffixRegex ? suffixRegex.exec(str) : null;
+
+  if (suffixMatch) {
+    var strSecondHalf = str.substr(suffixMatch.index);
+    retVal = {
+      text: strFirstHalf + strSecondHalf,
+      binaryBuffer: arrayBuffer.slice(dataStartIndex, suffixMatch.index)
+    };
+  } else {
+    // no suffix, so just take all the data starting from dataStartIndex
+    retVal = {
+      text: strFirstHalf,
+      binaryBuffer: arrayBuffer.slice(dataStartIndex)
+    };
+  }
+
+  return retVal;
+}
+
+var BinaryHelper = {
+  arrayBufferToString: arrayBufferToString,
+  extractBinary: extractBinary
+};
+
+
+
+
+/***/ }),
+
+/***/ "./node_modules/@kitware/vtk.js/IO/Core/DataAccessHelper.js":
+/*!******************************************************************!*\
+  !*** ./node_modules/@kitware/vtk.js/IO/Core/DataAccessHelper.js ***!
+  \******************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ DataAccessHelper),
+/* harmony export */   "get": () => (/* binding */ get),
+/* harmony export */   "has": () => (/* binding */ has),
+/* harmony export */   "registerType": () => (/* binding */ registerType)
+/* harmony export */ });
+var TYPE_MAPPING = {};
+function has(type) {
+  return !!TYPE_MAPPING[type];
+}
+function get() {
+  var type = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 'http';
+  var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+  return TYPE_MAPPING[type](options);
+}
+function registerType(type, fn) {
+  TYPE_MAPPING[type] = fn;
+}
+var DataAccessHelper = {
+  get: get,
+  has: has,
+  registerType: registerType
+};
+
+
+
+
+/***/ }),
+
+/***/ "./node_modules/@kitware/vtk.js/IO/Core/DataAccessHelper/LiteHttpDataAccessHelper.js":
+/*!*******************************************************************************************!*\
+  !*** ./node_modules/@kitware/vtk.js/IO/Core/DataAccessHelper/LiteHttpDataAccessHelper.js ***!
+  \*******************************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ LiteHttpDataAccessHelper)
+/* harmony export */ });
+/* harmony import */ var _babel_runtime_helpers_slicedToArray__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @babel/runtime/helpers/slicedToArray */ "./node_modules/@babel/runtime/helpers/esm/slicedToArray.js");
+/* harmony import */ var _macros_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../../../macros.js */ "./node_modules/@kitware/vtk.js/macros.js");
+/* harmony import */ var _Common_Core_Endian_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../../Common/Core/Endian.js */ "./node_modules/@kitware/vtk.js/Common/Core/Endian.js");
+/* harmony import */ var _Common_Core_DataArray_Constants_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../../../Common/Core/DataArray/Constants.js */ "./node_modules/@kitware/vtk.js/Common/Core/DataArray/Constants.js");
+/* harmony import */ var _DataAccessHelper_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../DataAccessHelper.js */ "./node_modules/@kitware/vtk.js/IO/Core/DataAccessHelper.js");
+
+
+
+
+
+
+var vtkErrorMacro = _macros_js__WEBPACK_IMPORTED_MODULE_1__["default"].vtkErrorMacro,
+    vtkDebugMacro = _macros_js__WEBPACK_IMPORTED_MODULE_1__["default"].vtkDebugMacro;
+
+var REJECT_COMPRESSION = function REJECT_COMPRESSION() {
+  vtkErrorMacro('LiteHttpDataAccessHelper does not support compression. Need to register HttpDataAccessHelper instead.');
+  return Promise.reject(new Error('LiteHttpDataAccessHelper does not support compression. Need to register HttpDataAccessHelper instead.'));
+};
+/* eslint-disable prefer-promise-reject-errors */
+
+
+var requestCount = 0;
+
+function openAsyncXHR(method, url) {
+  var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  var xhr = new XMLHttpRequest();
+  xhr.open(method, url, true);
+
+  if (options.headers) {
+    Object.entries(options.headers).forEach(function (_ref) {
+      var _ref2 = (0,_babel_runtime_helpers_slicedToArray__WEBPACK_IMPORTED_MODULE_0__["default"])(_ref, 2),
+          key = _ref2[0],
+          value = _ref2[1];
+
+      return xhr.setRequestHeader(key, value);
+    });
+  }
+
+  if (options.progressCallback) {
+    xhr.addEventListener('progress', options.progressCallback);
+  }
+
+  return xhr;
+}
+
+function fetchBinary(url) {
+  var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+  return new Promise(function (resolve, reject) {
+    var xhr = openAsyncXHR('GET', url, options);
+
+    xhr.onreadystatechange = function (e) {
+      if (xhr.readyState === 4) {
+        if (xhr.status === 200 || xhr.status === 0) {
+          resolve(xhr.response);
+        } else {
+          reject({
+            xhr: xhr,
+            e: e
+          });
+        }
+      }
+    }; // Make request
+
+
+    xhr.responseType = 'arraybuffer';
+    xhr.send();
+  });
+}
+
+function fetchArray(instance, baseURL, array) {
+  var options = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : {};
+
+  if (options && options.compression) {
+    return REJECT_COMPRESSION();
+  }
+
+  if (array.ref && !array.ref.pending) {
+    return new Promise(function (resolve, reject) {
+      var url = [baseURL, array.ref.basepath, array.ref.id].join('/');
+      var xhr = openAsyncXHR('GET', url, options);
+
+      xhr.onreadystatechange = function (e) {
+        if (xhr.readyState === 1) {
+          array.ref.pending = true;
+
+          if (++requestCount === 1 && instance !== null && instance !== void 0 && instance.invokeBusy) {
+            instance.invokeBusy(true);
+          }
+        }
+
+        if (xhr.readyState === 4) {
+          array.ref.pending = false;
+
+          if (xhr.status === 200 || xhr.status === 0) {
+            array.buffer = xhr.response;
+
+            if (array.ref.encode === 'JSON') {
+              array.values = JSON.parse(array.buffer);
+            } else {
+              if (_Common_Core_Endian_js__WEBPACK_IMPORTED_MODULE_2__["default"].ENDIANNESS !== array.ref.encode && _Common_Core_Endian_js__WEBPACK_IMPORTED_MODULE_2__["default"].ENDIANNESS) {
+                // Need to swap bytes
+                vtkDebugMacro("Swap bytes of ".concat(array.name));
+                _Common_Core_Endian_js__WEBPACK_IMPORTED_MODULE_2__["default"].swapBytes(array.buffer, _Common_Core_DataArray_Constants_js__WEBPACK_IMPORTED_MODULE_3__.DataTypeByteSize[array.dataType]);
+              }
+
+              array.values = _macros_js__WEBPACK_IMPORTED_MODULE_1__["default"].newTypedArray(array.dataType, array.buffer);
+            }
+
+            if (array.values.length !== array.size) {
+              vtkErrorMacro("Error in FetchArray: ".concat(array.name, ", does not have the proper array size. Got ").concat(array.values.length, ", instead of ").concat(array.size));
+            } // Done with the ref and work
+
+
+            delete array.ref;
+
+            if (--requestCount === 0 && instance !== null && instance !== void 0 && instance.invokeBusy) {
+              instance.invokeBusy(false);
+            }
+
+            if (instance !== null && instance !== void 0 && instance.modified) {
+              instance.modified();
+            }
+
+            resolve(array);
+          } else {
+            reject({
+              xhr: xhr,
+              e: e
+            });
+          }
+        }
+      }; // Make request
+
+
+      xhr.responseType = array.dataType !== 'string' ? 'arraybuffer' : 'text';
+      xhr.send();
+    });
+  }
+
+  return Promise.resolve(array);
+} // ----------------------------------------------------------------------------
+
+
+function fetchJSON(instance, url) {
+  var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+
+  if (options && options.compression) {
+    return REJECT_COMPRESSION();
+  }
+
+  return new Promise(function (resolve, reject) {
+    var xhr = openAsyncXHR('GET', url, options);
+
+    xhr.onreadystatechange = function (e) {
+      if (xhr.readyState === 1) {
+        if (++requestCount === 1 && instance !== null && instance !== void 0 && instance.invokeBusy) {
+          instance.invokeBusy(true);
+        }
+      }
+
+      if (xhr.readyState === 4) {
+        if (--requestCount === 0 && instance !== null && instance !== void 0 && instance.invokeBusy) {
+          instance.invokeBusy(false);
+        }
+
+        if (xhr.status === 200 || xhr.status === 0) {
+          resolve(JSON.parse(xhr.responseText));
+        } else {
+          reject({
+            xhr: xhr,
+            e: e
+          });
+        }
+      }
+    }; // Make request
+
+
+    xhr.responseType = 'text';
+    xhr.send();
+  });
+} // ----------------------------------------------------------------------------
+
+
+function fetchText(instance, url) {
+  var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+
+  if (options && options.compression) {
+    return REJECT_COMPRESSION();
+  }
+
+  return new Promise(function (resolve, reject) {
+    var xhr = openAsyncXHR('GET', url, options);
+
+    xhr.onreadystatechange = function (e) {
+      if (xhr.readyState === 1) {
+        if (++requestCount === 1 && instance !== null && instance !== void 0 && instance.invokeBusy) {
+          instance.invokeBusy(true);
+        }
+      }
+
+      if (xhr.readyState === 4) {
+        if (--requestCount === 0 && instance !== null && instance !== void 0 && instance.invokeBusy) {
+          instance.invokeBusy(false);
+        }
+
+        if (xhr.status === 200 || xhr.status === 0) {
+          resolve(xhr.responseText);
+        } else {
+          reject({
+            xhr: xhr,
+            e: e
+          });
+        }
+      }
+    }; // Make request
+
+
+    xhr.responseType = 'text';
+    xhr.send();
+  });
+} // ----------------------------------------------------------------------------
+
+
+function fetchImage(instance, url) {
+  var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  return new Promise(function (resolve, reject) {
+    var img = new Image();
+
+    if (options.crossOrigin) {
+      img.crossOrigin = options.crossOrigin;
+    }
+
+    img.onload = function () {
+      return resolve(img);
+    };
+
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+/* eslint-enable prefer-promise-reject-errors */
+// ----------------------------------------------------------------------------
+
+
+var LiteHttpDataAccessHelper = {
+  fetchArray: fetchArray,
+  fetchJSON: fetchJSON,
+  fetchText: fetchText,
+  fetchBinary: fetchBinary,
+  // Only for HTTP
+  fetchImage: fetchImage
+}; // The lite version should never override a full feature one...
+
+if (!(0,_DataAccessHelper_js__WEBPACK_IMPORTED_MODULE_4__.has)('http')) {
+  (0,_DataAccessHelper_js__WEBPACK_IMPORTED_MODULE_4__.registerType)('http', function (options) {
+    return LiteHttpDataAccessHelper;
+  });
+}
+
+
+
+
+/***/ }),
+
+/***/ "./node_modules/@kitware/vtk.js/IO/Geometry/STLReader.js":
+/*!***************************************************************!*\
+  !*** ./node_modules/@kitware/vtk.js/IO/Geometry/STLReader.js ***!
+  \***************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ vtkSTLReader$1),
+/* harmony export */   "extend": () => (/* binding */ extend),
+/* harmony export */   "newInstance": () => (/* binding */ newInstance)
+/* harmony export */ });
+/* harmony import */ var _Core_BinaryHelper_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../Core/BinaryHelper.js */ "./node_modules/@kitware/vtk.js/IO/Core/BinaryHelper.js");
+/* harmony import */ var _Core_DataAccessHelper_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../Core/DataAccessHelper.js */ "./node_modules/@kitware/vtk.js/IO/Core/DataAccessHelper.js");
+/* harmony import */ var _macros_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../macros.js */ "./node_modules/@kitware/vtk.js/macros.js");
+/* harmony import */ var _Common_Core_DataArray_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../../Common/Core/DataArray.js */ "./node_modules/@kitware/vtk.js/Common/Core/DataArray.js");
+/* harmony import */ var _Common_Core_MatrixBuilder_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../../Common/Core/MatrixBuilder.js */ "./node_modules/@kitware/vtk.js/Common/Core/MatrixBuilder.js");
+/* harmony import */ var _Common_DataModel_PolyData_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../../Common/DataModel/PolyData.js */ "./node_modules/@kitware/vtk.js/Common/DataModel/PolyData.js");
+/* harmony import */ var _Core_DataAccessHelper_LiteHttpDataAccessHelper_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../Core/DataAccessHelper/LiteHttpDataAccessHelper.js */ "./node_modules/@kitware/vtk.js/IO/Core/DataAccessHelper/LiteHttpDataAccessHelper.js");
+
+
+
+
+
+
+
+
+// import 'vtk.js/Sources/IO/Core/DataAccessHelper/HttpDataAccessHelper'; // HTTP + zip
+// import 'vtk.js/Sources/IO/Core/DataAccessHelper/HtmlDataAccessHelper'; // html + base64 + zip
+// import 'vtk.js/Sources/IO/Core/DataAccessHelper/JSZipDataAccessHelper'; // zip
+
+var vtkErrorMacro = _macros_js__WEBPACK_IMPORTED_MODULE_2__["default"].vtkErrorMacro;
+
+function parseHeader(headerString) {
+  var headerSubStr = headerString.split(' ');
+  var fieldValues = headerSubStr.filter(function (e) {
+    return e.indexOf('=') > -1;
+  });
+  var header = {};
+
+  for (var i = 0; i < fieldValues.length; ++i) {
+    var fieldValueStr = fieldValues[i];
+    var fieldValueSubStr = fieldValueStr.split('=');
+
+    if (fieldValueSubStr.length === 2) {
+      header[fieldValueSubStr[0]] = fieldValueSubStr[1];
+    }
+  }
+
+  return header;
+}
+
+function addValuesToArray(src, dst) {
+  for (var i = 0; i < src.length; i++) {
+    dst.push(src[i]);
+  }
+} // facet normal ni nj nk
+//     outer loop
+//         vertex v1x v1y v1z
+//         vertex v2x v2y v2z
+//         vertex v3x v3y v3z
+//     endloop
+// endfacet
+
+
+function readTriangle(lines, offset, points, cellArray, cellNormals) {
+  var normalLine = lines[offset];
+
+  if (normalLine === undefined) {
+    return -1;
+  }
+
+  if (normalLine.indexOf('endfacet') !== -1) {
+    return offset + 1;
+  }
+
+  if (normalLine.indexOf('facet') === -1) {
+    return offset + 1; // Move to next line
+  }
+
+  var nbVertex = 0;
+  var nbConsumedLines = 2;
+  var firstVertexIndex = points.length / 3;
+  var normal = normalLine.split(/[ \t]+/).filter(function (i) {
+    return i;
+  }).slice(-3).map(Number);
+  addValuesToArray(normal, cellNormals);
+
+  while (lines[offset + nbConsumedLines].indexOf('vertex') !== -1) {
+    var line = lines[offset + nbConsumedLines];
+    var coords = line.split(/[ \t]+/).filter(function (i) {
+      return i;
+    }).slice(-3).map(Number);
+    addValuesToArray(coords, points);
+    nbVertex++;
+    nbConsumedLines++;
+  }
+
+  cellArray.push(nbVertex);
+
+  for (var i = 0; i < nbVertex; i++) {
+    cellArray.push(firstVertexIndex + i);
+  }
+
+  while (lines[offset + nbConsumedLines] && lines[offset + nbConsumedLines].indexOf('endfacet') !== -1) {
+    nbConsumedLines++;
+  } // +1 (endfacet) +1 (next facet)
+
+
+  return offset + nbConsumedLines + 2;
+} // ----------------------------------------------------------------------------
+// vtkSTLReader methods
+// ----------------------------------------------------------------------------
+
+
+function vtkSTLReader(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkSTLReader'); // Create default dataAccessHelper if not available
+
+  if (!model.dataAccessHelper) {
+    model.dataAccessHelper = _Core_DataAccessHelper_js__WEBPACK_IMPORTED_MODULE_1__["default"].get('http');
+  } // Internal method to fetch Array
+
+
+  function fetchData(url) {
+    var option = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    var compression = option.compression !== undefined ? option.compression : model.compression;
+    var progressCallback = option.progressCallback !== undefined ? option.progressCallback : model.progressCallback;
+
+    if (option.binary) {
+      return model.dataAccessHelper.fetchBinary(url, {
+        compression: compression,
+        progressCallback: progressCallback
+      });
+    }
+
+    return model.dataAccessHelper.fetchText(publicAPI, url, {
+      compression: compression,
+      progressCallback: progressCallback
+    });
+  } // Set DataSet url
+
+
+  publicAPI.setUrl = function (url) {
+    var option = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {
+      binary: true
+    };
+    model.url = url; // Remove the file in the URL
+
+    var path = url.split('/');
+    path.pop();
+    model.baseURL = path.join('/'); // Fetch metadata
+
+    return publicAPI.loadData(option);
+  }; // Fetch the actual data arrays
+
+
+  publicAPI.loadData = function () {
+    var option = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+    var promise = fetchData(model.url, option);
+    promise.then(publicAPI.parse);
+    return promise;
+  };
+
+  publicAPI.parse = function (content) {
+    if (typeof content === 'string') {
+      publicAPI.parseAsText(content);
+    } else {
+      publicAPI.parseAsArrayBuffer(content);
+    }
+  };
+
+  publicAPI.parseAsArrayBuffer = function (content) {
+    if (!content) {
+      return;
+    }
+
+    if (content !== model.parseData) {
+      publicAPI.modified();
+    } else {
+      return;
+    }
+
+    model.parseData = content; // ascii/binary detection
+
+    var isBinary = false; // 80=STL header, 4=uint32 of num of triangles (le)
+
+    var dview = new DataView(content, 0, 80 + 4);
+    var numTriangles = dview.getUint32(80, true); // 50 bytes per triangle
+
+    isBinary = 84 + numTriangles * 50 === content.byteLength; // Check if ascii format
+
+    if (!isBinary) {
+      publicAPI.parseAsText(_Core_BinaryHelper_js__WEBPACK_IMPORTED_MODULE_0__["default"].arrayBufferToString(content));
+      return;
+    } // Binary parsing
+    // Header
+
+
+    var headerData = content.slice(0, 80);
+    var headerStr = _Core_BinaryHelper_js__WEBPACK_IMPORTED_MODULE_0__["default"].arrayBufferToString(headerData);
+    var header = parseHeader(headerStr); // Data
+
+    var dataView = new DataView(content, 84); // global.dataview = dataView;
+
+    var nbFaces = (content.byteLength - 84) / 50;
+    var pointValues = new Float32Array(nbFaces * 9);
+    var normalValues = new Float32Array(nbFaces * 3);
+    var cellValues = new Uint32Array(nbFaces * 4);
+    var cellDataValues = new Uint16Array(nbFaces);
+    var cellOffset = 0;
+
+    for (var faceIdx = 0; faceIdx < nbFaces; faceIdx++) {
+      var offset = faceIdx * 50;
+      normalValues[faceIdx * 3 + 0] = dataView.getFloat32(offset + 0, true);
+      normalValues[faceIdx * 3 + 1] = dataView.getFloat32(offset + 4, true);
+      normalValues[faceIdx * 3 + 2] = dataView.getFloat32(offset + 8, true);
+      pointValues[faceIdx * 9 + 0] = dataView.getFloat32(offset + 12, true);
+      pointValues[faceIdx * 9 + 1] = dataView.getFloat32(offset + 16, true);
+      pointValues[faceIdx * 9 + 2] = dataView.getFloat32(offset + 20, true);
+      pointValues[faceIdx * 9 + 3] = dataView.getFloat32(offset + 24, true);
+      pointValues[faceIdx * 9 + 4] = dataView.getFloat32(offset + 28, true);
+      pointValues[faceIdx * 9 + 5] = dataView.getFloat32(offset + 32, true);
+      pointValues[faceIdx * 9 + 6] = dataView.getFloat32(offset + 36, true);
+      pointValues[faceIdx * 9 + 7] = dataView.getFloat32(offset + 40, true);
+      pointValues[faceIdx * 9 + 8] = dataView.getFloat32(offset + 44, true);
+      cellValues[cellOffset++] = 3;
+      cellValues[cellOffset++] = faceIdx * 3 + 0;
+      cellValues[cellOffset++] = faceIdx * 3 + 1;
+      cellValues[cellOffset++] = faceIdx * 3 + 2;
+      cellDataValues[faceIdx] = dataView.getUint16(offset + 48, true);
+    } // Rotate points
+
+
+    var orientationField = 'SPACE';
+
+    if (orientationField in header && header[orientationField] !== 'LPS') {
+      var XYZ = header[orientationField];
+      var mat4 = new Float32Array(16);
+      mat4[15] = 1;
+
+      switch (XYZ[0]) {
+        case 'L':
+          mat4[0] = 1;
+          break;
+
+        case 'R':
+          mat4[0] = -1;
+          break;
+
+        default:
+          vtkErrorMacro("Can not convert STL file from ".concat(XYZ, " to LPS space: ") + "permutations not supported. Use itk.js STL reader instead.");
+          return;
+      }
+
+      switch (XYZ[1]) {
+        case 'P':
+          mat4[5] = 1;
+          break;
+
+        case 'A':
+          mat4[5] = -1;
+          break;
+
+        default:
+          vtkErrorMacro("Can not convert STL file from ".concat(XYZ, " to LPS space: ") + "permutations not supported. Use itk.js STL reader instead.");
+          return;
+      }
+
+      switch (XYZ[2]) {
+        case 'S':
+          mat4[10] = 1;
+          break;
+
+        case 'I':
+          mat4[10] = -1;
+          break;
+
+        default:
+          vtkErrorMacro("Can not convert STL file from ".concat(XYZ, " to LPS space: ") + "permutations not supported. Use itk.js STL reader instead.");
+          return;
+      }
+
+      _Common_Core_MatrixBuilder_js__WEBPACK_IMPORTED_MODULE_4__["default"].buildFromDegree().setMatrix(mat4).apply(pointValues).apply(normalValues);
+    }
+
+    var polydata = _Common_DataModel_PolyData_js__WEBPACK_IMPORTED_MODULE_5__["default"].newInstance();
+    polydata.getPoints().setData(pointValues, 3);
+    polydata.getPolys().setData(cellValues);
+    polydata.getCellData().setScalars(_Common_Core_DataArray_js__WEBPACK_IMPORTED_MODULE_3__["default"].newInstance({
+      name: 'Attribute',
+      values: cellDataValues
+    }));
+    polydata.getCellData().setNormals(_Common_Core_DataArray_js__WEBPACK_IMPORTED_MODULE_3__["default"].newInstance({
+      name: 'Normals',
+      values: normalValues,
+      numberOfComponents: 3
+    })); // Add new output
+
+    model.output[0] = polydata;
+  };
+
+  publicAPI.parseAsText = function (content) {
+    if (!content) {
+      return;
+    }
+
+    if (content !== model.parseData) {
+      publicAPI.modified();
+    } else {
+      return;
+    }
+
+    model.parseData = content;
+    var lines = content.split('\n');
+    var offset = 1;
+    var points = [];
+    var cellArray = [];
+    var cellNormals = [];
+
+    while (offset !== -1) {
+      offset = readTriangle(lines, offset, points, cellArray, cellNormals);
+    }
+
+    var polydata = _Common_DataModel_PolyData_js__WEBPACK_IMPORTED_MODULE_5__["default"].newInstance();
+    polydata.getPoints().setData(Float32Array.from(points), 3);
+    polydata.getPolys().setData(Uint32Array.from(cellArray));
+    polydata.getCellData().setNormals(_Common_Core_DataArray_js__WEBPACK_IMPORTED_MODULE_3__["default"].newInstance({
+      name: 'Normals',
+      values: Float32Array.from(cellNormals),
+      numberOfComponents: 3
+    })); // Add new output
+
+    model.output[0] = polydata;
+  };
+
+  publicAPI.requestData = function (inData, outData) {
+    publicAPI.parse(model.parseData);
+  };
+} // ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
+
+var DEFAULT_VALUES = {// baseURL: null,
+  // dataAccessHelper: null,
+  // url: null,
+}; // ----------------------------------------------------------------------------
+
+function extend(publicAPI, model) {
+  var initialValues = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+  Object.assign(model, DEFAULT_VALUES, initialValues); // Build VTK API
+
+  _macros_js__WEBPACK_IMPORTED_MODULE_2__["default"].obj(publicAPI, model);
+  _macros_js__WEBPACK_IMPORTED_MODULE_2__["default"].get(publicAPI, model, ['url', 'baseURL']);
+  _macros_js__WEBPACK_IMPORTED_MODULE_2__["default"].setGet(publicAPI, model, ['dataAccessHelper']);
+  _macros_js__WEBPACK_IMPORTED_MODULE_2__["default"].algo(publicAPI, model, 0, 1); // vtkSTLReader methods
+
+  vtkSTLReader(publicAPI, model); // To support destructuring
+
+  if (!model.compression) {
+    model.compression = null;
+  }
+
+  if (!model.progressCallback) {
+    model.progressCallback = null;
+  }
+} // ----------------------------------------------------------------------------
+
+var newInstance = _macros_js__WEBPACK_IMPORTED_MODULE_2__["default"].newInstance(extend, 'vtkSTLReader'); // ----------------------------------------------------------------------------
+
+var vtkSTLReader$1 = {
+  extend: extend,
+  newInstance: newInstance
 };
 
 
@@ -76170,18 +76990,25 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _kitware_vtk_js_Rendering_Core_ColorTransferFunction__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @kitware/vtk.js/Rendering/Core/ColorTransferFunction */ "./node_modules/@kitware/vtk.js/Rendering/Core/ColorTransferFunction.js");
 /* harmony import */ var _kitware_vtk_js_Common_DataModel_PiecewiseFunction__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @kitware/vtk.js/Common/DataModel/PiecewiseFunction */ "./node_modules/@kitware/vtk.js/Common/DataModel/PiecewiseFunction.js");
 /* harmony import */ var _kitware_vtk_js_Rendering_Core_ColorTransferFunction_ColorMaps__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps */ "./node_modules/@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps.js");
-/* harmony import */ var _kitware_vtk_js_Interaction_Manipulators_MouseCameraTrackballRotateManipulator__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballRotateManipulator */ "./node_modules/@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballRotateManipulator.js");
-/* harmony import */ var _kitware_vtk_js_Interaction_Manipulators_MouseCameraTrackballPanManipulator__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator */ "./node_modules/@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator.js");
-/* harmony import */ var _kitware_vtk_js_Interaction_Manipulators_MouseCameraTrackballZoomManipulator__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator */ "./node_modules/@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator.js");
-/* harmony import */ var _kitware_vtk_js_Interaction_Manipulators_MouseRangeManipulator__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator */ "./node_modules/@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator.js");
-/* harmony import */ var _kitware_vtk_js_Interaction_Style_InteractorStyleManipulator__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! @kitware/vtk.js/Interaction/Style/InteractorStyleManipulator */ "./node_modules/@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator.js");
-/* harmony import */ var _kitware_vtk_js_Rendering_Core_PointPicker__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! @kitware/vtk.js/Rendering/Core/PointPicker */ "./node_modules/@kitware/vtk.js/Rendering/Core/PointPicker.js");
-/* harmony import */ var _kitware_vtk_js_Rendering_Core_Coordinate__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! @kitware/vtk.js/Rendering/Core/Coordinate */ "./node_modules/@kitware/vtk.js/Rendering/Core/Coordinate.js");
-/* harmony import */ var _utils_utils__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./utils/utils */ "./src/utils/utils.js");
-/* harmony import */ var _utils_strategies__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./utils/strategies */ "./src/utils/strategies.js");
-/* harmony import */ var _utils_colormaps__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./utils/colormaps */ "./src/utils/colormaps.js");
-/* harmony import */ var _renderPasses__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./renderPasses */ "./src/renderPasses.js");
-/* harmony import */ var _baseView__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./baseView */ "./src/baseView.js");
+/* harmony import */ var _kitware_vtk_js_IO_Geometry_STLReader__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @kitware/vtk.js/IO/Geometry/STLReader */ "./node_modules/@kitware/vtk.js/IO/Geometry/STLReader.js");
+/* harmony import */ var _kitware_vtk_js_Rendering_Core_Mapper__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @kitware/vtk.js/Rendering/Core/Mapper */ "./node_modules/@kitware/vtk.js/Rendering/Core/Mapper.js");
+/* harmony import */ var _kitware_vtk_js_Rendering_Core_Actor__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @kitware/vtk.js/Rendering/Core/Actor */ "./node_modules/@kitware/vtk.js/Rendering/Core/Actor.js");
+/* harmony import */ var _kitware_vtk_js_Interaction_Manipulators_MouseCameraTrackballRotateManipulator__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballRotateManipulator */ "./node_modules/@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballRotateManipulator.js");
+/* harmony import */ var _kitware_vtk_js_Interaction_Manipulators_MouseCameraTrackballPanManipulator__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! @kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator */ "./node_modules/@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator.js");
+/* harmony import */ var _kitware_vtk_js_Interaction_Manipulators_MouseCameraTrackballZoomManipulator__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! @kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator */ "./node_modules/@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator.js");
+/* harmony import */ var _kitware_vtk_js_Interaction_Manipulators_MouseRangeManipulator__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! @kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator */ "./node_modules/@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator.js");
+/* harmony import */ var _kitware_vtk_js_Interaction_Style_InteractorStyleManipulator__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! @kitware/vtk.js/Interaction/Style/InteractorStyleManipulator */ "./node_modules/@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator.js");
+/* harmony import */ var _kitware_vtk_js_Rendering_Core_PointPicker__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! @kitware/vtk.js/Rendering/Core/PointPicker */ "./node_modules/@kitware/vtk.js/Rendering/Core/PointPicker.js");
+/* harmony import */ var _kitware_vtk_js_Rendering_Core_Coordinate__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! @kitware/vtk.js/Rendering/Core/Coordinate */ "./node_modules/@kitware/vtk.js/Rendering/Core/Coordinate.js");
+/* harmony import */ var _utils_utils__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./utils/utils */ "./src/utils/utils.js");
+/* harmony import */ var _utils_strategies__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./utils/strategies */ "./src/utils/strategies.js");
+/* harmony import */ var _utils_colormaps__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./utils/colormaps */ "./src/utils/colormaps.js");
+/* harmony import */ var _renderPasses__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./renderPasses */ "./src/renderPasses.js");
+/* harmony import */ var _baseView__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./baseView */ "./src/baseView.js");
+
+
+
+
 
 
 
@@ -76204,10 +77031,10 @@ __webpack_require__.r(__webpack_exports__);
 
 
 // Add custom presets
-_kitware_vtk_js_Rendering_Core_ColorTransferFunction_ColorMaps__WEBPACK_IMPORTED_MODULE_3__["default"].addPreset((0,_utils_colormaps__WEBPACK_IMPORTED_MODULE_13__.createPreset)());
+_kitware_vtk_js_Rendering_Core_ColorTransferFunction_ColorMaps__WEBPACK_IMPORTED_MODULE_3__["default"].addPreset((0,_utils_colormaps__WEBPACK_IMPORTED_MODULE_16__.createPreset)());
 
 /** A class representing a Volume Rendering scene */
-class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
+class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_18__.baseView {
   /**
    * Create a volume rendering scene
    * @param {HTMLElement} element - the target html element to render the scene
@@ -76271,7 +77098,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
       return;
     }
 
-    let relativeWwwl = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.getRelativeRange)(this._actor, value);
+    let relativeWwwl = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.getRelativeRange)(this._actor, value);
 
     this._wl = relativeWwwl.wl;
     this._ww = relativeWwwl.ww;
@@ -76318,7 +77145,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
     // initalize piecewise gaussian widget
     this._PGwidgetElement = element;
     if (!this._PGwidget) {
-      this._PGwidget = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.setupPGwidget)(this._PGwidgetElement);
+      this._PGwidget = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.setupPGwidget)(this._PGwidgetElement);
     }
     let h = element.offsetHeight ? element.offsetHeight - 5 : 100;
     let w = element.offsetWidth ? element.offsetWidth - 5 : 300;
@@ -76455,7 +77282,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
    * Toggle edge enhancement
    */
   set edgeEnhancement([type, value]) {
-    let renderPass = (0,_renderPasses__WEBPACK_IMPORTED_MODULE_14__.getRenderPass)(type, value);
+    let renderPass = (0,_renderPasses__WEBPACK_IMPORTED_MODULE_17__.getRenderPass)(type, value);
     let view = this._renderWindow.getViews()[0];
     view.setRenderPasses([renderPass]);
     this._renderWindow.render();
@@ -76472,14 +77299,14 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
   setImage(image) {
     // clean scene
     this._renderer.removeAllVolumes();
-    this._actor = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.createVolumeActor)(image);
+    this._actor = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.createVolumeActor)(image);
     this.lut = "Grayscale";
     this.resolution = 2;
     this._renderer.addVolume(this._actor);
 
     // center camera on new volume
     this._renderer.resetCamera();
-    (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.setCamera)(this._renderer.getActiveCamera(), this._actor.getCenter());
+    (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.setCamera)(this._renderer.getActiveCamera(), this._actor.getCenter());
 
     if (this._PGwidget) {
       this._updateWidget();
@@ -76489,7 +77316,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
     // TODO if crop widget, update to new image (or set to null so that it will be initialized again)
 
     // TODO implement a strategy to set rays distance
-    (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.setActorProperties)(this._actor);
+    (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.setActorProperties)(this._actor);
 
     this._setupInteractor();
 
@@ -76499,21 +77326,29 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
     this._renderWindow.render();
   }
 
+  // This is another method, providing the url
+  //   reader.setUrl("./demo/die.stl").then(data => {
+  //     console.log("read", data);
+  //     const mapper = vtkMapper.newInstance({ scalarVisibility: false });
+  //      ... etc ...
+  //   });
+
   /**
    * Add surfaces to be rendered
-   * @param {params} - {buffer: bufferarray, color: [r,g,b], label: string}
+   * @param {Object} - {buffer: bufferarray, color: [r,g,b], label: string}
    */
   addSurface({ buffer, color, label }) {
     if (this._surfaces.has(label)) {
       console.warn(
-        `DTK: A surface with label ${label} is already present. It will be overrided.`
+        `DTK: A surface with label ${label} is already present. I will ignore this.`
       );
+      return;
     }
 
-    const reader = vtkSTLReader.newInstance();
+    const reader = _kitware_vtk_js_IO_Geometry_STLReader__WEBPACK_IMPORTED_MODULE_4__["default"].newInstance();
     reader.parseAsArrayBuffer(buffer);
-    const mapper = vtkMapper.newInstance({ scalarVisibility: false });
-    const actor = vtkActor.newInstance();
+    const mapper = _kitware_vtk_js_Rendering_Core_Mapper__WEBPACK_IMPORTED_MODULE_5__["default"].newInstance({ scalarVisibility: false });
+    const actor = _kitware_vtk_js_Rendering_Core_Actor__WEBPACK_IMPORTED_MODULE_6__["default"].newInstance();
 
     actor.setMapper(mapper);
     mapper.setInputConnection(reader.getOutputPort());
@@ -76530,24 +77365,32 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
     this._renderWindow.render();
   }
 
+  /**
+   * Toggle surface visibility on/off
+   * @param {String} label - The string that identifies the surface
+   * @param {Boolean} toggle
+   */
   setSurfaceVisibility(label, toggle) {
     this._surfaces.get(label).setVisibility(toggle);
     this._renderWindow.render();
   }
 
-  updateSurface(buffer, label) {
-    // TODO
-    // const reader = vtkSTLReader.newInstance();
-    // reader.parseAsArrayBuffer(buffer);
-    // let mapper = this._surfaces.get(label).getMapper();
-    // let data = reader.getOutputData();
-    // console.log(data);
-    // mapper.setInputData(data);
-    // mapper.setInputConnection(reader.getOutputPort());
-    // console.log(mapper.getInputData().getNumberOfCells());
-    // mapper.update();
-    // this._renderer.resetCamera();
-    // this._renderWindow.render();
+  /**
+   * Update surface buffer
+   * TODO maybe there is a more efficient way
+   * @param {String} label - The string that identifies the surface
+   * @param {ArrayBuffer} buffer
+   */
+  updateSurface(label, buffer) {
+    const reader = _kitware_vtk_js_IO_Geometry_STLReader__WEBPACK_IMPORTED_MODULE_4__["default"].newInstance();
+    reader.parseAsArrayBuffer(buffer);
+    const mapper = _kitware_vtk_js_Rendering_Core_Mapper__WEBPACK_IMPORTED_MODULE_5__["default"].newInstance({ scalarVisibility: false });
+    mapper.setInputConnection(reader.getOutputPort());
+    const actor = this._surfaces.get(label);
+    actor.setMapper(mapper);
+
+    this._renderer.resetCamera();
+    this._renderWindow.render();
   }
 
   /**
@@ -76616,7 +77459,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
   resetView() {
     let center = this._actor.getCenter();
     let camera = this._renderer.getActiveCamera();
-    (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.setCamera)(camera, center);
+    (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.setCamera)(camera, center);
     this._renderWindow.render();
   }
 
@@ -76781,7 +77624,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
    * Setup crop widget
    */
   _initCropWidget() {
-    let cropWidget = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.setupCropWidget)(this._renderer, this._actor.getMapper());
+    let cropWidget = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.setupCropWidget)(this._renderer, this._actor.getMapper());
 
     this._widgetManager = cropWidget.widgetManager;
     this._cropWidget = cropWidget.widget;
@@ -76796,16 +77639,16 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
   _setupInteractor() {
     // TODO setup from user
     const rotateManipulator =
-      _kitware_vtk_js_Interaction_Manipulators_MouseCameraTrackballRotateManipulator__WEBPACK_IMPORTED_MODULE_4__["default"].newInstance({ button: 1 });
-    const panManipulator = _kitware_vtk_js_Interaction_Manipulators_MouseCameraTrackballPanManipulator__WEBPACK_IMPORTED_MODULE_5__["default"].newInstance({
+      _kitware_vtk_js_Interaction_Manipulators_MouseCameraTrackballRotateManipulator__WEBPACK_IMPORTED_MODULE_7__["default"].newInstance({ button: 1 });
+    const panManipulator = _kitware_vtk_js_Interaction_Manipulators_MouseCameraTrackballPanManipulator__WEBPACK_IMPORTED_MODULE_8__["default"].newInstance({
       button: 3,
       control: true
     });
-    const zoomManipulator = _kitware_vtk_js_Interaction_Manipulators_MouseCameraTrackballZoomManipulator__WEBPACK_IMPORTED_MODULE_6__["default"].newInstance({
+    const zoomManipulator = _kitware_vtk_js_Interaction_Manipulators_MouseCameraTrackballZoomManipulator__WEBPACK_IMPORTED_MODULE_9__["default"].newInstance({
       button: 3,
       scrollEnabled: true
     });
-    const rangeManipulator = _kitware_vtk_js_Interaction_Manipulators_MouseRangeManipulator__WEBPACK_IMPORTED_MODULE_7__["default"].newInstance({
+    const rangeManipulator = _kitware_vtk_js_Interaction_Manipulators_MouseRangeManipulator__WEBPACK_IMPORTED_MODULE_10__["default"].newInstance({
       button: 1,
       shift: true
     });
@@ -76837,7 +77680,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
     rangeManipulator.setVerticalListener(-1, 1, 0.001, getWL, setWL);
     rangeManipulator.setHorizontalListener(0.1, 2.1, 0.001, getWW, setWW);
 
-    const interactorStyle = _kitware_vtk_js_Interaction_Style_InteractorStyleManipulator__WEBPACK_IMPORTED_MODULE_8__["default"].newInstance();
+    const interactorStyle = _kitware_vtk_js_Interaction_Style_InteractorStyleManipulator__WEBPACK_IMPORTED_MODULE_11__["default"].newInstance();
     interactorStyle.addMouseManipulator(rangeManipulator);
     interactorStyle.addMouseManipulator(rotateManipulator);
     interactorStyle.addMouseManipulator(panManipulator);
@@ -76877,14 +77720,14 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
 
     // Setup picking interaction
     // TODO this is slow the first time we pick, maybe we could use cellPicker and decrease resolution
-    const picker = _kitware_vtk_js_Rendering_Core_PointPicker__WEBPACK_IMPORTED_MODULE_9__["default"].newInstance();
+    const picker = _kitware_vtk_js_Rendering_Core_PointPicker__WEBPACK_IMPORTED_MODULE_12__["default"].newInstance();
     picker.setPickFromList(1);
     picker.initializePickList();
 
     if (!this._pickingPlane) {
       // add a 1000x1000 plane
       let camera = this._renderer.getActiveCamera();
-      let { plane, planeActor } = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.setupPickingPlane)(camera, this._actor);
+      let { plane, planeActor } = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.setupPickingPlane)(camera, this._actor);
       this._renderer.addActor(planeActor);
       this._pickingPlane = plane;
       this._planeActor = planeActor;
@@ -76917,13 +77760,13 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
           // addSphereInPoint(pickedPoint, this._renderer);
 
           // canvas coord
-          const wPos = _kitware_vtk_js_Rendering_Core_Coordinate__WEBPACK_IMPORTED_MODULE_10__["default"].newInstance();
+          const wPos = _kitware_vtk_js_Rendering_Core_Coordinate__WEBPACK_IMPORTED_MODULE_13__["default"].newInstance();
           wPos.setCoordinateSystemToWorld();
           wPos.setValue(...pickedPoint);
           const displayPosition = wPos.getComputedDisplayValue(this._renderer);
 
           // apply changes on state based on active tool
-          (0,_utils_strategies__WEBPACK_IMPORTED_MODULE_12__.applyStrategy)(state, displayPosition, pickedPoint, mode);
+          (0,_utils_strategies__WEBPACK_IMPORTED_MODULE_15__.applyStrategy)(state, displayPosition, pickedPoint, mode);
 
           if (this.VERBOSE) console.log(state);
           this._measurementState = state;

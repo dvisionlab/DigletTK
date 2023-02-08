@@ -3,6 +3,10 @@ import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransf
 import vtkPiecewiseFunction from "@kitware/vtk.js/Common/DataModel/PiecewiseFunction";
 import vtkColorMaps from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps";
 
+import vtkSTLReader from "@kitware/vtk.js/IO/Geometry/STLReader";
+import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
+import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
+
 import vtkMouseCameraTrackballRotateManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballRotateManipulator";
 import vtkMouseCameraTrackballPanManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
 import vtkMouseCameraTrackballZoomManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator";
@@ -323,15 +327,23 @@ export class VRView extends baseView {
     this._renderWindow.render();
   }
 
+  // This is another method, providing the url
+  //   reader.setUrl("./demo/die.stl").then(data => {
+  //     console.log("read", data);
+  //     const mapper = vtkMapper.newInstance({ scalarVisibility: false });
+  //      ... etc ...
+  //   });
+
   /**
    * Add surfaces to be rendered
-   * @param {params} - {buffer: bufferarray, color: [r,g,b], label: string}
+   * @param {Object} - {buffer: bufferarray, color: [r,g,b], label: string}
    */
   addSurface({ buffer, color, label }) {
     if (this._surfaces.has(label)) {
       console.warn(
-        `DTK: A surface with label ${label} is already present. It will be overrided.`
+        `DTK: A surface with label ${label} is already present. I will ignore this.`
       );
+      return;
     }
 
     const reader = vtkSTLReader.newInstance();
@@ -354,24 +366,32 @@ export class VRView extends baseView {
     this._renderWindow.render();
   }
 
+  /**
+   * Toggle surface visibility on/off
+   * @param {String} label - The string that identifies the surface
+   * @param {Boolean} toggle
+   */
   setSurfaceVisibility(label, toggle) {
     this._surfaces.get(label).setVisibility(toggle);
     this._renderWindow.render();
   }
 
-  updateSurface(buffer, label) {
-    // TODO
-    // const reader = vtkSTLReader.newInstance();
-    // reader.parseAsArrayBuffer(buffer);
-    // let mapper = this._surfaces.get(label).getMapper();
-    // let data = reader.getOutputData();
-    // console.log(data);
-    // mapper.setInputData(data);
-    // mapper.setInputConnection(reader.getOutputPort());
-    // console.log(mapper.getInputData().getNumberOfCells());
-    // mapper.update();
-    // this._renderer.resetCamera();
-    // this._renderWindow.render();
+  /**
+   * Update surface buffer
+   * TODO maybe there is a more efficient way
+   * @param {String} label - The string that identifies the surface
+   * @param {ArrayBuffer} buffer
+   */
+  updateSurface(label, buffer) {
+    const reader = vtkSTLReader.newInstance();
+    reader.parseAsArrayBuffer(buffer);
+    const mapper = vtkMapper.newInstance({ scalarVisibility: false });
+    mapper.setInputConnection(reader.getOutputPort());
+    const actor = this._surfaces.get(label);
+    actor.setMapper(mapper);
+
+    this._renderer.resetCamera();
+    this._renderWindow.render();
   }
 
   /**
