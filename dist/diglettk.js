@@ -76251,7 +76251,11 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
     // measurement state
     this._measurementState = null;
 
-    this._initVR();
+    // surfaces
+    this._surfaces = new Map();
+
+    // initialize empty scene
+    this._init();
   }
 
   // ===========================================================
@@ -76496,6 +76500,57 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
   }
 
   /**
+   * Add surfaces to be rendered
+   * @param {params} - {buffer: bufferarray, color: [r,g,b], label: string}
+   */
+  addSurface({ buffer, color, label }) {
+    if (this._surfaces.has(label)) {
+      console.warn(
+        `DTK: A surface with label ${label} is already present. It will be overrided.`
+      );
+    }
+
+    const reader = vtkSTLReader.newInstance();
+    reader.parseAsArrayBuffer(buffer);
+    const mapper = vtkMapper.newInstance({ scalarVisibility: false });
+    const actor = vtkActor.newInstance();
+
+    actor.setMapper(mapper);
+    mapper.setInputConnection(reader.getOutputPort());
+
+    const props = actor.getProperty();
+    props.setColor(...color);
+    // props.setOpacity(0.5);
+    // props.setDiffuse(1)
+    // props.setRepresentationToWireframe()
+    this._surfaces.set(label, actor);
+
+    this._renderer.addActor(actor);
+    this._renderer.resetCamera();
+    this._renderWindow.render();
+  }
+
+  setSurfaceVisibility(label, toggle) {
+    this._surfaces.get(label).setVisibility(toggle);
+    this._renderWindow.render();
+  }
+
+  updateSurface(buffer, label) {
+    // TODO
+    // const reader = vtkSTLReader.newInstance();
+    // reader.parseAsArrayBuffer(buffer);
+    // let mapper = this._surfaces.get(label).getMapper();
+    // let data = reader.getOutputData();
+    // console.log(data);
+    // mapper.setInputData(data);
+    // mapper.setInputConnection(reader.getOutputPort());
+    // console.log(mapper.getInputData().getNumberOfCells());
+    // mapper.update();
+    // this._renderer.resetCamera();
+    // this._renderWindow.render();
+  }
+
+  /**
    * Get vtk LUTs list
    * @returns {Array} - Lut list as array of strings
    */
@@ -76615,7 +76670,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
    * Initialize rendering scene
    * @private
    */
-  _initVR() {
+  _init() {
     const genericRenderWindow = _kitware_vtk_js_Rendering_Misc_GenericRenderWindow__WEBPACK_IMPORTED_MODULE_0__["default"].newInstance();
     genericRenderWindow.setContainer(this._element);
     genericRenderWindow.setBackground([0, 0, 0]);
