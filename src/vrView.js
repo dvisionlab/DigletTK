@@ -3,6 +3,10 @@ import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransf
 import vtkPiecewiseFunction from "@kitware/vtk.js/Common/DataModel/PiecewiseFunction";
 import vtkColorMaps from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps";
 
+import vtkSTLReader from "@kitware/vtk.js/IO/Geometry/STLReader";
+import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
+import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
+
 import vtkMouseCameraTrackballRotateManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballRotateManipulator";
 import vtkMouseCameraTrackballPanManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
 import vtkMouseCameraTrackballZoomManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator";
@@ -75,7 +79,11 @@ export class VRView extends baseView {
     // measurement state
     this._measurementState = null;
 
-    this._initVR();
+    // surfaces
+    this._surfaces = new Map();
+
+    // initialize empty scene
+    this._init();
   }
 
   // ===========================================================
@@ -98,6 +106,7 @@ export class VRView extends baseView {
 
     if (this._PGwidget) {
       this._updateWidget();
+      this._setWidgetCallbacks();
     }
   }
 
@@ -135,7 +144,11 @@ export class VRView extends baseView {
    * @type {HTMLelement}
    */
   set widgetElement(element) {
+    // initalize piecewise gaussian widget
     this._PGwidgetElement = element;
+    if (!this._PGwidget) {
+      this._PGwidget = setupPGwidget(this._PGwidgetElement);
+    }
     let h = element.offsetHeight ? element.offsetHeight - 5 : 100;
     let w = element.offsetWidth ? element.offsetWidth - 5 : 300;
     this._PGwidget.setSize(w, h);
@@ -224,7 +237,10 @@ export class VRView extends baseView {
     this.ctfun = lookupTable;
     this.ofun = piecewiseFun;
 
-    this._updateWidget();
+    if (this._PGwidget) {
+      this._updateWidget();
+      this._setWidgetCallbacks();
+    }
   }
 
   /**
@@ -310,6 +326,73 @@ export class VRView extends baseView {
     this.blurOnInteraction = true;
 
     this._genericRenderWindow.resize();
+    this._renderWindow.render();
+  }
+
+  // This is another method, providing the url
+  //   reader.setUrl("./demo/die.stl").then(data => {
+  //     console.log("read", data);
+  //     const mapper = vtkMapper.newInstance({ scalarVisibility: false });
+  //      ... etc ...
+  //   });
+
+  /**
+   * Add surfaces to be rendered
+   * @param {Object} - {buffer: bufferarray, color: [r,g,b], label: string}
+   */
+  addSurface({ buffer, color, label }) {
+    if (this._surfaces.has(label)) {
+      console.warn(
+        `DTK: A surface with label ${label} is already present. I will ignore this.`
+      );
+      return;
+    }
+
+    const reader = vtkSTLReader.newInstance();
+    reader.parseAsArrayBuffer(buffer);
+    const mapper = vtkMapper.newInstance({ scalarVisibility: false });
+    const actor = vtkActor.newInstance();
+
+    actor.setMapper(mapper);
+    mapper.setInputConnection(reader.getOutputPort());
+
+    const props = actor.getProperty();
+    props.setColor(...color);
+    // props.setOpacity(0.5);
+    // props.setDiffuse(1)
+    // props.setRepresentationToWireframe()
+    this._surfaces.set(label, actor);
+
+    this._renderer.addActor(actor);
+    this._renderer.resetCamera();
+    this._renderWindow.render();
+  }
+
+  /**
+   * Toggle surface visibility on/off
+   * @param {String} label - The string that identifies the surface
+   * @param {Boolean} toggle
+   */
+  setSurfaceVisibility(label, toggle) {
+    this._surfaces.get(label).setVisibility(toggle);
+    this._renderWindow.render();
+  }
+
+  /**
+   * Update surface buffer
+   * TODO maybe there is a more efficient way
+   * @param {String} label - The string that identifies the surface
+   * @param {ArrayBuffer} buffer
+   */
+  updateSurface(label, buffer) {
+    const reader = vtkSTLReader.newInstance();
+    reader.parseAsArrayBuffer(buffer);
+    const mapper = vtkMapper.newInstance({ scalarVisibility: false });
+    mapper.setInputConnection(reader.getOutputPort());
+    const actor = this._surfaces.get(label);
+    actor.setMapper(mapper);
+
+    this._renderer.resetCamera();
     this._renderWindow.render();
   }
 
@@ -433,7 +516,7 @@ export class VRView extends baseView {
    * Initialize rendering scene
    * @private
    */
-  _initVR() {
+  _init() {
     const genericRenderWindow = vtkGenericRenderWindow.newInstance();
     genericRenderWindow.setContainer(this._element);
     genericRenderWindow.setBackground([0, 0, 0]);
@@ -461,9 +544,6 @@ export class VRView extends baseView {
     this._renderer = genericRenderWindow.getRenderer();
     this._renderWindow = genericRenderWindow.getRenderWindow();
     this._genericRenderWindow = genericRenderWindow;
-
-    // initalize piecewise gaussian widget
-    this._PGwidget = setupPGwidget(this._PGwidgetElement);
   }
 
   /**

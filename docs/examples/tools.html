@@ -180,11 +180,11 @@ function updateTool(toolName){
         vr.setImage(image);
         // set widget element to control opacity
         vr.widgetElement = widgetContainer;
+        vr.wwwl = [500, 1000];
         // set a LUT
         let lutList = vr.getLutList();
         vr.lut = lutList[13];
         vr.rescaleLUT = true;
-        vr.wwwl = [500, 1000];
         // set a tool
         vr.setTool("Rotation", {}, state);
       }

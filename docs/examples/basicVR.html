@@ -178,14 +178,14 @@ vr.rescaleLUT = true;
         vr.setImage(image);
         // set widget element to control opacity
         vr.widgetElement = widgetContainer;
+        // adjust wwwl
+        vr.wwwl = [500, 1000];
         // set a LUT
         let lutList = vr.getLutList();
         fillSelect(lutList, "MuscleBone");
         // vr.lut = lutList[0];
         vr.lut = "MuscleBone";
         vr.rescaleLUT = true;
-        // adjust wwwl
-        vr.wwwl = [500, 1000];
       }
     </script>
   </body>
