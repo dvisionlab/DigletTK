@@ -135,7 +135,11 @@ export class VRView extends baseView {
    * @type {HTMLelement}
    */
   set widgetElement(element) {
+    // initalize piecewise gaussian widget
     this._PGwidgetElement = element;
+    if (!this._PGwidget) {
+      this._PGwidget = setupPGwidget(this._PGwidgetElement);
+    }
     let h = element.offsetHeight ? element.offsetHeight - 5 : 100;
     let w = element.offsetWidth ? element.offsetWidth - 5 : 300;
     this._PGwidget.setSize(w, h);
@@ -224,7 +228,9 @@ export class VRView extends baseView {
     this.ctfun = lookupTable;
     this.ofun = piecewiseFun;
 
-    this._updateWidget();
+    if (this._PGwidget) {
+      this._updateWidget();
+    }
   }
 
   /**
@@ -461,9 +467,6 @@ export class VRView extends baseView {
     this._renderer = genericRenderWindow.getRenderer();
     this._renderWindow = genericRenderWindow.getRenderWindow();
     this._genericRenderWindow = genericRenderWindow;
-
-    // initalize piecewise gaussian widget
-    this._PGwidget = setupPGwidget(this._PGwidgetElement);
   }
 
   /**
