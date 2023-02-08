@@ -106,6 +106,7 @@ export class VRView extends baseView {
 
     if (this._PGwidget) {
       this._updateWidget();
+      this._setWidgetCallbacks();
     }
   }
 
@@ -238,6 +239,7 @@ export class VRView extends baseView {
 
     if (this._PGwidget) {
       this._updateWidget();
+      this._setWidgetCallbacks();
     }
   }
 

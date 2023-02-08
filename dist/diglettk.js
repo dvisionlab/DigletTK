@@ -81111,6 +81111,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_18__.baseView {
 
     if (this._PGwidget) {
       this._updateWidget();
+      this._setWidgetCallbacks();
     }
   }
 
@@ -81243,6 +81244,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_18__.baseView {
 
     if (this._PGwidget) {
       this._updateWidget();
+      this._setWidgetCallbacks();
     }
   }
 
