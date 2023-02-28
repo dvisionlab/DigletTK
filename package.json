@@ -31,7 +31,7 @@
   },
   "homepage": "http://diglettk.dvisionlab.com/",
   "dependencies": {
-    "@kitware/vtk.js": "23.0.1",
+    "@kitware/vtk.js": "24.19.1",
     "regenerator-runtime": "^0.13.7",
     "worker-loader": "^3.0.8"
   },
