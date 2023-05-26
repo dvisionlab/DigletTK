@@ -16,8 +16,16 @@ import { baseView } from "./baseView";
  */
 
 // TODO move to constants (calculate from image directions?)
-const PLANE_NORMALS = [[0, 0, 1], [-1, 0, 0], [0, 1, 0]];
-const VIEW_UPS = [[0, -1, 0], [0, 0, 1], [0, 0, 1]];
+const PLANE_NORMALS = [
+  [0, 0, 1],
+  [-1, 0, 0],
+  [0, 1, 0]
+];
+const VIEW_UPS = [
+  [0, -1, 0],
+  [0, 0, 1],
+  [0, 0, 1]
+];
 export class MPRView extends baseView {
   constructor(key, i, element) {
     super();

@@ -26,11 +26,10 @@ function vtkInteractorStyleMPRCrosshairs(publicAPI, model) {
   model.classHierarchy.push("vtkInteractorStyleMPRCrosshairs");
 
   // set fixed manipulators
-  model.trackballManipulator = vtkMouseCameraTrackballRotateManipulator.newInstance(
-    {
+  model.trackballManipulator =
+    vtkMouseCameraTrackballRotateManipulator.newInstance({
       button: 1
-    }
-  );
+    });
   model.panManipulatorShift = vtkMouseCameraTrackballPanManipulator.newInstance(
     {
       button: 3,
@@ -114,7 +113,7 @@ function vtkInteractorStyleMPRCrosshairs(publicAPI, model) {
   const superSetVolumeMapper = publicAPI.setVolumeMapper;
   publicAPI.setVolumeMapper = mapper => {
     if (superSetVolumeMapper(mapper)) {
-      const renderer = model.interactor.getCurrentRenderer();
+      const renderer = model._interactor.getCurrentRenderer();
       const camera = renderer.getActiveCamera();
       if (mapper) {
         // prevent zoom manipulator from messing with our focal point
