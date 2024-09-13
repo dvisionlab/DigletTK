@@ -102,7 +102,7 @@ function vtkInteractorStyleMPRWindowLevel(publicAPI, model) {
   const superSetVolumeMapper = publicAPI.setVolumeMapper;
   publicAPI.setVolumeMapper = mapper => {
     if (superSetVolumeMapper(mapper)) {
-      const renderer = model._interactor.getCurrentRenderer();
+      const renderer = model.interactor.getCurrentRenderer();
       const camera = renderer.getActiveCamera();
       if (mapper) {
         // prevent zoom manipulator from messing with our focal point

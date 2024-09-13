@@ -1,6 +1,9 @@
 import vtkGenericRenderWindow from "@kitware/vtk.js/Rendering/Misc/GenericRenderWindow";
 
 import vtkInteractorStyleMPRSlice from "./vtk/vtkInteractorMPRSlice";
+import vtkSTLReader from "@kitware/vtk.js/IO/Geometry/STLReader";
+import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
+import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
 
 import { quat, vec3, mat4 } from "gl-matrix";
 
@@ -49,7 +52,8 @@ export class MPRView extends baseView {
       width: 0,
       center: 0
     };
-
+    
+    this._surfaces = new Map();
     // cache the view vectors so we can apply the rotations without modifying the original value
     this._cachedSlicePlane = [...this.slicePlaneNormal];
     this._cachedSliceViewUp = [...this.sliceViewUp];
@@ -162,6 +166,68 @@ export class MPRView extends baseView {
 
     onInitialized();
   }
+  /**
+   * Add surfaces to be rendered
+   * @param {Object} - {buffer: bufferarray, color: [r,g,b], label: string}
+   */
+  addSurface({ buffer, color, label }) {
+    if (this._surfaces.has(label)) {
+      console.warn(
+        `DTK: A surface with label ${label} is already present. I will ignore this.`
+      );
+      return;
+    }
+
+    const reader = vtkSTLReader.newInstance();
+    reader.parseAsArrayBuffer(buffer);
+    const mapper = vtkMapper.newInstance({ scalarVisibility: false });
+    const actor = vtkActor.newInstance();
+
+    actor.setMapper(mapper);
+    mapper.setInputConnection(reader.getOutputPort());
+
+    const props = actor.getProperty();
+    console.log(props);
+    props.setColor(...color);
+    // props.setOpacity(0.5);
+    // props.setDiffuse(1)
+    // props.setRepresentationToWireframe()
+    this._surfaces.set(label, actor);
+    const renderWindow = this._genericRenderWindow.getRenderWindow();
+
+    this._renderer.addActor(actor);
+    this._renderer.resetCamera();
+    renderWindow.render();
+  }
+
+  /**
+   * Toggle surface visibility on/off
+   * @param {String} label - The string that identifies the surface
+   * @param {Boolean} toggle
+   */
+  setSurfaceVisibility(label, toggle) {
+    this._surfaces.get(label).setVisibility(toggle);
+    const renderWindow = this._genericRenderWindow.getRenderWindow();
+    renderWindow.render();
+  }
+
+  /**
+   * Update surface buffer
+   * TODO maybe there is a more efficient way
+   * @param {String} label - The string that identifies the surface
+   * @param {ArrayBuffer} buffer
+   */
+  updateSurface(label, buffer) {
+    const reader = vtkSTLReader.newInstance();
+    reader.parseAsArrayBuffer(buffer);
+    const mapper = vtkMapper.newInstance({ scalarVisibility: false });
+    mapper.setInputConnection(reader.getOutputPort());
+    const actor = this._surfaces.get(label);
+    actor.setMapper(mapper);
+    const renderWindow = this._genericRenderWindow.getRenderWindow();
+    this._renderer.resetCamera();
+    renderWindow.render();
+  }
 
   /**
    * cleanup the scene and add new volume
@@ -249,7 +315,8 @@ export class MPRView extends baseView {
     if (istyle && istyle.setSliceNormal) {
       istyle.setSliceNormal(cachedSlicePlane, cachedSliceViewUp);
     }
-
+    console.log('update slice plane')
+    //this._renderer.resetCamera();
     renderWindow.render();
   }
 

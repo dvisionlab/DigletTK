@@ -450,7 +450,15 @@ export class MPRManager {
       state.interactorCenters[key] = displayPosition;
     });
   }
-
+  /**
+   * add surface to the mpr views 
+   */
+  addSurface(surface) {
+    Object.keys(this.elements).forEach(key => { 
+      const mprView = this.mprViews[key];
+      mprView.addSurface(surface);
+    })
+  }
   /**
    * Force views resize
    * @param {String} key - If provided, resize just its view, otherwise all views
