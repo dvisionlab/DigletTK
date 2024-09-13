@@ -122,7 +122,7 @@
       </div>
     </div>
 
-    <script src="./diglettk.js"></script>
+    <script src="../../dist/diglettk.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
     <script src="./larvitar.js"></script>
 
@@ -187,6 +187,17 @@
         mpr.setTool("level", state);
         // add keyoboard events to interact with mpr
         addEvents(mpr, state);
+        fetch("./demo/test.stl").then(response => {
+          console.log('loading surface');
+          response.arrayBuffer().then(data => {
+            const view = mpr.mprViews['top'];
+            view.addSurface({ buffer: data, color: [0.55, 0.55, 0.4], label: "dice" });
+            /*Object.keys(mpr.mprViews).forEach(k => {
+              const view = mpr.mprViews[k];
+              view.addSurface({ buffer: data, color: [0, 0, 1], label: "dice" });
+            })*/
+          });
+      });
       }
 
       // =======================================

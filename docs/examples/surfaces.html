@@ -75,9 +75,9 @@ fetch("./demo/die.stl").then(response => {
 
       console.log(vr);
 
-      fetch("./demo/die.stl").then(response => {
+      fetch("./demo/surf_test.stl").then(response => {
         response.arrayBuffer().then(data => {
-          vr.addSurface({ buffer: data, color: [0, 0, 1], label: "dice" });
+          vr.addSurface({ buffer: data, color: [1, 0, 0], label: "dice" });
         });
       });
     </script>
