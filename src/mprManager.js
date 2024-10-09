@@ -335,7 +335,7 @@ export class MPRManager {
    */
   onScrolled(state) {
     let planes = [];
-
+    console.log('scrolling')
     Object.keys(this.elements).forEach(key => {
       const camera = this.mprViews[key].camera;
       planes.push({
@@ -357,7 +357,12 @@ export class MPRManager {
     }
 
     this.updateInteractorCenters(state);
-
+    // update surfaces if any
+    Object.keys(this.elements).forEach(key => {
+      if (this.mprViews[key].getSurfaces().size > 0) {
+        this.mprViews[key].updateCamera();
+      }
+    });
     return newPoint;
   }
 
@@ -369,6 +374,7 @@ export class MPRManager {
    * @param {State} state - The current manager state
    */
   onRotate(key, axis, angle, state) {
+    console.log('rotating')
     // Match the source axis to the associated plane
     switch (key) {
       case "top":

@@ -74786,7 +74786,7 @@ class MPRManager {
    */
   onScrolled(state) {
     let planes = [];
-
+    console.log('scrolling')
     Object.keys(this.elements).forEach(key => {
       const camera = this.mprViews[key].camera;
       planes.push({
@@ -74808,7 +74808,12 @@ class MPRManager {
     }
 
     this.updateInteractorCenters(state);
-
+    // update surfaces if any
+    Object.keys(this.elements).forEach(key => {
+      if (this.mprViews[key].getSurfaces().size > 0) {
+        this.mprViews[key].updateCamera();
+      }
+    });
     return newPoint;
   }
 
@@ -74820,6 +74825,7 @@ class MPRManager {
    * @param {State} state - The current manager state
    */
   onRotate(key, axis, angle, state) {
+    console.log('rotating')
     // Match the source axis to the associated plane
     switch (key) {
       case "top":
@@ -75127,6 +75133,16 @@ class MPRView extends _baseView__WEBPACK_IMPORTED_MODULE_6__.baseView {
 
     onInitialized();
   }
+  updateCamera() {
+    const renderWindow = this._genericRenderWindow.getRenderWindow();
+    const actor = this._surfaces.get(label);
+    this._renderer.addActor(actor);
+    this._renderer.resetCamera();
+    renderWindow.render();
+  }
+  getSurfaces(){
+    return this._surfaces;
+  }
   /**
    * Add surfaces to be rendered
    * @param {Object} - {buffer: bufferarray, color: [r,g,b], label: string}
@@ -75160,7 +75176,6 @@ class MPRView extends _baseView__WEBPACK_IMPORTED_MODULE_6__.baseView {
     this._renderer.resetCamera();
     renderWindow.render();
   }
-
   /**
    * Toggle surface visibility on/off
    * @param {String} label - The string that identifies the surface

@@ -192,10 +192,10 @@
           response.arrayBuffer().then(data => {
             const view = mpr.mprViews['top'];
             view.addSurface({ buffer: data, color: [0.55, 0.55, 0.4], label: "dice" });
-            /*Object.keys(mpr.mprViews).forEach(k => {
+            Object.keys(mpr.mprViews).forEach(k => {
               const view = mpr.mprViews[k];
               view.addSurface({ buffer: data, color: [0, 0, 1], label: "dice" });
-            })*/
+            })
           });
       });
       }

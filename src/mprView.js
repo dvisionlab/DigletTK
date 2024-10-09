@@ -166,6 +166,16 @@ export class MPRView extends baseView {
 
     onInitialized();
   }
+  updateCamera() {
+    const renderWindow = this._genericRenderWindow.getRenderWindow();
+    const actor = this._surfaces.get(label);
+    this._renderer.addActor(actor);
+    this._renderer.resetCamera();
+    renderWindow.render();
+  }
+  getSurfaces(){
+    return this._surfaces;
+  }
   /**
    * Add surfaces to be rendered
    * @param {Object} - {buffer: bufferarray, color: [r,g,b], label: string}
@@ -199,7 +209,6 @@ export class MPRView extends baseView {
     this._renderer.resetCamera();
     renderWindow.render();
   }
-
   /**
    * Toggle surface visibility on/off
    * @param {String} label - The string that identifies the surface
