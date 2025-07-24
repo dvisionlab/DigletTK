@@ -36,28 +36,75 @@
       <pre class="h-100">
           <code class="javascript">
 /**
-* Example of adding a surface in a VR scene
+* Example of adding multiple surfaces in a VR scene
 */
 
 const element = document.getElementById("viewer-2");
-
 const vr = new diglettk.VRView(element);
 
-fetch("./demo/die.stl").then(response => {
-  response.arrayBuffer().then(data => {
-    vr.addSurface({ 
-      buffer: data, 
-      fileType: "stl", // optional, auto-detected if not provided
-      props: {
-        color: [0, 0, 1], // RGB values between 0-1
-        label: "dice",
-        opacity: 1.0, // optional, defaults to 1
-        wireframe: false // optional, defaults to false
-      }
+// Helper function to load and add a surface
+const loadAndAddSurface = (url, fileType, props) => {
+  fetch(url)
+    .then(response => response.arrayBuffer())
+    .then(buffer => {
+      vr.addSurface({ buffer, fileType, props });
     });
-  });
+};
+
+// Load the dice model
+loadAndAddSurface("./demo/die.stl", "stl", {
+  color: [0, 0, 1],
+  label: "dice",
+  opacity: 1.0,
+  wireframe: false
 });
 
+// Load the centerline model and add landmarks
+fetch("./demo/centerline.vtp")
+  .then(response => response.arrayBuffer())
+  .then(buffer => {
+    // Add the centerline surface
+    vr.addSurface({
+      buffer: buffer.slice(0), // Pass a copy of the buffer
+      fileType: "vtp",
+      props: {
+        color: [1, 0, 0],
+        label: "centerline"
+      }
+    });
+
+    // Parse the VTP file to get points for landmarks
+    const reader = vtk.IO.XML.vtkXMLPolyDataReader.newInstance();
+    reader.parseAsArrayBuffer(buffer);
+    const polydata = reader.getOutputData(0);
+    const points = polydata.getPoints().getData(); // Flat array [x1, y1, z1, ...]
+
+    const numPoints = points.length / 3;
+    const landmarks = [];
+    for (let i = 0; i < 4; i++) {
+      const pointIndex = Math.floor(Math.random() * numPoints);
+      const x = points[pointIndex * 3];
+      const y = points[pointIndex * 3 + 1];
+      const z = points[pointIndex * 3 + 2];
+      landmarks.push({
+        label: `landmark_${i}`,
+        x,
+        y,
+        z,
+        color: [1, 1, 0], // Yellow
+        radius: 5
+      });
+    }
+    vr.addLandmarks(landmarks);
+  });
+
+
+// Load the lumen model
+loadAndAddSurface("./demo/lumen.vtp", "vtp", {
+  color: [0, 1, 0],
+  label: "lumen",
+  opacity: 0.5
+});
           </code>
         </pre>
     </div>
@@ -69,24 +116,71 @@ fetch("./demo/die.stl").then(response => {
 
   <script>
     const element = document.getElementById("viewer-2");
-
     const vr = new diglettk.VRView(element);
 
     console.log(vr);
 
-    fetch("./demo/die.stl").then(response => {
-      response.arrayBuffer().then(data => {
+    // Helper function to load and add a surface
+    const loadAndAddSurface = (url, fileType, props) => {
+      fetch(url)
+        .then(response => response.arrayBuffer())
+        .then(buffer => {
+          vr.addSurface({ buffer, fileType, props });
+        });
+    };
+
+    // Load the dice model
+    loadAndAddSurface("./demo/die.stl", "stl", {
+      color: [0, 0, 1],
+      label: "dice",
+      opacity: 1.0,
+      wireframe: false
+    });
+
+    // Load the centerline model and add landmarks
+    fetch("./demo/centerline.vtp")
+      .then(response => response.arrayBuffer())
+      .then(buffer => {
+        // Add the centerline surface
         vr.addSurface({
-          buffer: data,
-          fileType: "stl", // optional, auto-detected if not provided
+          buffer: buffer.slice(0), // Pass a copy of the buffer
+          fileType: "vtp",
           props: {
-            color: [0, 0, 1], // RGB values between 0-1
-            label: "dice",
-            opacity: 1.0, // optional, defaults to 1
-            wireframe: false // optional, defaults to false
+            color: [1, 0, 0],
+            label: "centerline"
           }
         });
+
+        // Parse the VTP file to get points for landmarks
+        const reader = vtk.IO.XML.vtkXMLPolyDataReader.newInstance();
+        reader.parseAsArrayBuffer(buffer);
+        const polydata = reader.getOutputData(0);
+        const points = polydata.getPoints().getData(); // Flat array [x1, y1, z1, ...]
+
+        const numPoints = points.length / 3;
+        const landmarks = [];
+        for (let i = 0; i < 4; i++) {
+          const pointIndex = Math.floor(Math.random() * numPoints);
+          const x = points[pointIndex * 3];
+          const y = points[pointIndex * 3 + 1];
+          const z = points[pointIndex * 3 + 2];
+          landmarks.push({
+            label: `landmark_${i}`,
+            x,
+            y,
+            z,
+            color: [1, 1, 0], // Yellow
+            radius: 5
+          });
+        }
+        vr.addLandmarks(landmarks);
       });
+
+    // Load the lumen model
+    loadAndAddSurface("./demo/lumen.vtp", "vtp", {
+      color: [0, 1, 0],
+      label: "lumen",
+      opacity: 0.5
     });
   </script>
 </body>

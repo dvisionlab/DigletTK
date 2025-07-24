@@ -80042,11 +80042,17 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _kitware_vtk_js_Interaction_Style_InteractorStyleManipulator__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! @kitware/vtk.js/Interaction/Style/InteractorStyleManipulator */ "./node_modules/@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator.js");
 /* harmony import */ var _kitware_vtk_js_Rendering_Core_PointPicker__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! @kitware/vtk.js/Rendering/Core/PointPicker */ "./node_modules/@kitware/vtk.js/Rendering/Core/PointPicker.js");
 /* harmony import */ var _kitware_vtk_js_Rendering_Core_Coordinate__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! @kitware/vtk.js/Rendering/Core/Coordinate */ "./node_modules/@kitware/vtk.js/Rendering/Core/Coordinate.js");
-/* harmony import */ var _utils_utils__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./utils/utils */ "./src/utils/utils.js");
-/* harmony import */ var _utils_strategies__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./utils/strategies */ "./src/utils/strategies.js");
-/* harmony import */ var _utils_colormaps__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./utils/colormaps */ "./src/utils/colormaps.js");
-/* harmony import */ var _renderPasses__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./renderPasses */ "./src/renderPasses.js");
-/* harmony import */ var _baseView__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./baseView */ "./src/baseView.js");
+/* harmony import */ var _kitware_vtk_js_Filters_Sources_SphereSource__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! @kitware/vtk.js/Filters/Sources/SphereSource */ "./node_modules/@kitware/vtk.js/Filters/Sources/SphereSource.js");
+/* harmony import */ var _kitware_vtk_js_Rendering_Core_Actor__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! @kitware/vtk.js/Rendering/Core/Actor */ "./node_modules/@kitware/vtk.js/Rendering/Core/Actor.js");
+/* harmony import */ var _kitware_vtk_js_Rendering_Core_Mapper__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! @kitware/vtk.js/Rendering/Core/Mapper */ "./node_modules/@kitware/vtk.js/Rendering/Core/Mapper.js");
+/* harmony import */ var _utils_utils__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./utils/utils */ "./src/utils/utils.js");
+/* harmony import */ var _utils_strategies__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./utils/strategies */ "./src/utils/strategies.js");
+/* harmony import */ var _utils_colormaps__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./utils/colormaps */ "./src/utils/colormaps.js");
+/* harmony import */ var _renderPasses__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./renderPasses */ "./src/renderPasses.js");
+/* harmony import */ var _baseView__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./baseView */ "./src/baseView.js");
+
+
+
 
 
 
@@ -80069,10 +80075,10 @@ __webpack_require__.r(__webpack_exports__);
 
 
 // Add custom presets
-_kitware_vtk_js_Rendering_Core_ColorTransferFunction_ColorMaps__WEBPACK_IMPORTED_MODULE_3__["default"].addPreset((0,_utils_colormaps__WEBPACK_IMPORTED_MODULE_13__.createPreset)());
+_kitware_vtk_js_Rendering_Core_ColorTransferFunction_ColorMaps__WEBPACK_IMPORTED_MODULE_3__["default"].addPreset((0,_utils_colormaps__WEBPACK_IMPORTED_MODULE_16__.createPreset)());
 
 /** A class representing a Volume Rendering scene */
-class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
+class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_18__.baseView {
   /**
    * Create a volume rendering scene
    * @param {HTMLElement} element - the target html element to render the scene
@@ -80119,6 +80125,9 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
     // surfaces
     this._surfaces = new Map();
 
+    // landmarks
+    this._landmarks = new Map();
+
     // initialize empty scene
     this._init();
   }
@@ -80136,7 +80145,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
       return;
     }
 
-    let relativeWwwl = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.getRelativeRange)(this._actor, value);
+    let relativeWwwl = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.getRelativeRange)(this._actor, value);
 
     this._wl = relativeWwwl.wl;
     this._ww = relativeWwwl.ww;
@@ -80184,7 +80193,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
     // initalize piecewise gaussian widget
     this._PGwidgetElement = element;
     if (!this._PGwidget) {
-      this._PGwidget = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.setupPGwidget)(this._PGwidgetElement);
+      this._PGwidget = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.setupPGwidget)(this._PGwidgetElement);
     }
     let h = element.offsetHeight ? element.offsetHeight - 5 : 100;
     let w = element.offsetWidth ? element.offsetWidth - 5 : 300;
@@ -80322,7 +80331,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
    * Toggle edge enhancement
    */
   set edgeEnhancement([type, value]) {
-    let renderPass = (0,_renderPasses__WEBPACK_IMPORTED_MODULE_14__.getRenderPass)(type, value);
+    let renderPass = (0,_renderPasses__WEBPACK_IMPORTED_MODULE_17__.getRenderPass)(type, value);
     let view = this._renderWindow.getViews()[0];
     view.setRenderPasses([renderPass]);
     this._renderWindow.render();
@@ -80339,14 +80348,14 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
   setImage(image) {
     // clean scene
     this._renderer.removeAllVolumes();
-    this._actor = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.createVolumeActor)(image);
+    this._actor = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.createVolumeActor)(image);
     this.lut = "Grayscale";
     this.resolution = 2;
     this._renderer.addVolume(this._actor);
 
     // center camera on new volume
     this._renderer.resetCamera();
-    (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.setCamera)(this._renderer.getActiveCamera(), this._actor.getCenter());
+    (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.setCamera)(this._renderer.getActiveCamera(), this._actor.getCenter());
 
     if (this._PGwidget) {
       this._updateWidget();
@@ -80356,7 +80365,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
     // TODO if crop widget, update to new image (or set to null so that it will be initialized again)
 
     // TODO implement a strategy to set rays distance
-    (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.setActorProperties)(this._actor);
+    (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.setActorProperties)(this._actor);
 
     this._setupInteractor();
 
@@ -80386,7 +80395,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
       return;
     }
 
-    const surfaceData = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.createSurfaceActor)(buffer, fileType);
+    const surfaceData = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.createSurfaceActor)(buffer, fileType);
     if (!surfaceData) {
       return;
     }
@@ -80403,6 +80412,37 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
 
     this._renderer.addActor(actor);
     this._renderer.resetCamera();
+    this._renderWindow.render();
+  }
+
+  /**
+   * Add landmarks to be rendered as spheres
+   * @param {Array} landmarks - [{label, x, y, z, color, radius}]
+   */
+  addLandmarks(landmarks) {
+    landmarks.forEach(landmark => {
+      if (this._landmarks.has(landmark.label)) {
+        console.warn(
+          `DTK: A landmark with label ${landmark.label} is already present. I will ignore this.`
+        );
+        return;
+      }
+
+      const sphereSource = _kitware_vtk_js_Filters_Sources_SphereSource__WEBPACK_IMPORTED_MODULE_11__["default"].newInstance();
+      sphereSource.setCenter(landmark.x, landmark.y, landmark.z);
+      sphereSource.setRadius(landmark.radius || 1.0);
+
+      const mapper = _kitware_vtk_js_Rendering_Core_Mapper__WEBPACK_IMPORTED_MODULE_13__["default"].newInstance();
+      mapper.setInputConnection(sphereSource.getOutputPort());
+
+      const actor = _kitware_vtk_js_Rendering_Core_Actor__WEBPACK_IMPORTED_MODULE_12__["default"].newInstance();
+      actor.setMapper(mapper);
+      actor.getProperty().setColor(landmark.color);
+
+      this._landmarks.set(landmark.label, actor);
+      this._renderer.addActor(actor);
+    });
+
     this._renderWindow.render();
   }
 
@@ -80433,7 +80473,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
     // Get the current color from the existing actor
     const currentColor = actor.getProperty().getColor();
 
-    const surfaceData = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.createSurfaceActor)(buffer, currentColor, fileType);
+    const surfaceData = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.createSurfaceActor)(buffer, currentColor, fileType);
     if (!surfaceData) {
       return; // Error already logged in createSurfaceActor
     }
@@ -80511,7 +80551,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
   resetView() {
     let center = this._actor.getCenter();
     let camera = this._renderer.getActiveCamera();
-    (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.setCamera)(camera, center);
+    (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.setCamera)(camera, center);
     this._renderWindow.render();
   }
 
@@ -80542,6 +80582,13 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
       this._planeActor.delete();
       this._planeActor = null;
     }
+
+    this._landmarks.forEach(actor => {
+      actor.getMapper().delete();
+      actor.delete();
+    });
+    this._landmarks.clear();
+    this._landmarks = null;
 
     if (this._PGwidgetElement) {
       this._PGwidgetElement = null;
@@ -80676,7 +80723,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
    * Setup crop widget
    */
   _initCropWidget() {
-    let cropWidget = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.setupCropWidget)(this._renderer, this._actor.getMapper());
+    let cropWidget = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.setupCropWidget)(this._renderer, this._actor.getMapper());
 
     this._widgetManager = cropWidget.widgetManager;
     this._cropWidget = cropWidget.widget;
@@ -80779,7 +80826,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
     if (!this._pickingPlane) {
       // add a 1000x1000 plane
       let camera = this._renderer.getActiveCamera();
-      let { plane, planeActor } = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_11__.setupPickingPlane)(camera, this._actor);
+      let { plane, planeActor } = (0,_utils_utils__WEBPACK_IMPORTED_MODULE_14__.setupPickingPlane)(camera, this._actor);
       this._renderer.addActor(planeActor);
       this._pickingPlane = plane;
       this._planeActor = planeActor;
@@ -80818,7 +80865,7 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_15__.baseView {
           const displayPosition = wPos.getComputedDisplayValue(this._renderer);
 
           // apply changes on state based on active tool
-          (0,_utils_strategies__WEBPACK_IMPORTED_MODULE_12__.applyStrategy)(state, displayPosition, pickedPoint, mode);
+          (0,_utils_strategies__WEBPACK_IMPORTED_MODULE_15__.applyStrategy)(state, displayPosition, pickedPoint, mode);
 
           if (this.VERBOSE) console.log(state);
           this._measurementState = state;

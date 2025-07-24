@@ -11,6 +11,9 @@ import vtkInteractorStyleManipulator from "@kitware/vtk.js/Interaction/Style/Int
 
 import vtkPointPicker from "@kitware/vtk.js/Rendering/Core/PointPicker";
 import vtkCoordinate from "@kitware/vtk.js/Rendering/Core/Coordinate";
+import vtkSphereSource from "@kitware/vtk.js/Filters/Sources/SphereSource";
+import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
+import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
 
 import {
   createVolumeActor,
@@ -78,6 +81,9 @@ export class VRView extends baseView {
 
     // surfaces
     this._surfaces = new Map();
+
+    // landmarks
+    this._landmarks = new Map();
 
     // initialize empty scene
     this._init();
@@ -367,6 +373,37 @@ export class VRView extends baseView {
   }
 
   /**
+   * Add landmarks to be rendered as spheres
+   * @param {Array} landmarks - [{label, x, y, z, color, radius}]
+   */
+  addLandmarks(landmarks) {
+    landmarks.forEach(landmark => {
+      if (this._landmarks.has(landmark.label)) {
+        console.warn(
+          `DTK: A landmark with label ${landmark.label} is already present. I will ignore this.`
+        );
+        return;
+      }
+
+      const sphereSource = vtkSphereSource.newInstance();
+      sphereSource.setCenter(landmark.x, landmark.y, landmark.z);
+      sphereSource.setRadius(landmark.radius || 1.0);
+
+      const mapper = vtkMapper.newInstance();
+      mapper.setInputConnection(sphereSource.getOutputPort());
+
+      const actor = vtkActor.newInstance();
+      actor.setMapper(mapper);
+      actor.getProperty().setColor(landmark.color);
+
+      this._landmarks.set(landmark.label, actor);
+      this._renderer.addActor(actor);
+    });
+
+    this._renderWindow.render();
+  }
+
+  /**
    * Toggle surface visibility on/off
    * @param {String} label - The string that identifies the surface
    * @param {Boolean} toggle
@@ -502,6 +539,13 @@ export class VRView extends baseView {
       this._planeActor.delete();
       this._planeActor = null;
     }
+
+    this._landmarks.forEach(actor => {
+      actor.getMapper().delete();
+      actor.delete();
+    });
+    this._landmarks.clear();
+    this._landmarks = null;
 
     if (this._PGwidgetElement) {
       this._PGwidgetElement = null;
