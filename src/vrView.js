@@ -3,10 +3,6 @@ import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransf
 import vtkPiecewiseFunction from "@kitware/vtk.js/Common/DataModel/PiecewiseFunction";
 import vtkColorMaps from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps";
 
-import vtkSTLReader from "@kitware/vtk.js/IO/Geometry/STLReader";
-import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
-import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
-
 import vtkMouseCameraTrackballRotateManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballRotateManipulator";
 import vtkMouseCameraTrackballPanManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
 import vtkMouseCameraTrackballZoomManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator";
@@ -23,7 +19,8 @@ import {
   setActorProperties,
   setupCropWidget,
   setupPickingPlane,
-  getRelativeRange
+  getRelativeRange,
+  createSurfaceActor
 } from "./utils/utils";
 import { applyStrategy } from "./utils/strategies";
 import { createPreset } from "./utils/colormaps";
@@ -338,30 +335,31 @@ export class VRView extends baseView {
 
   /**
    * Add surfaces to be rendered
-   * @param {Object} - {buffer: bufferarray, color: [r,g,b], label: string}
+   * @param {Object} - {buffer: bufferarray, fileType?: string, props: Object}
+   * Props contains color, label, opacity, wireframe
    */
-  addSurface({ buffer, color, label }) {
-    if (this._surfaces.has(label)) {
+  addSurface({ buffer, fileType, props }) {
+    if (this._surfaces.has(props.label)) {
       console.warn(
-        `DTK: A surface with label ${label} is already present. I will ignore this.`
+        `DTK: A surface with label ${props.label} is already present. I will ignore this.`
       );
       return;
     }
 
-    const reader = vtkSTLReader.newInstance();
-    reader.parseAsArrayBuffer(buffer);
-    const mapper = vtkMapper.newInstance({ scalarVisibility: false });
-    const actor = vtkActor.newInstance();
+    const surfaceData = createSurfaceActor(buffer, fileType);
+    if (!surfaceData) {
+      return;
+    }
 
-    actor.setMapper(mapper);
-    mapper.setInputConnection(reader.getOutputPort());
+    const { actor, mapper } = surfaceData;
 
-    const props = actor.getProperty();
-    props.setColor(...color);
-    // props.setOpacity(0.5);
-    // props.setDiffuse(1)
-    // props.setRepresentationToWireframe()
-    this._surfaces.set(label, actor);
+    const properties = actor.getProperty();
+    properties.setColor(...props.color);
+    properties.setOpacity(props.opacity || 1);
+    if (props.wireframe) {
+      properties.setRepresentationToWireframe(props.wireframe);
+    }
+    this._surfaces.set(props.label, actor);
 
     this._renderer.addActor(actor);
     this._renderer.resetCamera();
@@ -383,13 +381,24 @@ export class VRView extends baseView {
    * TODO maybe there is a more efficient way
    * @param {String} label - The string that identifies the surface
    * @param {ArrayBuffer} buffer
+   * @param {String} fileType - Optional file type ('stl' or 'vtp')
    */
-  updateSurface(label, buffer) {
-    const reader = vtkSTLReader.newInstance();
-    reader.parseAsArrayBuffer(buffer);
-    const mapper = vtkMapper.newInstance({ scalarVisibility: false });
-    mapper.setInputConnection(reader.getOutputPort());
+  updateSurface(label, buffer, fileType) {
     const actor = this._surfaces.get(label);
+    if (!actor) {
+      console.warn(`DTK: No surface found with label ${label}`);
+      return;
+    }
+
+    // Get the current color from the existing actor
+    const currentColor = actor.getProperty().getColor();
+
+    const surfaceData = createSurfaceActor(buffer, currentColor, fileType);
+    if (!surfaceData) {
+      return; // Error already logged in createSurfaceActor
+    }
+
+    const { mapper } = surfaceData;
     actor.setMapper(mapper);
 
     this._renderer.resetCamera();
