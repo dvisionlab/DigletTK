@@ -80122,6 +80122,9 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_18__.baseView {
     // measurement state
     this._measurementState = null;
 
+    // picking state
+    this._pickCb = null;
+
     // surfaces
     this._surfaces = new Map();
 
@@ -80439,10 +80442,27 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_18__.baseView {
       actor.setMapper(mapper);
       actor.getProperty().setColor(landmark.color);
 
-      this._landmarks.set(landmark.label, actor);
+      this._landmarks.set(landmark.label, { actor, sphereSource });
       this._renderer.addActor(actor);
     });
 
+    this._renderWindow.render();
+  }
+
+  /**
+   * Update the position of an existing landmark.
+   * @param {String} label - The label of the landmark.
+   * @param {Array<Number>} position - The new position as [x, y, z].
+   */
+  updateLandmarkPosition(label, [x, y, z]) {
+    const landmark = this._landmarks.get(label);
+    if (!landmark) {
+      console.warn(`DTK: No landmark found with label ${label} to update.`);
+      return;
+    }
+
+    const { sphereSource } = landmark;
+    sphereSource.setCenter(x, y, z);
     this._renderWindow.render();
   }
 
@@ -80583,9 +80603,10 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_18__.baseView {
       this._planeActor = null;
     }
 
-    this._landmarks.forEach(actor => {
+    this._landmarks.forEach(({ actor, sphereSource }) => {
       actor.getMapper().delete();
       actor.delete();
+      sphereSource.delete();
     });
     this._landmarks.clear();
     this._landmarks = null;
@@ -80794,6 +80815,76 @@ class VRView extends _baseView__WEBPACK_IMPORTED_MODULE_18__.baseView {
     this._renderWindow
       .getInteractor()
       .onRightButtonPress(() => this.resetMeasurementState());
+  }
+
+  /**
+   * Register a callback for picking on a list of actors.
+   * The callback will receive an object with { worldPosition, displayPosition, actorLabel }
+   * @param {Function} callback - The function to call on pick.
+   * @param {Array<String>} targetLabels - A list of actor labels to pick from.
+   */
+  turnPickingOn(callback, targetLabels) {
+    this.turnPickingOff(); // Remove any existing pick listener
+
+    const targetActors = new Map();
+    targetLabels.forEach(label => {
+      if (this._surfaces.has(label)) {
+        targetActors.set(this._surfaces.get(label), label);
+      } else if (this._landmarks.has(label)) {
+        targetActors.set(this._landmarks.get(label).actor, label);
+      } else {
+        console.warn(`DTK: No actor found with label ${label} for picking.`);
+      }
+    });
+
+    if (targetActors.size === 0) {
+      console.warn("DTK: onPick called with no valid target labels.");
+      return;
+    }
+
+    const picker = _kitware_vtk_js_Rendering_Core_PointPicker__WEBPACK_IMPORTED_MODULE_9__["default"].newInstance();
+    picker.setPickFromList(1);
+    picker.initializePickList();
+    targetActors.forEach((label, actor) => picker.addPickList(actor));
+
+    this._pickCb = this._renderWindow
+      .getInteractor()
+      .onLeftButtonPress(callData => {
+        if (this._renderer !== callData.pokedRenderer) {
+          return;
+        }
+
+        const pos = callData.position;
+        const point = [pos.x, pos.y, 0.0];
+        picker.pick(point, this._renderer);
+
+        if (picker.getActors().length > 0) {
+          const pickedActor = picker.getActors()[0];
+          window.pickedActor = pickedActor;
+          if (targetActors.has(pickedActor)) {
+            const closestPointId = picker.getPointId();
+            if (closestPointId >= 0) {
+              const worldPosition = pickedActor.getMapper().getInputData()
+                .getPoints()
+                .getPoint(closestPointId);
+              const displayPosition = point.slice(0, 2);
+              const actorLabel = targetActors.get(pickedActor);
+
+              callback({ worldPosition, displayPosition, actorLabel });
+            }
+          }
+        }
+      });
+  }
+
+  /**
+   * Unregister the picking callback.
+   */
+  turnPickingOff() {
+    if (this._pickCb) {
+      this._pickCb.unsubscribe();
+      this._pickCb = null;
+    }
   }
 
   /**

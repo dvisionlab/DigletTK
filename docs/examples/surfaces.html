@@ -14,6 +14,9 @@
 </head>
 
 <body class="h-100" style="background-color: #000000; color: #ffffff">
+  <div id="landmarkControls"
+    style="position: absolute; top: 10px; left: 10px; z-index: 100; display: flex; flex-direction: column; gap: 5px;">
+  </div>
   <div class="row h-100">
     <!-- views -->
     <div class="col-8 h-100">
@@ -96,6 +99,34 @@ fetch("./demo/centerline.vtp")
       });
     }
     vr.addLandmarks(landmarks);
+
+    // Setup landmark controls
+    const landmarkControls = document.getElementById("landmarkControls");
+    let activeLandmark = null;
+
+    const pickCallback = ({ worldPosition }) => {
+      if (activeLandmark) {
+        vr.updateLandmarkPosition(activeLandmark, worldPosition);
+      }
+    };
+
+    landmarks.forEach(l => {
+      const button = document.createElement("button");
+      button.textContent = `Move ${l.label}`;
+      button.addEventListener('click', () => {
+        activeLandmark = l.label;
+        vr.turnPickingOn(pickCallback, ["centerline"]);
+      });
+      landmarkControls.appendChild(button);
+    });
+
+    const stopButton = document.createElement("button");
+    stopButton.textContent = "Stop Moving";
+    stopButton.addEventListener('click', () => {
+      activeLandmark = null;
+      vr.turnPickingOff();
+    });
+    landmarkControls.appendChild(stopButton);
   });
 
 
@@ -174,13 +205,41 @@ loadAndAddSurface("./demo/lumen.vtp", "vtp", {
           });
         }
         vr.addLandmarks(landmarks);
+
+        // Setup landmark controls
+        const landmarkControls = document.getElementById("landmarkControls");
+        let activeLandmark = null;
+
+        const pickCallback = ({ worldPosition }) => {
+          if (activeLandmark) {
+            vr.updateLandmarkPosition(activeLandmark, worldPosition);
+          }
+        };
+
+        landmarks.forEach(l => {
+          const button = document.createElement("button");
+          button.textContent = `Move ${l.label}`;
+          button.addEventListener('click', () => {
+            activeLandmark = l.label;
+            vr.turnPickingOn(pickCallback, ["centerline"]);
+          });
+          landmarkControls.appendChild(button);
+        });
+
+        const stopButton = document.createElement("button");
+        stopButton.textContent = "Stop Moving";
+        stopButton.addEventListener('click', () => {
+          activeLandmark = null;
+          vr.turnPickingOff();
+        });
+        landmarkControls.appendChild(stopButton);
       });
 
     // Load the lumen model
     loadAndAddSurface("./demo/lumen.vtp", "vtp", {
       color: [0, 1, 0],
       label: "lumen",
-      opacity: 0.5
+      opacity: 0.3
     });
   </script>
 </body>
