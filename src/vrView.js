@@ -366,7 +366,9 @@ export class VRView extends baseView {
     properties.setColor(...props.color);
     properties.setOpacity(props.opacity || 1);
     if (props.wireframe) {
-      properties.setRepresentationToWireframe(props.wireframe);
+      properties.setRepresentation(vtkMapper.Representation.WIREFRAME);
+    } else {
+      properties.setRepresentation(vtkMapper.Representation.SURFACE);
     }
     this._surfaces.set(props.label, actor);
 
@@ -450,13 +452,14 @@ export class VRView extends baseView {
     // Get the current color from the existing actor
     const currentColor = actor.getProperty().getColor();
 
-    const surfaceData = createSurfaceActor(buffer, currentColor, fileType);
+    const surfaceData = createSurfaceActor(buffer, fileType);
     if (!surfaceData) {
       return; // Error already logged in createSurfaceActor
     }
 
     const { mapper } = surfaceData;
     actor.setMapper(mapper);
+    actor.getProperty().setColor(currentColor);
 
     this._renderer.resetCamera();
     this._renderWindow.render();
@@ -817,7 +820,6 @@ export class VRView extends baseView {
 
         if (picker.getActors().length > 0) {
           const pickedActor = picker.getActors()[0];
-          window.pickedActor = pickedActor;
           if (targetActors.has(pickedActor)) {
             const closestPointId = picker.getPointId();
             if (closestPointId >= 0) {

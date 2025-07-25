@@ -607,8 +607,8 @@ export function createSurfaceActor(buffer, fileType) {
     }
   } else {
     // Try to detect file type from buffer content
-    const uint8Array = new Uint8Array(buffer);
-    const headerString = String.fromCharCode.apply(null, uint8Array.slice(0, 100));
+    const uint8Array = new Uint8Array(buffer, 0, 100);
+    const headerString = String.fromCharCode.apply(null, uint8Array);
 
     if (headerString.includes('<?xml') && headerString.includes('PolyData')) {
       // VTP file (XML-based)
