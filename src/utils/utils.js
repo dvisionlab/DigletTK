@@ -11,6 +11,8 @@ import vtkPlaneSource from "@kitware/vtk.js/Filters/Sources/PlaneSource";
 import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
 import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
 import vtkSphereSource from "@kitware/vtk.js/Filters/Sources/SphereSource";
+import vtkSTLReader from "@kitware/vtk.js/IO/Geometry/STLReader";
+import vtkXMLPolyDataReader from "@kitware/vtk.js/IO/XML/XMLPolyDataReader";
 
 import { vec3, quat, mat4 } from "gl-matrix";
 import vtkGenericRenderWindow from "@kitware/vtk.js/Rendering/Misc/GenericRenderWindow";
@@ -344,12 +346,12 @@ export function getVideoCardInfo() {
   const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
   return debugInfo
     ? {
-        vendor: gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
-        renderer: gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
-      }
+      vendor: gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
+      renderer: gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
+    }
     : {
-        error: "no WEBGL_debug_renderer_info"
-      };
+      error: "no WEBGL_debug_renderer_info"
+    };
 }
 
 /**
@@ -579,4 +581,51 @@ export function addSphereInPoint(point, renderer) {
   sphereActor.setMapper(sphereMapper);
   sphereActor.getProperty().setColor(1.0, 0.0, 0.0);
   renderer.addActor(sphereActor);
+}
+
+/**
+ * Create a surface actor from buffer data
+ * @param {ArrayBuffer} buffer - The surface data buffer
+ * @param {String} fileType - Optional file type ('stl' or 'vtp')
+ * @returns {Object} - {actor: vtkActor, mapper: vtkMapper}
+ */
+export function createSurfaceActor(buffer, fileType) {
+  let reader;
+
+  // Determine file type and create appropriate reader
+  if (fileType) {
+    // Use explicit file type if provided
+    if (fileType.toLowerCase() === 'stl') {
+      reader = vtkSTLReader.newInstance();
+      reader.parseAsArrayBuffer(buffer);
+    } else if (fileType.toLowerCase() === 'vtp') {
+      reader = vtkXMLPolyDataReader.newInstance();
+      reader.parseAsArrayBuffer(buffer);
+    } else {
+      console.error(`DTK: Unsupported file type: ${fileType}. Supported types are 'stl' and 'vtp'.`);
+      return null;
+    }
+  } else {
+    // Try to detect file type from buffer content
+    const uint8Array = new Uint8Array(buffer, 0, BUFFER_HEADER_SIZE);
+    const headerString = String.fromCharCode.apply(null, uint8Array);
+
+    if (headerString.includes('<?xml') && headerString.includes('PolyData')) {
+      // VTP file (XML-based)
+      reader = vtkXMLPolyDataReader.newInstance();
+      reader.parseAsArrayBuffer(buffer);
+    } else {
+      // Default to STL reader for binary or ASCII STL files
+      reader = vtkSTLReader.newInstance();
+      reader.parseAsArrayBuffer(buffer);
+    }
+  }
+
+  const mapper = vtkMapper.newInstance({ scalarVisibility: false });
+  const actor = vtkActor.newInstance();
+
+  actor.setMapper(mapper);
+  mapper.setInputConnection(reader.getOutputPort());
+
+  return { actor, mapper };
 }

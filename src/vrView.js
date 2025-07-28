@@ -3,10 +3,6 @@ import vtkColorTransferFunction from "@kitware/vtk.js/Rendering/Core/ColorTransf
 import vtkPiecewiseFunction from "@kitware/vtk.js/Common/DataModel/PiecewiseFunction";
 import vtkColorMaps from "@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps";
 
-import vtkSTLReader from "@kitware/vtk.js/IO/Geometry/STLReader";
-import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
-import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
-
 import vtkMouseCameraTrackballRotateManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballRotateManipulator";
 import vtkMouseCameraTrackballPanManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator";
 import vtkMouseCameraTrackballZoomManipulator from "@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomManipulator";
@@ -15,6 +11,9 @@ import vtkInteractorStyleManipulator from "@kitware/vtk.js/Interaction/Style/Int
 
 import vtkPointPicker from "@kitware/vtk.js/Rendering/Core/PointPicker";
 import vtkCoordinate from "@kitware/vtk.js/Rendering/Core/Coordinate";
+import vtkSphereSource from "@kitware/vtk.js/Filters/Sources/SphereSource";
+import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
+import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
 
 import {
   createVolumeActor,
@@ -23,7 +22,8 @@ import {
   setActorProperties,
   setupCropWidget,
   setupPickingPlane,
-  getRelativeRange
+  getRelativeRange,
+  createSurfaceActor
 } from "./utils/utils";
 import { applyStrategy } from "./utils/strategies";
 import { createPreset } from "./utils/colormaps";
@@ -79,8 +79,14 @@ export class VRView extends baseView {
     // measurement state
     this._measurementState = null;
 
+    // picking state
+    this._pickCb = null;
+
     // surfaces
     this._surfaces = new Map();
+
+    // landmarks
+    this._landmarks = new Map();
 
     // initialize empty scene
     this._init();
@@ -338,33 +344,84 @@ export class VRView extends baseView {
 
   /**
    * Add surfaces to be rendered
-   * @param {Object} - {buffer: bufferarray, color: [r,g,b], label: string}
+   * @param {Object} - {buffer: bufferarray, fileType?: string, props: Object}
+   * Props contains color, label, opacity, wireframe
    */
-  addSurface({ buffer, color, label }) {
-    if (this._surfaces.has(label)) {
+  addSurface({ buffer, fileType, props }) {
+    if (this._surfaces.has(props.label)) {
       console.warn(
-        `DTK: A surface with label ${label} is already present. I will ignore this.`
+        `DTK: A surface with label ${props.label} is already present. I will ignore this.`
       );
       return;
     }
 
-    const reader = vtkSTLReader.newInstance();
-    reader.parseAsArrayBuffer(buffer);
-    const mapper = vtkMapper.newInstance({ scalarVisibility: false });
-    const actor = vtkActor.newInstance();
+    const surfaceData = createSurfaceActor(buffer, fileType);
+    if (!surfaceData) {
+      return;
+    }
 
-    actor.setMapper(mapper);
-    mapper.setInputConnection(reader.getOutputPort());
+    const { actor, mapper } = surfaceData;
 
-    const props = actor.getProperty();
-    props.setColor(...color);
-    // props.setOpacity(0.5);
-    // props.setDiffuse(1)
-    // props.setRepresentationToWireframe()
-    this._surfaces.set(label, actor);
+    const properties = actor.getProperty();
+    properties.setColor(...props.color);
+    properties.setOpacity(props.opacity || 1);
+    if (props.wireframe) {
+      properties.setRepresentation(vtkMapper.Representation.WIREFRAME);
+    } else {
+      properties.setRepresentation(vtkMapper.Representation.SURFACE);
+    }
+    this._surfaces.set(props.label, actor);
 
     this._renderer.addActor(actor);
     this._renderer.resetCamera();
+    this._renderWindow.render();
+  }
+
+  /**
+   * Add landmarks to be rendered as spheres
+   * @param {Array} landmarks - [{label, x, y, z, color, radius}]
+   */
+  addLandmarks(landmarks) {
+    landmarks.forEach(landmark => {
+      if (this._landmarks.has(landmark.label)) {
+        console.warn(
+          `DTK: A landmark with label ${landmark.label} is already present. I will ignore this.`
+        );
+        return;
+      }
+
+      const sphereSource = vtkSphereSource.newInstance();
+      sphereSource.setCenter(landmark.x, landmark.y, landmark.z);
+      sphereSource.setRadius(landmark.radius || 1.0);
+
+      const mapper = vtkMapper.newInstance();
+      mapper.setInputConnection(sphereSource.getOutputPort());
+
+      const actor = vtkActor.newInstance();
+      actor.setMapper(mapper);
+      actor.getProperty().setColor(landmark.color);
+
+      this._landmarks.set(landmark.label, { actor, sphereSource });
+      this._renderer.addActor(actor);
+    });
+
+    this._renderWindow.render();
+  }
+
+  /**
+   * Update the position of an existing landmark.
+   * @param {String} label - The label of the landmark.
+   * @param {Array<Number>} position - The new position as [x, y, z].
+   */
+  updateLandmarkPosition(label, [x, y, z]) {
+    const landmark = this._landmarks.get(label);
+    if (!landmark) {
+      console.warn(`DTK: No landmark found with label ${label} to update.`);
+      return;
+    }
+
+    const { sphereSource } = landmark;
+    sphereSource.setCenter(x, y, z);
     this._renderWindow.render();
   }
 
@@ -383,14 +440,26 @@ export class VRView extends baseView {
    * TODO maybe there is a more efficient way
    * @param {String} label - The string that identifies the surface
    * @param {ArrayBuffer} buffer
+   * @param {String} fileType - Optional file type ('stl' or 'vtp')
    */
-  updateSurface(label, buffer) {
-    const reader = vtkSTLReader.newInstance();
-    reader.parseAsArrayBuffer(buffer);
-    const mapper = vtkMapper.newInstance({ scalarVisibility: false });
-    mapper.setInputConnection(reader.getOutputPort());
+  updateSurface(label, buffer, fileType) {
     const actor = this._surfaces.get(label);
+    if (!actor) {
+      console.warn(`DTK: No surface found with label ${label}`);
+      return;
+    }
+
+    // Get the current color from the existing actor
+    const currentColor = actor.getProperty().getColor();
+
+    const surfaceData = createSurfaceActor(buffer, fileType);
+    if (!surfaceData) {
+      return; // Error already logged in createSurfaceActor
+    }
+
+    const { mapper } = surfaceData;
     actor.setMapper(mapper);
+    actor.getProperty().setColor(currentColor);
 
     this._renderer.resetCamera();
     this._renderWindow.render();
@@ -493,6 +562,14 @@ export class VRView extends baseView {
       this._planeActor.delete();
       this._planeActor = null;
     }
+
+    this._landmarks.forEach(({ actor, sphereSource }) => {
+      actor.getMapper().delete();
+      actor.delete();
+      sphereSource.delete();
+    });
+    this._landmarks.clear();
+    this._landmarks = null;
 
     if (this._PGwidgetElement) {
       this._PGwidgetElement = null;
@@ -698,6 +775,75 @@ export class VRView extends baseView {
     this._renderWindow
       .getInteractor()
       .onRightButtonPress(() => this.resetMeasurementState());
+  }
+
+  /**
+   * Register a callback for picking on a list of actors.
+   * The callback will receive an object with { worldPosition, displayPosition, actorLabel }
+   * @param {Function} callback - The function to call on pick.
+   * @param {Array<String>} targetLabels - A list of actor labels to pick from.
+   */
+  turnPickingOn(callback, targetLabels) {
+    this.turnPickingOff(); // Remove any existing pick listener
+
+    const targetActors = new Map();
+    targetLabels.forEach(label => {
+      if (this._surfaces.has(label)) {
+        targetActors.set(this._surfaces.get(label), label);
+      } else if (this._landmarks.has(label)) {
+        targetActors.set(this._landmarks.get(label).actor, label);
+      } else {
+        console.warn(`DTK: No actor found with label ${label} for picking.`);
+      }
+    });
+
+    if (targetActors.size === 0) {
+      console.warn("DTK: onPick called with no valid target labels.");
+      return;
+    }
+
+    const picker = vtkPointPicker.newInstance();
+    picker.setPickFromList(1);
+    picker.initializePickList();
+    targetActors.forEach((label, actor) => picker.addPickList(actor));
+
+    this._pickCb = this._renderWindow
+      .getInteractor()
+      .onLeftButtonPress(callData => {
+        if (this._renderer !== callData.pokedRenderer) {
+          return;
+        }
+
+        const pos = callData.position;
+        const point = [pos.x, pos.y, 0.0];
+        picker.pick(point, this._renderer);
+
+        if (picker.getActors().length > 0) {
+          const pickedActor = picker.getActors()[0];
+          if (targetActors.has(pickedActor)) {
+            const closestPointId = picker.getPointId();
+            if (closestPointId >= 0) {
+              const worldPosition = pickedActor.getMapper().getInputData()
+                .getPoints()
+                .getPoint(closestPointId);
+              const displayPosition = point.slice(0, 2);
+              const actorLabel = targetActors.get(pickedActor);
+
+              callback({ worldPosition, displayPosition, actorLabel });
+            }
+          }
+        }
+      });
+  }
+
+  /**
+   * Unregister the picking callback.
+   */
+  turnPickingOff() {
+    if (this._pickCb) {
+      this._pickCb.unsubscribe();
+      this._pickCb = null;
+    }
   }
 
   /**

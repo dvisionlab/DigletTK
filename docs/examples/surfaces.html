@@ -1,29 +1,26 @@
 <!DOCTYPE html>
 <html class="h-100 overflow-hidden">
-  <head>
-    <meta charset="UTF-8" />
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-      integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl"
-      crossorigin="anonymous"
-    />
-    <link
-      rel="stylesheet"
-      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/styles/vs2015.min.css"
-    />
-    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/highlight.min.js"></script>
-    <script>
-      hljs.highlightAll();
-    </script>
-    <title>DigletTK - VR example</title>
-  </head>
 
-  <body class="h-100" style="background-color: #000000; color: #ffffff">
-    <div class="row h-100">
-      <!-- views -->
-      <div class="col-8 h-100">
-        <!-- <div class="row h-50">
+<head>
+  <meta charset="UTF-8" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-BmbxuPwQa2lc/FVzBcNJ7UAyJxM6wuqIj61tLrc4wSX0szH/Ev+nYRRuWlolflfl" crossorigin="anonymous" />
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/styles/vs2015.min.css" />
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/highlight.min.js"></script>
+  <script>
+    hljs.highlightAll();
+  </script>
+  <title>DigletTK - VR example</title>
+</head>
+
+<body class="h-100" style="background-color: #000000; color: #ffffff">
+  <div id="landmarkControls"
+    style="position: absolute; top: 10px; left: 10px; z-index: 100; display: flex; flex-direction: column; gap: 5px;">
+  </div>
+  <div class="row h-100">
+    <!-- views -->
+    <div class="col-8 h-100">
+      <!-- <div class="row h-50">
           <div
             id="viewer"
             class="h-100"
@@ -31,55 +28,220 @@
           ></div>
         </div> -->
 
-        <div class="row h-100">
-          <div
-            id="viewer-2"
-            class="h-100"
-            style="background-color: rgb(0, 0, 0)"
-          ></div>
-        </div>
-      </div>
-
-      <!-- code preview -->
-      <div class="col-4 h-100">
-        <h3 style="margin-top: 20px; margin-bottom: 10px">Code Example</h3>
-        <pre class="h-100">
-          <code class="javascript">
-/**
-* Example of adding a surface in a VR scene
-*/
-
-const element = document.getElementById("viewer-2");
-
-const vr = new diglettk.VRView(element);
-
-fetch("./demo/die.stl").then(response => {
-  response.arrayBuffer().then(data => {
-    vr.addSurface({ buffer: data, color: [0, 0, 1], label: "dice" });
-  });
-});
-
-          </code>
-        </pre>
+      <div class="row h-100">
+        <div id="viewer-2" class="h-100" style="background-color: rgb(0, 0, 0)"></div>
       </div>
     </div>
 
-    <script src="./diglettk.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
-    <script type="text/javascript" src="https://unpkg.com/vtk.js"></script>
+    <!-- code preview -->
+    <div class="col-4 h-100">
+      <h3 style="margin-top: 20px; margin-bottom: 10px">Code Example</h3>
+      <pre class="h-100">
+          <code class="javascript">
+/**
+* Example of adding multiple surfaces in a VR scene
+*/
 
-    <script>
-      const element = document.getElementById("viewer-2");
+const element = document.getElementById("viewer-2");
+const vr = new diglettk.VRView(element);
 
-      const vr = new diglettk.VRView(element);
+// Helper function to load and add a surface
+const loadAndAddSurface = (url, fileType, props) => {
+  fetch(url)
+    .then(response => response.arrayBuffer())
+    .then(buffer => {
+      vr.addSurface({ buffer, fileType, props });
+    });
+};
 
-      console.log(vr);
+// Load the dice model
+loadAndAddSurface("./demo/die.stl", "stl", {
+  color: [0, 0, 1],
+  label: "dice",
+  opacity: 1.0,
+  wireframe: false
+});
 
-      fetch("./demo/die.stl").then(response => {
-        response.arrayBuffer().then(data => {
-          vr.addSurface({ buffer: data, color: [0, 0, 1], label: "dice" });
-        });
+// Load the centerline model and add landmarks
+fetch("./demo/centerline.vtp")
+  .then(response => response.arrayBuffer())
+  .then(buffer => {
+    // Add the centerline surface
+    vr.addSurface({
+      buffer: buffer.slice(0), // Pass a copy of the buffer
+      fileType: "vtp",
+      props: {
+        color: [1, 0, 0],
+        label: "centerline"
+      }
+    });
+
+    // Parse the VTP file to get points for landmarks
+    const reader = vtk.IO.XML.vtkXMLPolyDataReader.newInstance();
+    reader.parseAsArrayBuffer(buffer);
+    const polydata = reader.getOutputData(0);
+    const points = polydata.getPoints().getData(); // Flat array [x1, y1, z1, ...]
+
+    const numPoints = points.length / 3;
+    const landmarks = [];
+    for (let i = 0; i < 4; i++) {
+      const pointIndex = Math.floor(Math.random() * numPoints);
+      const x = points[pointIndex * 3];
+      const y = points[pointIndex * 3 + 1];
+      const z = points[pointIndex * 3 + 2];
+      landmarks.push({
+        label: `landmark_${i}`,
+        x,
+        y,
+        z,
+        color: [1, 1, 0], // Yellow
+        radius: 5
       });
-    </script>
-  </body>
+    }
+    vr.addLandmarks(landmarks);
+
+    // Setup landmark controls
+    const landmarkControls = document.getElementById("landmarkControls");
+    let activeLandmark = null;
+
+    const pickCallback = ({ worldPosition }) => {
+      if (activeLandmark) {
+        vr.updateLandmarkPosition(activeLandmark, worldPosition);
+      }
+    };
+
+    landmarks.forEach(l => {
+      const button = document.createElement("button");
+      button.textContent = `Move ${l.label}`;
+      button.addEventListener('click', () => {
+        activeLandmark = l.label;
+        vr.turnPickingOn(pickCallback, ["centerline"]);
+      });
+      landmarkControls.appendChild(button);
+    });
+
+    const stopButton = document.createElement("button");
+    stopButton.textContent = "Stop Moving";
+    stopButton.addEventListener('click', () => {
+      activeLandmark = null;
+      vr.turnPickingOff();
+    });
+    landmarkControls.appendChild(stopButton);
+  });
+
+
+// Load the lumen model
+loadAndAddSurface("./demo/lumen.vtp", "vtp", {
+  color: [0, 1, 0],
+  label: "lumen",
+  opacity: 0.5
+});
+          </code>
+        </pre>
+    </div>
+  </div>
+
+  <script src="./diglettk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+  <script type="text/javascript" src="https://unpkg.com/vtk.js"></script>
+
+  <script>
+    const element = document.getElementById("viewer-2");
+    const vr = new diglettk.VRView(element);
+
+    console.log(vr);
+
+    // Helper function to load and add a surface
+    const loadAndAddSurface = (url, fileType, props) => {
+      fetch(url)
+        .then(response => response.arrayBuffer())
+        .then(buffer => {
+          vr.addSurface({ buffer, fileType, props });
+        });
+    };
+
+    // Load the dice model
+    loadAndAddSurface("./demo/die.stl", "stl", {
+      color: [0, 0, 1],
+      label: "dice",
+      opacity: 1.0,
+      wireframe: false
+    });
+
+    // Load the centerline model and add landmarks
+    fetch("./demo/centerline.vtp")
+      .then(response => response.arrayBuffer())
+      .then(buffer => {
+        // Add the centerline surface
+        vr.addSurface({
+          buffer: buffer, // Use the original buffer directly
+          fileType: "vtp",
+          props: {
+            color: [1, 0, 0],
+            label: "centerline"
+          }
+        });
+
+        // Parse the VTP file to get points for landmarks
+        const reader = vtk.IO.XML.vtkXMLPolyDataReader.newInstance();
+        reader.parseAsArrayBuffer(buffer);
+        const polydata = reader.getOutputData(0);
+        const points = polydata.getPoints().getData(); // Flat array [x1, y1, z1, ...]
+
+        const numPoints = points.length / 3;
+        const landmarks = [];
+        for (let i = 0; i < 4; i++) {
+          const pointIndex = Math.floor(Math.random() * numPoints);
+          const x = points[pointIndex * 3];
+          const y = points[pointIndex * 3 + 1];
+          const z = points[pointIndex * 3 + 2];
+          landmarks.push({
+            label: `landmark_${i}`,
+            x,
+            y,
+            z,
+            color: [1, 1, 0], // Yellow
+            radius: 5
+          });
+        }
+        vr.addLandmarks(landmarks);
+
+        // Setup landmark controls
+        const landmarkControls = document.getElementById("landmarkControls");
+        let activeLandmark = null;
+
+        const pickCallback = ({ worldPosition }) => {
+          if (activeLandmark) {
+            vr.updateLandmarkPosition(activeLandmark, worldPosition);
+          }
+        };
+
+        landmarks.forEach(l => {
+          const button = document.createElement("button");
+          button.textContent = `Move ${l.label}`;
+          button.addEventListener('click', () => {
+            activeLandmark = l.label;
+            vr.turnPickingOn(pickCallback, ["centerline"]);
+          });
+          landmarkControls.appendChild(button);
+        });
+
+        const stopButton = document.createElement("button");
+        stopButton.textContent = "Stop Moving";
+        stopButton.addEventListener('click', () => {
+          activeLandmark = null;
+          vr.turnPickingOff();
+        });
+        landmarkControls.appendChild(stopButton);
+      });
+
+    // Load the lumen model
+    loadAndAddSurface("./demo/lumen.vtp", "vtp", {
+      color: [0, 1, 0],
+      label: "lumen",
+      opacity: 0.3
+    });
+  </script>
+</body>
+
 </html>
