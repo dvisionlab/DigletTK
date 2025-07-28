@@ -174,7 +174,7 @@ loadAndAddSurface("./demo/lumen.vtp", "vtp", {
       .then(buffer => {
         // Add the centerline surface
         vr.addSurface({
-          buffer: buffer.slice(0), // Pass a copy of the buffer
+          buffer: buffer, // Use the original buffer directly
           fileType: "vtp",
           props: {
             color: [1, 0, 0],
