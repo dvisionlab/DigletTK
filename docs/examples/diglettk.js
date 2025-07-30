@@ -48569,6 +48569,8 @@ var vtkGenericRenderWindow$1 = {
 
 
 
+const BUFFER_HEADER_SIZE = 100;
+
 /**
  * Build vtk volume (vtkImageData)
  * @param {Object} header
