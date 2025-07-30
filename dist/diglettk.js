@@ -3340,7 +3340,7 @@ __webpack_require__.d(mat3_namespaceObject, {
 });
 
 ;// CONCATENATED MODULE: ./package.json
-const package_namespaceObject = {"i8":"1.3.1"};
+const package_namespaceObject = {"i8":"1.3.2"};
 ;// CONCATENATED MODULE: ./node_modules/@babel/runtime/helpers/esm/defineProperty.js
 function _defineProperty(obj, key, value) {
   if (key in obj) {
