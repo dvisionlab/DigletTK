@@ -17,6 +17,8 @@ import vtkXMLPolyDataReader from "@kitware/vtk.js/IO/XML/XMLPolyDataReader";
 import { vec3, quat, mat4 } from "gl-matrix";
 import vtkGenericRenderWindow from "@kitware/vtk.js/Rendering/Misc/GenericRenderWindow";
 
+const BUFFER_HEADER_SIZE = 100;
+
 /**
  * Build vtk volume (vtkImageData)
  * @param {Object} header
