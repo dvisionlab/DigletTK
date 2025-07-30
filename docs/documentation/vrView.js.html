@@ -412,16 +412,11 @@ export class VRView extends baseView {
       return;
     }
 
-    const { actor, mapper } = surfaceData;
+    const { actor } = surfaceData;
 
     const properties = actor.getProperty();
     properties.setColor(...props.color);
     properties.setOpacity(props.opacity || 1);
-    if (props.wireframe) {
-      properties.setRepresentation(vtkMapper.Representation.WIREFRAME);
-    } else {
-      properties.setRepresentation(vtkMapper.Representation.SURFACE);
-    }
     this._surfaces.set(props.label, actor);
 
     this._renderer.addActor(actor);
