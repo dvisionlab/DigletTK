@@ -12,6 +12,7 @@ import vtkInteractorStyleManipulator from "@kitware/vtk.js/Interaction/Style/Int
 import vtkPointPicker from "@kitware/vtk.js/Rendering/Core/PointPicker";
 import vtkCoordinate from "@kitware/vtk.js/Rendering/Core/Coordinate";
 import vtkSphereSource from "@kitware/vtk.js/Filters/Sources/SphereSource";
+import vtkLineSource from "@kitware/vtk.js/Filters/Sources/LineSource";
 import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
 import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
 
@@ -81,12 +82,18 @@ export class VRView extends baseView {
 
     // picking state
     this._pickCb = null;
+    this._pickOptions = null;
+    this._pickingEnabled = false;
 
     // surfaces
     this._surfaces = new Map();
 
     // landmarks
     this._landmarks = new Map();
+    this._highlightLineX = null;
+    this._highlightLineY = null;
+    this._highlightActorX = null;
+    this._highlightActorY = null;
 
     // initialize empty scene
     this._init();
@@ -375,9 +382,10 @@ export class VRView extends baseView {
   /**
    * Add landmarks to be rendered as spheres
    * @param {Array} landmarks - [{label, x, y, z, color, radius}]
-   * Call resetLandmarks() beforehand to replace existing landmarks.
+   * Use replaceLandmarks() to replace existing landmarks.
+   * @param {Boolean} render - Optional render toggle (default true)
    */
-  addLandmarks(landmarks) {
+  addLandmarks(landmarks, render = true) {
     landmarks.forEach(landmark => {
       if (this._landmarks.has(landmark.label)) {
         console.warn(
@@ -401,16 +409,22 @@ export class VRView extends baseView {
       this._renderer.addActor(actor);
     });
 
-    this._renderWindow.render();
+    if (render) {
+      this._renderWindow.render();
+    }
   }
 
   /**
    * Remove all landmarks from the scene
+   * @param {Boolean} render - Optional render toggle (default true)
    */
-  resetLandmarks() {
+  resetLandmarks(render = true) {
     if (!this._renderer || !this._renderWindow || !this._landmarks) {
       return;
     }
+
+    // Ensure any highlight indicator is cleared when landmarks are reset.
+    this.clearHighlightedLandmark(false);
 
     this._landmarks.forEach(({ actor, sphereSource }) => {
       if (actor) {
@@ -428,7 +442,160 @@ export class VRView extends baseView {
     });
 
     this._landmarks.clear();
+    if (render) {
+      this._renderWindow.render();
+    }
+  }
+
+  /**
+   * Replace all landmarks in a single render pass
+   * @param {Array} landmarks - [{label, x, y, z, color, radius}]
+   */
+  replaceLandmarks(landmarks) {
+    this.resetLandmarks(false);
+    this.addLandmarks(landmarks, false);
+    if (this._renderWindow) {
+      this._renderWindow.render();
+    }
+  }
+
+  /**
+   * Highlight a landmark with a red cross indicator
+   * @param {String|Object} labelOrId - Landmark label or landmark-like object
+   * @param {Object} options
+   * @param {Number} options.radius - Override landmark radius
+   * @param {Number} options.lengthFactor - Scale factor for cross length (default 4)
+   */
+  setHighlightedLandmark(labelOrId, options = {}) {
+    if (!this._renderer || !this._renderWindow) {
+      return;
+    }
+
+    let landmark = null;
+    let landmarkRadius = null;
+    if (labelOrId && typeof labelOrId === "object") {
+      if (
+        Number.isFinite(labelOrId.x) &&
+        Number.isFinite(labelOrId.y) &&
+        Number.isFinite(labelOrId.z)
+      ) {
+        landmark = labelOrId;
+        if (Number.isFinite(labelOrId.radius)) {
+          landmarkRadius = labelOrId.radius;
+        }
+      } else if (
+        labelOrId.label &&
+        this._landmarks &&
+        this._landmarks.has(labelOrId.label)
+      ) {
+        const entry = this._landmarks.get(labelOrId.label);
+        const [x, y, z] = entry.sphereSource.getCenter();
+        landmark = { x, y, z };
+        landmarkRadius = entry.sphereSource.getRadius();
+      }
+    } else if (this._landmarks && this._landmarks.has(labelOrId)) {
+      const entry = this._landmarks.get(labelOrId);
+      const [x, y, z] = entry.sphereSource.getCenter();
+      landmark = { x, y, z };
+      landmarkRadius = entry.sphereSource.getRadius();
+    }
+
+    if (
+      !landmark ||
+      !Number.isFinite(landmark.x) ||
+      !Number.isFinite(landmark.y) ||
+      !Number.isFinite(landmark.z)
+    ) {
+      this.clearHighlightedLandmark();
+      return;
+    }
+
+    if (!this._highlightLineX || !this._highlightLineY) {
+      const lineX = vtkLineSource.newInstance();
+      const lineY = vtkLineSource.newInstance();
+
+      const mapperX = vtkMapper.newInstance();
+      const mapperY = vtkMapper.newInstance();
+      mapperX.setInputConnection(lineX.getOutputPort());
+      mapperY.setInputConnection(lineY.getOutputPort());
+
+      const actorX = vtkActor.newInstance();
+      const actorY = vtkActor.newInstance();
+      actorX.setMapper(mapperX);
+      actorY.setMapper(mapperY);
+
+      actorX.getProperty().setColor(1, 0, 0);
+      actorY.getProperty().setColor(1, 0, 0);
+      actorX.getProperty().setLineWidth(3);
+      actorY.getProperty().setLineWidth(3);
+      actorX.setVisibility(false);
+      actorY.setVisibility(false);
+
+      this._renderer.addActor(actorX);
+      this._renderer.addActor(actorY);
+
+      this._highlightLineX = lineX;
+      this._highlightLineY = lineY;
+      this._highlightActorX = actorX;
+      this._highlightActorY = actorY;
+    }
+
+    const baseRadius = Number.isFinite(options.radius)
+      ? options.radius
+      : Number.isFinite(landmarkRadius)
+      ? landmarkRadius
+      : Number.isFinite(landmark.radius)
+      ? landmark.radius
+      : 1;
+    const lengthFactor = Number.isFinite(options.lengthFactor)
+      ? options.lengthFactor
+      : 4;
+    const length = Math.max(baseRadius * lengthFactor, 1);
+
+    this._highlightLineX.setPoint1(landmark.x - length, landmark.y, landmark.z);
+    this._highlightLineX.setPoint2(landmark.x + length, landmark.y, landmark.z);
+    this._highlightLineY.setPoint1(landmark.x, landmark.y - length, landmark.z);
+    this._highlightLineY.setPoint2(landmark.x, landmark.y + length, landmark.z);
+
+    this._highlightActorX.setVisibility(true);
+    this._highlightActorY.setVisibility(true);
     this._renderWindow.render();
+  }
+
+  /**
+   * Hide highlighted landmark indicator
+   * @param {Boolean} render - Optional render toggle (default true)
+   */
+  clearHighlightedLandmark(render = true) {
+    if (!this._highlightActorX || !this._highlightActorY) {
+      return;
+    }
+
+    this._highlightActorX.setVisibility(false);
+    this._highlightActorY.setVisibility(false);
+    if (render && this._renderWindow) {
+      this._renderWindow.render();
+    }
+  }
+
+  /**
+   * Get current landmarks state (for debug)
+   * @returns {Array} - [{label, x, y, z, color, radius}]
+   */
+  getLandmarks() {
+    if (!this._landmarks) {
+      return [];
+    }
+
+    const result = [];
+    this._landmarks.forEach(({ actor, sphereSource }, label) => {
+      const [x, y, z] = sphereSource.getCenter();
+      const radius = sphereSource.getRadius();
+      const color = actor.getProperty().getColor();
+      result.push({ label, x, y, z, color, radius });
+    });
+
+    return result;
   }
 
   /**
@@ -584,6 +751,25 @@ export class VRView extends baseView {
       this._planeActor.getMapper().delete();
       this._planeActor.delete();
       this._planeActor = null;
+    }
+
+    if (this._highlightActorX) {
+      this._highlightActorX.getMapper().delete();
+      this._highlightActorX.delete();
+      this._highlightActorX = null;
+    }
+    if (this._highlightActorY) {
+      this._highlightActorY.getMapper().delete();
+      this._highlightActorY.delete();
+      this._highlightActorY = null;
+    }
+    if (this._highlightLineX) {
+      this._highlightLineX.delete();
+      this._highlightLineX = null;
+    }
+    if (this._highlightLineY) {
+      this._highlightLineY.delete();
+      this._highlightLineY = null;
     }
 
     this._landmarks.forEach(({ actor, sphereSource }) => {
@@ -867,6 +1053,103 @@ export class VRView extends baseView {
       this._pickCb.unsubscribe();
       this._pickCb = null;
     }
+  }
+
+  /**
+   * Toggle picking with stored or provided options
+   * @param {Boolean} enabled
+   * @param {Object} options
+   * @param {Function} options.onPick
+   * @param {Array<String>} options.labels
+   * @param {Boolean} options.preserveCallback - Keep previous callback when updating labels
+   * labels null/[] means "all pickable actors"
+   */
+  setPickingEnabled(enabled, options = {}) {
+    const shouldEnable = Boolean(enabled);
+    if (shouldEnable) {
+      const hasLabels =
+        Object.prototype.hasOwnProperty.call(options, "labels") ||
+        Object.prototype.hasOwnProperty.call(options, "targetLabels");
+
+      const preserveCallback = Boolean(options.preserveCallback);
+      // Backwards compatibility with { callback, targetLabels }.
+      const onPick =
+        typeof options.onPick === "function"
+          ? options.onPick
+          : typeof options.callback === "function"
+          ? options.callback
+          : null;
+      // If preserveCallback is true, prefer the previously registered callback.
+      const nextOnPick =
+        preserveCallback && this._pickOptions
+          ? this._pickOptions.onPick
+          : onPick || (this._pickOptions ? this._pickOptions.onPick : null);
+
+      let nextLabels;
+      if (hasLabels) {
+        nextLabels =
+          options.labels !== undefined ? options.labels : options.targetLabels;
+      } else if (this._pickOptions) {
+        nextLabels = this._pickOptions.labels;
+      } else {
+        nextLabels = null;
+      }
+
+      if (typeof nextOnPick !== "function") {
+        console.warn(
+          "DTK: setPickingEnabled(true) requires { onPick, labels } (or preserveCallback)."
+        );
+        this.turnPickingOff();
+        this._pickingEnabled = false;
+        return;
+      }
+
+      let targetLabels;
+      if (nextLabels == null) {
+        targetLabels = this._getPickableLabels();
+      } else if (Array.isArray(nextLabels)) {
+        targetLabels =
+          nextLabels.length === 0 ? this._getPickableLabels() : nextLabels;
+      } else {
+        console.warn(
+          "DTK: setPickingEnabled(true) expects labels as an array (or null for all)."
+        );
+        this.turnPickingOff();
+        this._pickingEnabled = false;
+        return;
+      }
+
+      if (targetLabels.length === 0) {
+        console.warn("DTK: No pickable actors found.");
+        this.turnPickingOff();
+        this._pickingEnabled = false;
+        return;
+      }
+
+      // Re-register to rebuild the pick list (callback preserved if requested).
+      this._pickOptions = { onPick: nextOnPick, labels: nextLabels };
+      this.turnPickingOn(nextOnPick, targetLabels);
+      this._pickingEnabled = Boolean(this._pickCb);
+      return;
+    }
+
+    this.turnPickingOff();
+    this._pickingEnabled = false;
+  }
+
+  /**
+   * Collect labels for all pickable actors (surfaces + landmarks)
+   * @private
+   */
+  _getPickableLabels() {
+    const labels = [];
+    if (this._surfaces) {
+      this._surfaces.forEach((_, label) => labels.push(label));
+    }
+    if (this._landmarks) {
+      this._landmarks.forEach((_, label) => labels.push(label));
+    }
+    return labels;
   }
 
   /**
