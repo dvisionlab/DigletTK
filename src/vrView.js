@@ -375,6 +375,7 @@ export class VRView extends baseView {
   /**
    * Add landmarks to be rendered as spheres
    * @param {Array} landmarks - [{label, x, y, z, color, radius}]
+   * Call resetLandmarks() beforehand to replace existing landmarks.
    */
   addLandmarks(landmarks) {
     landmarks.forEach(landmark => {
@@ -400,6 +401,33 @@ export class VRView extends baseView {
       this._renderer.addActor(actor);
     });
 
+    this._renderWindow.render();
+  }
+
+  /**
+   * Remove all landmarks from the scene
+   */
+  resetLandmarks() {
+    if (!this._renderer || !this._renderWindow || !this._landmarks) {
+      return;
+    }
+
+    this._landmarks.forEach(({ actor, sphereSource }) => {
+      if (actor) {
+        this._renderer.removeActor(actor);
+        const mapper = actor.getMapper();
+        if (mapper) {
+          mapper.delete();
+        }
+        actor.delete();
+      }
+
+      if (sphereSource) {
+        sphereSource.delete();
+      }
+    });
+
+    this._landmarks.clear();
     this._renderWindow.render();
   }
 
