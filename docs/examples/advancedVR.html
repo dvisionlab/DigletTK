@@ -60,6 +60,16 @@ Right click to delete a curve.
           <input type="range" class="form-range" id="sliceOpacity" min="0" max="1" step="0.01" value="1"
             oninput="updSliceOpacity(this.value)" />
         </div>
+        <div style="margin-bottom: 4px">
+          <label class="form-label" for="sliceWW">Slice WW</label>
+          <input type="range" class="form-range" id="sliceWW" min="1" max="4000" step="1" value="1000"
+            oninput="updSliceWW(this.value)" />
+        </div>
+        <div style="margin-bottom: 4px">
+          <label class="form-label" for="sliceWL">Slice WL</label>
+          <input type="range" class="form-range" id="sliceWL" min="-1000" max="2000" step="1" value="500"
+            oninput="updSliceWL(this.value)" />
+        </div>
       </form>
       <!-- end inputs -->
 
@@ -100,6 +110,9 @@ vr.lut = "MuscleBone";
 vr.rescaleLUT = true;
 // activate slice plane
 vr.slicePlane = true;
+// set slice appearance
+vr.sliceOpacity = 0.5;
+vr.sliceWwwl = [1000, 500];
 // activate crop widget
 // vr.cropWidget = true;
 // activate edge enhancement
@@ -141,6 +154,18 @@ vr.slicePlane = true;
       vr.sliceOpacity = parseFloat(v);
     }
 
+    function updSliceWW(v) {
+      console.log("update slice WW", v);
+      const [old_ww, old_wl] = vr.sliceWwwl;
+      vr.sliceWwwl = [parseFloat(v), old_wl];
+    }
+
+    function updSliceWL(v) {
+      console.log("update slice WL", v);
+      const [old_ww, old_wl] = vr.sliceWwwl;
+      vr.sliceWwwl = [old_ww, parseFloat(v)];
+    }
+
     const element = document.getElementById("viewer-2");
     const widgetContainer = document.getElementById("widget");
 
@@ -176,8 +201,11 @@ vr.slicePlane = true;
       vr.rescaleLUT = true;
       // activate slice plane
       vr.slicePlane = true;
+      vr.sliceWwwl = [500, 1000];
       document.getElementById("slicePos").value = 0.5;
       document.getElementById("sliceOpacity").value = 1.0;
+      document.getElementById("sliceWW").value = 500;
+      document.getElementById("sliceWL").value = 1000;
     }
   </script>
 </body>
