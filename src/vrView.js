@@ -14,7 +14,15 @@ import vtkCoordinate from "@kitware/vtk.js/Rendering/Core/Coordinate";
 import vtkSphereSource from "@kitware/vtk.js/Filters/Sources/SphereSource";
 import vtkLineSource from "@kitware/vtk.js/Filters/Sources/LineSource";
 import vtkActor from "@kitware/vtk.js/Rendering/Core/Actor";
-import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
+import vtkImageMapper from "@kitware/vtk.js/Rendering/Core/ImageMapper";
+import vtkImageReslice from "@kitware/vtk.js/Imaging/Core/ImageReslice";
+import vtkImageSlice from "@kitware/vtk.js/Rendering/Core/ImageSlice";
+import vtkImageProperty from "@kitware/vtk.js/Rendering/Core/ImageProperty";
+import vtkPlane from "@kitware/vtk.js/Common/DataModel/Plane";
+import vtkImplicitPlaneWidget from "@kitware/vtk.js/Widgets/Widgets3D/ImplicitPlaneWidget";
+import vtkWidgetManager from "@kitware/vtk.js/Widgets/Core/WidgetManager";
+import { dot, cross, normalize } from "@kitware/vtk.js/Common/Core/Math";
+import { InterpolationType } from "@kitware/vtk.js/Rendering/Core/ImageProperty/Constants";
 
 import {
   createVolumeActor,
@@ -92,8 +100,20 @@ export class VRView extends baseView {
     this._landmarks = new Map();
     this._highlightLineX = null;
     this._highlightLineY = null;
+    this._highlightActorY = null;
     this._highlightActorX = null;
     this._highlightActorY = null;
+
+    // slice plane
+    this._slicePlane = null;
+    this._reslice = null;
+    this._sliceMapper = null;
+    this._sliceActor = null;
+    this._sliceProperty = null;
+
+    this._widgetManager = null;
+    this._sliceWidget = null;
+    this._sliceWidgetInstance = null;
 
     // initialize empty scene
     this._init();
@@ -295,6 +315,134 @@ export class VRView extends baseView {
   }
 
   /**
+   * Toggle slice plane visibility
+   * @type {bool}
+   */
+  set slicePlane(visible) {
+    if (!this._sliceActor) this._initSlicePlane();
+    if (!this._sliceWidget) this._initSliceWidget();
+
+    this._sliceActor.setVisibility(visible);
+    this._sliceWidgetInstance.setEnabled(visible);
+    this._widgetManager.renderWidgets();
+    this._renderWindow.render();
+  }
+
+  /**
+   * Set slice opacity
+   * @type {Number}
+   */
+  set sliceOpacity(opacity) {
+    if (!this._sliceActor) this._initSlicePlane();
+    this._sliceProperty.setOpacity(opacity);
+    this._renderWindow.render();
+  }
+
+  get sliceOpacity() {
+    return this._sliceProperty ? this._sliceProperty.getOpacity() : 1;
+  }
+
+  /**
+   * Set slice position [0, 1] along its normal
+   * @type {Number}
+   */
+  set slicePosition(value) {
+    if (!this._slicePlane || !this._actor) return;
+
+    const bounds = this._actor.getBounds();
+    const normal = this._slicePlane.getNormal();
+
+    // Compute min/max distance along normal for all 8 corners
+    let minD = Infinity;
+    let maxD = -Infinity;
+
+    for (let i = 0; i < 8; i++) {
+      const corner = [
+        bounds[i % 2],
+        bounds[2 + (Math.floor(i / 2) % 2)],
+        bounds[4 + (Math.floor(i / 4) % 2)]
+      ];
+      const d = dot(corner, normal);
+      if (d < minD) minD = d;
+      if (d > maxD) maxD = d;
+    }
+
+    const targetD = minD + value * (maxD - minD);
+    const currentOrigin = this._slicePlane.getOrigin();
+    const currentD = dot(currentOrigin, normal);
+
+    // Move origin along normal to reach targetD
+    const offset = targetD - currentD;
+    const newOrigin = [
+      currentOrigin[0] + offset * normal[0],
+      currentOrigin[1] + offset * normal[1],
+      currentOrigin[2] + offset * normal[2]
+    ];
+
+    this.setSlicePlane(newOrigin);
+  }
+
+  get slicePosition() {
+    if (!this._slicePlane || !this._actor) return 0.5;
+
+    const bounds = this._actor.getBounds();
+    const normal = this._slicePlane.getNormal();
+    const origin = this._slicePlane.getOrigin();
+
+    let minD = Infinity;
+    let maxD = -Infinity;
+
+    for (let i = 0; i < 8; i++) {
+      const corner = [
+        bounds[i % 2],
+        bounds[2 + (Math.floor(i / 2) % 2)],
+        bounds[4 + (Math.floor(i / 4) % 2)]
+      ];
+      const d = dot(corner, normal);
+      if (d < minD) minD = d;
+      if (d > maxD) maxD = d;
+    }
+
+    const currentD = dot(origin, normal);
+    const pos = (currentD - minD) / (maxD - minD);
+    return Math.max(0, Math.min(1, pos));
+  }
+
+  /**
+   * Set slice plane origin and normal
+   * @param {Array} origin
+   * @param {Array} normal
+   */
+  setSlicePlane(origin, normal) {
+    if (!this._sliceActor) this._initSlicePlane();
+    if (!this._sliceWidget) this._initSliceWidget();
+
+    if (origin) this._slicePlane.setOrigin(origin);
+    if (normal) this._slicePlane.setNormal(normal);
+
+    // update reslice axes
+    this._updateResliceAxes();
+
+    const planeState = this._sliceWidget.getWidgetState();
+    planeState.setOrigin(this._slicePlane.getOrigin());
+    planeState.setNormal(this._slicePlane.getNormal());
+
+    this._renderWindow.render();
+  }
+
+  /**
+   * Get slice plane origin and normal
+   * @returns {Object} {origin, normal}
+   */
+  getSlicePlane() {
+    if (!this._slicePlane) return null;
+    return {
+      origin: this._slicePlane.getOrigin(),
+      normal: this._slicePlane.getNormal()
+    };
+  }
+
+  /**
    * Toggle edge enhancement
    */
   set edgeEnhancement([type, value]) {
@@ -319,6 +467,20 @@ export class VRView extends baseView {
     this.lut = "Grayscale";
     this.resolution = 2;
     this._renderer.addVolume(this._actor);
+
+    if (this._reslice) {
+      this._reslice.setInputData(this._actor.getMapper().getInputData());
+      const center = this._actor.getCenter();
+      this._slicePlane.setOrigin(center);
+      this._updateResliceAxes();
+
+      if (this._sliceWidget) {
+        this._sliceWidget.placeWidget(this._actor.getBounds());
+        const planeState = this._sliceWidget.getWidgetState();
+        planeState.setOrigin(this._slicePlane.getOrigin());
+        planeState.setNormal(this._slicePlane.getNormal());
+      }
+    }
 
     // center camera on new volume
     this._renderer.resetCamera();
@@ -543,10 +705,10 @@ export class VRView extends baseView {
     const baseRadius = Number.isFinite(options.radius)
       ? options.radius
       : Number.isFinite(landmarkRadius)
-      ? landmarkRadius
-      : Number.isFinite(landmark.radius)
-      ? landmark.radius
-      : 1;
+        ? landmarkRadius
+        : Number.isFinite(landmark.radius)
+          ? landmark.radius
+          : 1;
     const lengthFactor = Number.isFinite(options.lengthFactor)
       ? options.lengthFactor
       : 4;
@@ -791,6 +953,34 @@ export class VRView extends baseView {
     if (this._cropWidget) {
       this._cropWidget.delete();
       this._cropWidget = null;
+    }
+
+    if (this._sliceActor) {
+      this._sliceActor.getMapper().delete();
+      this._sliceActor.delete();
+      this._sliceActor = null;
+    }
+
+    if (this._sliceMapper) {
+      this._sliceMapper.delete();
+      this._sliceMapper = null;
+    }
+
+    if (this._reslice) {
+      this._reslice.delete();
+      this._reslice = null;
+    }
+
+    if (this._slicePlane) {
+      this._slicePlane.delete();
+      this._slicePlane = null;
+    }
+
+    if (this._sliceWidget) {
+      this._sliceWidget.delete();
+      this._sliceWidget = null;
+      this._widgetManager.delete();
+      this._widgetManager = null;
     }
   }
 
@@ -1077,8 +1267,8 @@ export class VRView extends baseView {
         typeof options.onPick === "function"
           ? options.onPick
           : typeof options.callback === "function"
-          ? options.callback
-          : null;
+            ? options.callback
+            : null;
       // If preserveCallback is true, prefer the previously registered callback.
       const nextOnPick =
         preserveCallback && this._pickOptions
@@ -1229,5 +1419,108 @@ export class VRView extends baseView {
 
         this._renderWindow.render();
       });
+  }
+
+  /**
+   * Initialize slice plane
+   * @private
+   */
+  _initSlicePlane() {
+    this._slicePlane = vtkPlane.newInstance();
+    this._slicePlane.setNormal(0, 0, 1);
+
+    this._reslice = vtkImageReslice.newInstance();
+    this._reslice.setTransformInputSampling(false);
+    this._reslice.setAutoCropOutput(true);
+    this._reslice.setOutputDimensionality(2);
+
+    this._sliceMapper = vtkImageMapper.newInstance();
+    this._sliceMapper.setInputConnection(this._reslice.getOutputPort());
+
+    this._sliceActor = vtkImageSlice.newInstance();
+    this._sliceActor.setMapper(this._sliceMapper);
+
+    this._sliceProperty = vtkImageProperty.newInstance();
+    this._sliceProperty.setInterpolationType(InterpolationType.LINEAR);
+    this._sliceActor.setProperty(this._sliceProperty);
+
+    this._renderer.addActor(this._sliceActor);
+    this._sliceActor.setVisibility(false);
+
+    if (this._actor) {
+      this._reslice.setInputData(this._actor.getMapper().getInputData());
+      this._slicePlane.setOrigin(this._actor.getCenter());
+      this._updateResliceAxes();
+    }
+  }
+
+  /**
+   * Update reslice axes based on plane origin and normal
+   * @private
+   */
+  _updateResliceAxes() {
+    if (!this._reslice || !this._slicePlane) return;
+
+    const origin = this._slicePlane.getOrigin();
+    const normal = this._slicePlane.getNormal();
+
+    // Create orthonormal basis
+    const z = [...normal];
+    normalize(z);
+
+    const x = [0, 0, 0];
+    const y = [0, 0, 0];
+
+    // Find a vector not parallel to z
+    const tempX = [1, 0, 0];
+    if (Math.abs(dot(z, tempX)) > 0.9) {
+      tempX[0] = 0;
+      tempX[1] = 1;
+      tempX[2] = 0;
+    }
+
+    cross(z, tempX, y);
+    normalize(y);
+    cross(y, z, x);
+    normalize(x);
+
+    const axes = [
+      x[0], x[1], x[2], 0,
+      y[0], y[1], y[2], 0,
+      z[0], z[1], z[2], 0,
+      origin[0], origin[1], origin[2], 1
+    ];
+
+    this._reslice.setResliceAxes(axes);
+
+    if (this._sliceActor) {
+      this._sliceActor.setUserMatrix(axes);
+    }
+  }
+
+  /**
+   * Initialize slice widget
+   * @private
+   */
+  _initSliceWidget() {
+    this._widgetManager = vtkWidgetManager.newInstance();
+    this._widgetManager.setRenderer(this._renderer);
+
+    this._sliceWidget = vtkImplicitPlaneWidget.newInstance();
+    this._sliceWidgetInstance = this._widgetManager.addWidget(this._sliceWidget);
+
+    const planeState = this._sliceWidget.getWidgetState();
+    planeState.setOrigin(this._slicePlane.getOrigin());
+    planeState.setNormal(this._slicePlane.getNormal());
+
+    planeState.onModified(() => {
+      this._slicePlane.setOrigin(planeState.getOrigin());
+      this._slicePlane.setNormal(planeState.getNormal());
+      this._updateResliceAxes();
+      this._renderWindow.render();
+    });
+
+    this._sliceWidget.setHandleVisibility(false);
+    this._sliceWidget.setContextVisibility(false);
   }
 }
