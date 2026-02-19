@@ -75,6 +75,7 @@ import vtkImplicitPlaneWidget from "@kitware/vtk.js/Widgets/Widgets3D/ImplicitPl
 import vtkWidgetManager from "@kitware/vtk.js/Widgets/Core/WidgetManager";
 import { dot, cross, normalize } from "@kitware/vtk.js/Common/Core/Math";
 import { InterpolationType } from "@kitware/vtk.js/Rendering/Core/ImageProperty/Constants";
+import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
 
 import {
   createVolumeActor,
@@ -375,7 +376,9 @@ export class VRView extends baseView {
     if (!this._sliceWidget) this._initSliceWidget();
 
     this._sliceActor.setVisibility(visible);
-    this._sliceWidgetInstance.setEnabled(visible);
+    if (this._sliceWidgetInstance) {
+      this._sliceWidgetInstance.setEnabled(visible);
+    }
     this._widgetManager.renderWidgets();
     this._renderWindow.render();
   }
