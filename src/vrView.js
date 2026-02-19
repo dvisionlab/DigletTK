@@ -23,6 +23,7 @@ import vtkImplicitPlaneWidget from "@kitware/vtk.js/Widgets/Widgets3D/ImplicitPl
 import vtkWidgetManager from "@kitware/vtk.js/Widgets/Core/WidgetManager";
 import { dot, cross, normalize } from "@kitware/vtk.js/Common/Core/Math";
 import { InterpolationType } from "@kitware/vtk.js/Rendering/Core/ImageProperty/Constants";
+import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
 
 import {
   createVolumeActor,
