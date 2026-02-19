@@ -398,6 +398,25 @@ export class VRView extends baseView {
   }
 
   /**
+   * sliceWwwl
+   * @type {Array}
+   */
+  set sliceWwwl([ww, wl]) {
+    if (!this._sliceActor) this._initSlicePlane();
+    this._sliceProperty.setColorWindow(ww);
+    this._sliceProperty.setColorLevel(wl);
+    this._renderWindow.render();
+  }
+
+  get sliceWwwl() {
+    if (!this._sliceProperty) return [0, 0];
+    return [
+      this._sliceProperty.getColorWindow(),
+      this._sliceProperty.getColorLevel()
+    ];
+  }
+
+  /**
    * Set slice position [0, 1] along its normal
    * @type {Number}
    */
@@ -524,10 +543,15 @@ export class VRView extends baseView {
     this._renderer.addVolume(this._actor);
 
     if (this._reslice) {
-      this._reslice.setInputData(this._actor.getMapper().getInputData());
+      const data = this._actor.getMapper().getInputData();
+      this._reslice.setInputData(data);
       const center = this._actor.getCenter();
       this._slicePlane.setOrigin(center);
       this._updateResliceAxes();
+
+      // initialize slice wwwl based on data range
+      const range = data.getPointData().getScalars().getRange();
+      this.sliceWwwl = [range[1] - range[0], (range[0] + range[1]) / 2];
 
       if (this._sliceWidget) {
         this._sliceWidget.placeWidget(this._actor.getBounds());
