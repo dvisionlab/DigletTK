@@ -323,7 +323,9 @@ export class VRView extends baseView {
     if (!this._sliceWidget) this._initSliceWidget();
 
     this._sliceActor.setVisibility(visible);
-    this._sliceWidgetInstance.setEnabled(visible);
+    if (this._sliceWidgetInstance) {
+      this._sliceWidgetInstance.setEnabled(visible);
+    }
     this._widgetManager.renderWidgets();
     this._renderWindow.render();
   }
