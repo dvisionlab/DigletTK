@@ -3,7 +3,7 @@
 <head>
     
     <meta charset="utf-8">
-    <title>Home - DigleTTK</title>
+    <title>utils/strategies.js - DigleTTK</title>
     
     
     
@@ -40,132 +40,98 @@
 
 <div id="main">
     
+    <h1 class="page-title">utils/strategies.js</h1>
+    
 
     
 
 
 
     
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import * as vtkMath from "@kitware/vtk.js/Common/Core/Math";
 
-
-    <section class="package">
-        <h3> </h3>		
-    </section>
-
-
-
-
-
-
-
-
-
-    
-
-
-
-    <section class="readme usertext">
-        <article><p align="center">
-  <img src="https://assets.pokemon.com/assets/cms2/img/pokedex/full/050.png" width="100" title="Diglett" alt="Diglett">
-</p>
-<h1 id="diglettk">DigletTK</h1>
-<p>DigletTK is a library to interact with medical images in a 3d context, such as Multi Planar Reformat, MIP and Volume Rendering. It's based on vtk.js and takes inspiration from <a href="https://github.com/mix3d/vue-vtkjs-viewport">vue-vtksjs-viewport</a> and <a href="https://github.com/OHIF/react-vtkjs-viewport">react-vtkjs-viewport</a>, but it is built to be agnostic with respect to frontend frameworks.<br>
-It also provides glue-functions to easily integrate with cornerstone.js, via <a href="https://github.com/dvisionlab/Larvitar">Larvitar</a> library.</p>
-<h2 id="install">Install</h2>
-<ul>
-<li>
-<p><code>yarn add diglettk</code></p>
-<p>OR</p>
-</li>
-<li>
-<p>clone the repository and <code>yarn add /path/to/repository</code></p>
-<p>OR</p>
-</li>
-<li>
-<p><code>yarn add https://github.com/dvisionlab/DigletTK.git#master</code></p>
-</li>
-</ul>
-<h2 id="use">Use</h2>
-<p>Examples and docs at http://diglettk.dvisionlab.com/. Short mpr version:</p>
-<pre class="prettyprint source lang-javascript"><code>/** 
- Define viewports as:
-
- {
-     key: String - The view id (must be unique)
-     element: HTMLElement - The target rendering div
- }
-
+/**
+ * Apply the logic to measure length between two points
+ * @param {Object} state - The measurement state
  */
-
-const targetElements = {
-  top: {
-    element: document.getElementById(&quot;viewer-1&quot;),
-    key: &quot;top&quot;
-  },
-  left: {
-    element: document.getElementById(&quot;viewer-2&quot;),
-    key: &quot;left&quot;
-  },
-  front: {
-    element: document.getElementById(&quot;viewer-3&quot;),
-    key: &quot;front&quot;
+function applyLengthStrategy(state, displayPosition, pickedPoint) {
+  if (state.p1[0] &amp;&amp; state.p2[0]) {
+    state.p1 = displayPosition;
+    state.p1_world = pickedPoint;
+    state.p2 = [undefined, undefined];
+    state.p2_world = [undefined, undefined];
+    state.label = undefined;
+  } else {
+    if (state.p1[0]) {
+      state.p2 = displayPosition;
+      state.p2_world = pickedPoint;
+    } else {
+      state.p1 = displayPosition;
+      state.p1_world = pickedPoint;
+    }
   }
+
+  //compute distance
+  if (state.p1[0] &amp;&amp; state.p2[0]) {
+    let dist2 = vtkMath.distance2BetweenPoints(state.p1_world, state.p2_world);
+    let d = Math.sqrt(dist2).toFixed(1);
+    state.label = `${d} mm`;
+  } else {
+    state.label = "";
+  }
+}
+
+/**
+ * Apply the logic to measure angle between two segments
+ * @param {Object} state - The measurement state
+ */
+function applyAngleStrategy(state, displayPosition, pickedPoint) {
+  if (state.p1[0] &amp;&amp; state.p2[0] &amp;&amp; state.p3[0]) {
+    state.p1 = displayPosition;
+    state.p1_world = pickedPoint;
+    state.p2 = state.p3 = [undefined, undefined];
+    state.p2_world = state.p3_world = [undefined, undefined];
+    state.label = undefined;
+  } else {
+    if (state.p1[0] &amp;&amp; state.p2[0]) {
+      state.p3 = displayPosition;
+      state.p3_world = pickedPoint;
+    } else if (state.p1[0]) {
+      state.p2 = displayPosition;
+      state.p2_world = pickedPoint;
+    } else {
+      state.p1 = displayPosition;
+      state.p1_world = pickedPoint;
+    }
+  }
+
+  // compute angle
+  if (state.p1[0] &amp;&amp; state.p2[0] &amp;&amp; state.p3[0]) {
+    let vA = new Array(3);
+    let vB = new Array(3);
+    vtkMath.subtract(state.p2_world, state.p3_world, vA);
+    vtkMath.subtract(state.p2_world, state.p1_world, vB);
+    let angle = vtkMath.angleBetweenVectors(vA, vB);
+    let a = vtkMath.degreesFromRadians(angle).toFixed(1);
+    state.label = `${a}°`;
+  } else {
+    state.label = "";
+  }
+}
+
+const STRATEGIES = {
+  Length: applyLengthStrategy,
+  Angle: applyAngleStrategy
 };
 
-// import DigletTK
-import * as dtk from &quot;DigletTK&quot;;
-
-// load a dicom serie using larvitar glue function
-dtk.loadSerieWithLarvitar(larvitar, serie => {
-  let header = larvitar.buildHeader(serie);
-  let data = larvitar.buildData(serie, false);
-  // build vtk volume with larvitar
-  const image = dtk.buildVtkVolume(header, data);
-  // run mpr
-  mpr = new dtk.MPRManager(targetElements);
-  // get initial state obj: this object will be used to share data updates
-  state = mpr.getInitialState();
-  // set image
-  mpr.setImage(state, image);
-  // set active tool (&quot;level&quot; or &quot;crosshair&quot;)
-  mpr.setTool(&quot;level&quot;, state);
-  // change view rotation
-  mpr.onRotate(&quot;top&quot;, &quot;x&quot;, 30, state);
-  // change view MIP thickness
-  mpr.onThickness(&quot;top&quot;, &quot;x&quot;, 50, state);
-});
+export function applyStrategy(state, displayPosition, pickedPoint, mode) {
+  return STRATEGIES[mode](state, displayPosition, pickedPoint);
+}
 </code></pre>
-<h2 id="dev">DEV</h2>
-<p><code>yarn dev &amp;&amp; cp ./dist/diglettk.js ./docs/examples/diglettk.js</code> to build the lib and move it from <code>dist</code> folder to <code>examples</code>.</p>
-<p>then load the desired example with a webserver (eg VS code liveserver).</p>
-<p><code>yarn build</code> to build the librery for production</p>
-<p><code>yarn generate-docs</code> to build the documentation in the <code>documentation</code> folder.</p>
-<p><code>yarn codehawk</code> to run static code analysis with <a href="https://github.com/sgb-io/codehawk-cli">codehawk</a>.</p>
-<p>If you have <a href="https://github.com/sverweij/dependency-cruiser">dependency cruiser</a> globally installed, you can generate dependency graphs with:<br>
-<code>yarn dep:svg</code> to build a dependency graph (.svg)<br>
-<code>yarn dep:html</code> to build an interactive dependency graph (.html)</p>
-<h3 id="roadmap">RoadMap</h3>
-<p>--</p>
-<ul>
-<li>[x] Volume Rendering</li>
-<li>[x] Measuring tools</li>
-<li>[ ] Segmentations (Cornerstone.js &gt;&gt;&gt; data &gt;&gt;&gt; vtk.js)</li>
-<li>[x] Colormaps</li>
-<li>[ ] Multi Slice Image Mapper (a different MPR implementation)</li>
-</ul>
-<h3 id="todo">TODO</h3>
-<ul>
-<li>[x] documentation</li>
-<li>[x] <s>rollup config</s> webpack config</li>
-<li>[x] examples</li>
-<li>[x] npm package</li>
-<li>[ ] webpack-dev-server for a better dev experience</li>
-<li>[ ] update vtk.js version to latest (warn: mpr could stop working)</li>
-<li>[ ] remove yarn in favour of npm</li>
-</ul></article>
+        </article>
     </section>
-
-
 
 
 

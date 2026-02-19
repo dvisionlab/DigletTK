@@ -106,3 +106,5 @@ If you have [dependency cruiser](https://github.com/sverweij/dependency-cruiser)
 - [x] examples
 - [x] npm package
 - [ ] webpack-dev-server for a better dev experience
+- [ ] update vtk.js version to latest (warn: mpr could stop working)
+- [ ] remove yarn in favour of npm 
