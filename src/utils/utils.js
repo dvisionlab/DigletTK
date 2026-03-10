@@ -498,13 +498,21 @@ export function setupPGwidget(PGwidgetElement) {
   PGwidget.setContainer(PGwidgetElement); // Set to null to hide
 
   // resize callback
-  window.addEventListener("resize", evt => {
+  const onResize = () => {
     PGwidget.setSize(
       PGwidgetElement.offsetWidth - 5,
       PGwidgetElement.offsetHeight - 5
     );
     PGwidget.render();
-  });
+  };
+  window.addEventListener("resize", onResize);
+
+  // remove resize callback on widget deletion
+  const deletePGwidget = PGwidget.delete.bind(PGwidget);
+  PGwidget.delete = () => {
+    window.removeEventListener("resize", onResize);
+    deletePGwidget();
+  };
 
   return PGwidget;
 }
