@@ -3342,7 +3342,7 @@ __webpack_require__.d(mat3_namespaceObject, {
 });
 
 ;// ./package.json
-const package_namespaceObject = {"rE":"1.3.2"};
+const package_namespaceObject = {"rE":"1.3.3"};
 ;// ./node_modules/@babel/runtime/helpers/esm/defineProperty.js
 function _defineProperty(obj, key, value) {
   if (key in obj) {
@@ -49052,13 +49052,21 @@ function setupPGwidget(PGwidgetElement) {
   PGwidget.setContainer(PGwidgetElement); // Set to null to hide
 
   // resize callback
-  window.addEventListener("resize", evt => {
+  const onResize = () => {
     PGwidget.setSize(
       PGwidgetElement.offsetWidth - 5,
       PGwidgetElement.offsetHeight - 5
     );
     PGwidget.render();
-  });
+  };
+  window.addEventListener("resize", onResize);
+
+  // remove resize callback on widget deletion
+  const deletePGwidget = PGwidget.delete.bind(PGwidget);
+  PGwidget.delete = () => {
+    window.removeEventListener("resize", onResize);
+    deletePGwidget();
+  };
 
   return PGwidget;
 }
