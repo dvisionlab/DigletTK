@@ -49062,11 +49062,21 @@ function setupPGwidget(PGwidgetElement) {
   window.addEventListener("resize", onResize);
 
   // remove resize callback on widget deletion
-  const deletePGwidget = PGwidget.delete.bind(PGwidget);
-  PGwidget.delete = () => {
-    window.removeEventListener("resize", onResize);
-    deletePGwidget();
-  };
+  const deletePGwidget =
+    typeof PGwidget.delete === "function" ? PGwidget.delete.bind(PGwidget) : null;
+  if (deletePGwidget) {
+    const desc = Object.getOwnPropertyDescriptor(PGwidget, "delete");
+    const canOverride = !desc || desc.writable || desc.configurable;
+    if (canOverride) {
+      PGwidget.delete = () => {
+        window.removeEventListener("resize", onResize);
+        deletePGwidget();
+      };
+    } else if (Object.isExtensible(PGwidget)) {
+      // Non-writable delete: expose a cleanup hook without breaking execution.
+      PGwidget._dvRemoveResize = () => window.removeEventListener("resize", onResize);
+    }
+  }
 
   return PGwidget;
 }
